@@ -125,14 +125,47 @@ function Input({ label, value, onChange, placeholder, type = "text", error, styl
 }
 
 // ─────────────────────────────────────────────────────────────
+//  EMAILJS CONFIG — Real OTP emails
+// ─────────────────────────────────────────────────────────────
+const EMAILJS_SERVICE_ID = "service_cn10t29";
+const EMAILJS_TEMPLATE_ID = "template_u78jccs";
+const EMAILJS_PUBLIC_KEY = "E0vzUC5hOdSLjLmVw";
+
+async function sendEmailOTP({ toEmail, toName, otpCode }) {
+  // Use EmailJS REST API directly — no SDK needed, no CORS issues
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id: EMAILJS_SERVICE_ID,
+      template_id: EMAILJS_TEMPLATE_ID,
+      user_id: EMAILJS_PUBLIC_KEY,
+      template_params: {
+        to_name: toName || "Customer",
+        email: toEmail,
+        passcode: otpCode,
+        time: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString("en-BD"),
+      },
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "EmailJS error");
+  }
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────
 //  ── AUTH MODAL (Sign up / Login with OTP) ──
 // ─────────────────────────────────────────────────────────────
 function AuthModal({ open, onClose, onSuccess }) {
-  const [step, setStep] = useState("choose");   // choose | signup | login | otp
-  const [method, setMethod] = useState("email");    // email | phone
+  const [step, setStep] = useState("choose"); // choose|signup|login|otp|forgot|reset
+  const [method, setMethod] = useState("email");
   const [name, setName] = useState("");
-  const [contact, setContact] = useState("");         // email or phone
+  const [contact, setContact] = useState("");
   const [pw, setPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [isForgotFlow, setIsForgotFlow] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [genOtp, setGenOtp] = useState("");
   const [timer, setTimer] = useState(60);
@@ -149,30 +182,39 @@ function AuthModal({ open, onClose, onSuccess }) {
     }, 1000);
   };
 
-  const sendOTP = (isResend = false) => {
+  const sendOTP = async (isResend = false, isForgot = false) => {
     const err = {};
-    if (step === "signup" || isResend) {
+    if ((step === "signup" || isResend) && !isForgot) {
       if (!name.trim()) err.name = "Required";
     }
     if (!contact.trim()) err.contact = "Required";
-    if (method === "email" && contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email";
-    if (method === "phone" && contact && !/^01[0-9]{9}$/.test(contact.replace(/\s/g, ""))) err.contact = "Enter valid BD phone (01XXXXXXXXX)";
-    if (!pw.trim() && step !== "login_otp") err.pw = "Required";
+    if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email address";
+    if (!pw.trim() && !isForgot) err.pw = "Required";
+
+    // Check duplicate email on signup
+    if (step === "signup" && !isForgot) {
+      const existing = ls.get("oc_account");
+      if (existing && existing.contact === contact.trim()) {
+        err.contact = "This email is already registered. Please login instead.";
+      }
+    }
+
     if (Object.keys(err).length) { setErrors(err); return; }
 
     setLoading(true);
     const code = genOTP();
     setGenOtp(code);
 
-    // In production: call your Firebase/Twilio API here
-    // For now we simulate and show the code in a banner
-    setTimeout(() => {
+    try {
+      await sendEmailOTP({ toEmail: contact, toName: name || "Customer", otpCode: code });
       setLoading(false);
       setStep("otp");
       setOtp(["", "", "", "", "", ""]);
       startTimer();
-      console.log(`[DEV] OTP for ${contact}: ${code}`);
-    }, 1200);
+    } catch (e) {
+      setLoading(false);
+      setErrors({ contact: "Failed to send email. Please check the address and try again." });
+    }
   };
 
   const handleOtpChange = (i, val) => {
@@ -187,27 +229,40 @@ function AuthModal({ open, onClose, onSuccess }) {
     if (entered.length < 6) { setErrors({ otp: "Enter all 6 digits" }); return; }
     if (entered !== genOtp) { setErrors({ otp: "Incorrect OTP. Try again." }); return; }
 
-    // Success
-    const acc = {
-      name: name || "Customer",
-      contact,
-      method,
-      joined: new Date().toLocaleDateString("en-BD"),
-      orders: [],
-      avatar: "",
-    };
+    if (isForgotFlow) {
+      // Go to reset password step
+      setStep("reset");
+      setErrors({});
+      return;
+    }
+
+    // Normal signup/login success
+    const existing = ls.get("oc_account");
+    const acc = step === "login" && existing?.contact === contact
+      ? { ...existing }
+      : { name: name || "Customer", contact, method: "email", joined: new Date().toLocaleDateString("en-BD"), orders: [], avatar: "" };
     ls.set("oc_account", acc);
     onSuccess(acc);
     resetAll();
   };
 
+  const resetPassword = () => {
+    if (!newPw.trim() || newPw.length < 6) { setErrors({ newPw: "Password must be at least 6 characters" }); return; }
+    const existing = ls.get("oc_account") || {};
+    const updated = { ...existing, contact, pw: newPw };
+    ls.set("oc_account", updated);
+    onSuccess(updated);
+    resetAll();
+  };
+
   const resetAll = () => {
-    setStep("choose"); setName(""); setContact(""); setPw(""); setOtp(["", "", "", "", "", ""]); setErrors({});
+    setStep("choose"); setName(""); setContact(""); setPw(""); setNewPw("");
+    setOtp(["", "", "", "", "", ""]); setErrors({}); setIsForgotFlow(false);
   };
 
   if (!open) return null;
 
-  // ── STEP: Choose method ──
+  // ── STEP: Choose method — Email only ──
   if (step === "choose") return (
     <Overlay onClose={onClose}>
       <ModalHeader title="Welcome 👋" sub="Sign in or create your account" onClose={() => { onClose(); resetAll(); }} />
@@ -215,18 +270,14 @@ function AuthModal({ open, onClose, onSuccess }) {
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 18, background: "#FFF8E7", padding: "10px 14px", borderRadius: 8, border: `1px solid #F5E4B0`, lineHeight: 1.6 }}>
           💡 <strong>Account is optional.</strong> You can shop without one — but an account lets you track orders, save your address, and manage your profile.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          {[["📧", "Email", "Use your email address", "email"], ["📱", "Phone", "Use your BD phone number", "phone"]].map(([ic, t, d, m]) => (
-            <button key={m} onClick={() => { setMethod(m); setStep("signup"); }}
-              style={{ border: `2px solid ${C.border}`, borderRadius: 14, padding: "18px 14px", background: "#fff", cursor: "pointer", textAlign: "center", transition: "all .2s", fontFamily: "inherit" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "#FEF2F2"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "#fff"; }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>{ic}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{t}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{d}</div>
-            </button>
-          ))}
-        </div>
+        <button onClick={() => { setMethod("email"); setStep("signup"); }}
+          style={{ width: "100%", border: `2px solid ${C.border}`, borderRadius: 14, padding: "20px", background: "#fff", cursor: "pointer", textAlign: "center", transition: "all .2s", fontFamily: "inherit", marginBottom: 14 }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "#FEF2F2"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "#fff"; }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>📧</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>Continue with Email</div>
+          <div style={{ fontSize: 12, color: C.muted }}>We'll send a 6-digit OTP to your email</div>
+        </button>
         <div style={{ textAlign: "center", fontSize: 13, color: C.muted }}>
           Already have an account? <span onClick={() => setStep("login")} style={{ color: C.primary, fontWeight: 700, cursor: "pointer" }}>Login →</span>
         </div>
@@ -240,15 +291,14 @@ function AuthModal({ open, onClose, onSuccess }) {
   // ── STEP: Sign up ──
   if (step === "signup") return (
     <Overlay onClose={onClose}>
-      <ModalHeader title={`Sign Up with ${method === "email" ? "Email 📧" : "Phone 📱"}`} sub="Create your Outback Cartel account" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
+      <ModalHeader title="Create Account 📧" sub="Sign up with your email address" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
       <div style={{ padding: "22px 24px 24px" }}>
         <Input label="Full Name" value={name} onChange={e => { setName(e.target.value); setErrors({}); }} placeholder="Your full name" error={errors.name} />
-        <Input label={method === "email" ? "Email Address" : "Phone Number (01XXXXXXXXX)"} value={contact}
-          onChange={e => { setContact(e.target.value); setErrors({}); }} placeholder={method === "email" ? "you@email.com" : "01XXXXXXXXX"} type={method === "email" ? "email" : "tel"} error={errors.contact} />
+        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }} placeholder="you@email.com" type="email" error={errors.contact} />
         <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Create a password" type="password" error={errors.pw} />
-        <OTPInfoBanner method={method} contact={contact} />
+        <OTPInfoBanner method="email" contact={contact} />
         <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending OTP…" : `Send OTP →`}
+          {loading ? "⏳ Sending OTP to your email…" : "Send OTP →"}
         </Btn>
         <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
           Already have an account? <span onClick={() => { setStep("login"); setErrors({}); }} style={{ color: C.primary, fontWeight: 700, cursor: "pointer" }}>Login</span>
@@ -262,22 +312,55 @@ function AuthModal({ open, onClose, onSuccess }) {
     <Overlay onClose={onClose}>
       <ModalHeader title="Login 🔑" sub="Welcome back!" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
       <div style={{ padding: "22px 24px 24px" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[["📧", "Email", "email"], ["📱", "Phone", "phone"]].map(([ic, l, m]) => (
-            <button key={m} onClick={() => { setMethod(m); setErrors({}); }}
-              style={{ flex: 1, border: `2px solid ${method === m ? C.primary : C.border}`, borderRadius: 10, padding: "10px", background: method === m ? "#FEF2F2" : "#fff", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, color: method === m ? C.primary : C.muted, transition: "all .2s" }}>{ic} {l}</button>
-          ))}
-        </div>
-        <Input label={method === "email" ? "Email" : "Phone"} value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
-          placeholder={method === "email" ? "you@email.com" : "01XXXXXXXXX"} error={errors.contact} />
+        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
+          placeholder="you@email.com" type="email" error={errors.contact} />
         <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Your password" type="password" error={errors.pw} />
-        <OTPInfoBanner method={method} contact={contact} isLogin />
+        <div style={{ textAlign: "right", marginTop: -8, marginBottom: 14 }}>
+          <span onClick={() => { setIsForgotFlow(true); setStep("forgot"); setErrors({}); }} style={{ fontSize: 12, color: C.primary, fontWeight: 600, cursor: "pointer" }}>Forgot password?</span>
+        </div>
+        <OTPInfoBanner method="email" contact={contact} isLogin />
         <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
           {loading ? "⏳ Sending OTP…" : "Send OTP to Verify →"}
         </Btn>
         <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
           No account? <span onClick={() => { setStep("signup"); setErrors({}); }} style={{ color: C.primary, fontWeight: 700, cursor: "pointer" }}>Sign Up</span>
         </p>
+      </div>
+    </Overlay>
+  );
+
+  // ── STEP: Forgot Password ──
+  if (step === "forgot") return (
+    <Overlay onClose={onClose}>
+      <ModalHeader title="Reset Password 🔒" sub="Enter your email to receive a reset code" onClose={() => { onClose(); resetAll(); }} back={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} />
+      <div style={{ padding: "22px 24px 24px" }}>
+        <div style={{ background: "#EEF4FF", border: "1px solid #C7D7F7", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "#003366", lineHeight: 1.6 }}>
+          🔐 Enter the email address linked to your account. We'll send you a 6-digit code to reset your password.
+        </div>
+        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
+          placeholder="you@email.com" type="email" error={errors.contact} />
+        <Btn onClick={() => { const err = {}; if (!contact.trim()) err.contact = "Required"; if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email"; if (Object.keys(err).length) { setErrors(err); return; } sendOTP(false, true); }} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
+          {loading ? "⏳ Sending reset code…" : "Send Reset Code →"}
+        </Btn>
+        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
+          Remembered your password? <span onClick={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} style={{ color: C.primary, fontWeight: 700, cursor: "pointer" }}>Login</span>
+        </p>
+      </div>
+    </Overlay>
+  );
+
+  // ── STEP: Reset Password (after OTP verified) ──
+  if (step === "reset") return (
+    <Overlay onClose={onClose}>
+      <ModalHeader title="New Password 🔑" sub="Choose a strong new password" onClose={() => { onClose(); resetAll(); }} />
+      <div style={{ padding: "22px 24px 24px" }}>
+        <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "#1B5E20" }}>
+          ✅ Identity verified! Now set your new password for <strong>{contact}</strong>
+        </div>
+        <Input label="New Password" value={newPw} onChange={e => { setNewPw(e.target.value); setErrors({}); }} placeholder="Minimum 6 characters" type="password" error={errors.newPw} />
+        <Btn onClick={resetPassword} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>
+          🔑 Set New Password & Login →
+        </Btn>
       </div>
     </Overlay>
   );
@@ -290,13 +373,8 @@ function AuthModal({ open, onClose, onSuccess }) {
 
         {/* Destination display */}
         <div style={{ background: "#F0F4FF", border: "1px solid #C7D7F7", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "#003366" }}>
-          {method === "email" ? "📧" : "📱"} Code sent to: <strong>{contact}</strong>
-        </div>
-
-        {/* DEV banner - remove in production */}
-        <div style={{ background: "#FFF3CD", border: "1px solid #F5C842", borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 12, color: "#856404" }}>
-          🛠️ <strong>Demo mode:</strong> Your OTP is <strong style={{ fontSize: 16, letterSpacing: 2 }}>{genOtp}</strong><br />
-          <span style={{ fontSize: 11, opacity: .7 }}>(In production, replace with Firebase/Twilio — remove this banner)</span>
+          📧 Code sent to: <strong>{contact}</strong><br />
+          <span style={{ fontSize: 11, color: "#5A6A8A", marginTop: 4, display: "block" }}>Check your inbox (and spam folder just in case)</span>
         </div>
 
         {/* 6-box OTP input */}
@@ -375,11 +453,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const [trackErr, setTrackErr] = useState("");
   const fileRef = useRef();
 
-  const DEMO_ORDERS = account.orders?.length > 0 ? account.orders : [
-    { id: "OC-00000001", date: "2026-04-10", items: ["Samsung Galaxy A35 5G", "JBL Earbuds"], total: 36498, status: "delivered", steps: 4 },
-    { id: "OC-00000002", date: "2026-04-28", items: ["Anti-Theft Backpack", "Travel Cubes"], total: 4798, status: "on_the_way", steps: 3 },
-    { id: "OC-00000003", date: "2026-05-05", items: ["LED Face Mask Therapy Device"], total: 3999, status: "processing", steps: 2 },
-  ];
+  const ORDERS = account.orders?.length > 0 ? account.orders : [];
 
   const STATUS_COLORS = { delivered: "#2E7D52", on_the_way: C.primary, processing: C.accent, confirmed: "#0369A1" };
   const STATUS_LABELS = { delivered: "Delivered ✅", on_the_way: "Out for Delivery 🚚", processing: "Processing 📦", confirmed: "Confirmed ✔️" };
@@ -410,9 +484,9 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const trackOrder = () => {
     setTrackErr(""); setTrackResult(null);
     if (!trackId.trim()) { setTrackErr("Enter an Order ID"); return; }
-    const found = DEMO_ORDERS.find(o => o.id === trackId.trim());
+    const found = ORDERS.find(o => o.id === trackId.trim());
     if (found) setTrackResult(found);
-    else setTrackErr("Order not found. Try OC-00000001, OC-00000002, or OC-00000003");
+    else setTrackErr("Order not found. Check your Order ID or WhatsApp us at 01881816245");
   };
 
   const TABS = [
@@ -471,9 +545,9 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
             <div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
                 {[
-                  { icon: "📦", value: DEMO_ORDERS.length, label: "Total Orders", color: C.primary },
-                  { icon: "✅", value: DEMO_ORDERS.filter(o => o.status === "delivered").length, label: "Delivered", color: C.green },
-                  { icon: "🚚", value: DEMO_ORDERS.filter(o => o.status !== "delivered").length, label: "Active", color: C.accent },
+                  { icon: "📦", value: ORDERS.length, label: "Total Orders", color: C.primary },
+                  { icon: "✅", value: ORDERS.filter(o => o.status === "delivered").length, label: "Delivered", color: C.green },
+                  { icon: "🚚", value: ORDERS.filter(o => o.status !== "delivered").length, label: "Active", color: C.accent },
                 ].map(s => (
                   <div key={s.label} style={{ background: C.bg, borderRadius: 12, padding: "14px 10px", textAlign: "center", border: `1px solid ${C.border}` }}>
                     <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
@@ -487,17 +561,29 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 4, height: 16, background: C.primary, borderRadius: 4, display: "inline-block" }} /> Recent Orders
               </div>
-              {DEMO_ORDERS.slice(0, 2).map(o => (
-                <div key={o.id} style={{ background: C.bg, borderRadius: 12, padding: "13px 14px", marginBottom: 10, border: `1px solid ${C.border}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>{o.id}</span>
-                    <span style={{ background: STATUS_COLORS[o.status] || C.muted, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 50 }}>{STATUS_LABELS[o.status]}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 3 }}>{o.date} · {o.items.length} item{o.items.length > 1 ? "s" : ""}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{fmt(o.total)}</div>
+
+              {ORDERS.length === 0 ? (
+                <div style={{ background: C.bg, borderRadius: 12, padding: "28px 20px", textAlign: "center", border: `1px solid ${C.border}`, marginBottom: 12 }}>
+                  <div style={{ fontSize: 40, marginBottom: 10 }}>🛍️</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.dark, marginBottom: 6 }}>No orders yet</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Your orders will appear here once you place one.</div>
+                  <button onClick={onClose} style={{ background: C.primary, color: "#fff", border: "none", padding: "9px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Start Shopping →</button>
                 </div>
-              ))}
-              <button onClick={() => setTab("orders")} style={{ width: "100%", background: "none", border: `2px dashed ${C.border}`, borderRadius: 10, padding: "11px", fontSize: 13, fontWeight: 600, color: C.muted, cursor: "pointer", fontFamily: "inherit" }}>View all orders →</button>
+              ) : (
+                <>
+                  {ORDERS.slice(0, 2).map(o => (
+                    <div key={o.id} style={{ background: C.bg, borderRadius: 12, padding: "13px 14px", marginBottom: 10, border: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>{o.id}</span>
+                        <span style={{ background: STATUS_COLORS[o.status] || C.muted, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 50 }}>{STATUS_LABELS[o.status]}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 3 }}>{o.date} · {o.items.length} item{o.items.length > 1 ? "s" : ""}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{fmt(o.total)}</div>
+                    </div>
+                  ))}
+                  <button onClick={() => setTab("orders")} style={{ width: "100%", background: "none", border: `2px dashed ${C.border}`, borderRadius: 10, padding: "11px", fontSize: 13, fontWeight: 600, color: C.muted, cursor: "pointer", fontFamily: "inherit" }}>View all orders →</button>
+                </>
+              )}
 
               {/* Quick actions */}
               <div style={{ fontSize: 13, fontWeight: 700, margin: "18px 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -525,9 +611,16 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
           {tab === "orders" && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 4, height: 16, background: C.primary, borderRadius: 4, display: "inline-block" }} /> Order History ({DEMO_ORDERS.length})
+                <span style={{ width: 4, height: 16, background: C.primary, borderRadius: 4, display: "inline-block" }} /> Order History ({ORDERS.length})
               </div>
-              {DEMO_ORDERS.map(o => (
+              {ORDERS.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.dark, marginBottom: 6 }}>No orders yet</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Once you place an order, it will appear here with live tracking.</div>
+                  <button onClick={onClose} style={{ background: C.primary, color: "#fff", border: "none", padding: "10px 24px", borderRadius: 50, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Browse Products →</button>
+                </div>
+              ) : ORDERS.map(o => (
                 <div key={o.id} style={{ background: "#fff", borderRadius: 14, padding: "16px", marginBottom: 12, border: `1px solid ${C.border}`, boxShadow: "0 2px 8px rgba(0,0,0,.05)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                     <div>
@@ -573,20 +666,24 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
               </div>
               <div style={{ marginBottom: 12 }}>
                 <input value={trackId} onChange={e => { setTrackId(e.target.value); setTrackErr(""); }}
-                  placeholder="Enter Order ID (e.g. OC-00000001)"
+                  placeholder="Enter your Order ID (e.g. OC-12345678)"
                   style={{ width: "100%", border: `2px solid ${trackErr ? C.primary : C.border}`, borderRadius: 9, padding: "12px 14px", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
                 {trackErr && <p style={{ color: C.primary, fontSize: 11, marginTop: 4 }}>⚠️ {trackErr}</p>}
               </div>
               <Btn onClick={trackOrder} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 16 }}>🔍 Track Order</Btn>
 
-              {/* Quick select from orders */}
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8 }}>Or pick from your orders:</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                {DEMO_ORDERS.map(o => (
-                  <button key={o.id} onClick={() => { setTrackId(o.id); setTrackResult(null); setTrackErr(""); }}
-                    style={{ background: trackId === o.id ? "#FEF2F2" : "#fff", border: `2px solid ${trackId === o.id ? C.primary : C.border}`, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", color: trackId === o.id ? C.primary : C.muted }}>{o.id}</button>
-                ))}
-              </div>
+              {/* Quick select from orders — only if user has orders */}
+              {ORDERS.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8 }}>Or pick from your orders:</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+                    {ORDERS.map(o => (
+                      <button key={o.id} onClick={() => { setTrackId(o.id); setTrackResult(null); setTrackErr(""); }}
+                        style={{ background: trackId === o.id ? "#FEF2F2" : "#fff", border: `2px solid ${trackId === o.id ? C.primary : C.border}`, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", color: trackId === o.id ? C.primary : C.muted }}>{o.id}</button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {trackResult && (
                 <div style={{ background: "#fff", borderRadius: 14, padding: "18px", border: `1px solid ${C.border}`, boxShadow: "0 2px 10px rgba(0,0,0,.07)" }}>
@@ -700,29 +797,252 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  PRODUCT DETAIL PAGE
+// ─────────────────────────────────────────────────────────────
+const SAMPLE_REVIEWS = [
+  { name: "Rafiq Ahmed", rating: 5, date: "2026-04-12", text: "Excellent product! Delivery was super fast to Dhaka. Highly recommended." },
+  { name: "Nusrat Jahan", rating: 4, date: "2026-04-20", text: "Good quality, matches the description. Packaging was nice." },
+  { name: "Karim Hossain", rating: 5, date: "2026-05-01", text: "Bought as a gift. My friend loved it! Will order again." },
+  { name: "Fatema Akter", rating: 4, date: "2026-05-03", text: "Fast delivery. Product is exactly as shown. Happy with purchase." },
+];
+
+function StarRating({ rating, size = 14 }) {
+  return (
+    <span style={{ color: C.accent, fontSize: size }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <span key={i} style={{ opacity: i <= rating ? 1 : 0.25 }}>★</span>
+      ))}
+    </span>
+  );
+}
+
+function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
+  const [qty, setQty] = useState(1);
+  const [activeTab, setActiveTab] = useState("description");
+  const [addedMsg, setAddedMsg] = useState(false);
+  const cc = CATS.find(c => c.key === product.cat)?.color || C.primary;
+  const disc = product.old ? Math.round((1 - product.price / product.old) * 100) : 0;
+  const avgRating = (SAMPLE_REVIEWS.reduce((s, r) => s + r.rating, 0) / SAMPLE_REVIEWS.length).toFixed(1);
+
+  const handleAdd = () => {
+    for (let i = 0; i < qty; i++) onAdd(product);
+    setAddedMsg(true);
+    setTimeout(() => setAddedMsg(false), 2000);
+  };
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh" }}>
+      {/* Breadcrumb */}
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "14px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted }}>
+          <span onClick={onBack} style={{ cursor: "pointer", color: C.primary, fontWeight: 600 }}>← Back</span>
+          <span>/</span>
+          <span onClick={onBack} style={{ cursor: "pointer" }}>Shop</span>
+          <span>/</span>
+          <span style={{ color: C.dark, fontWeight: 500 }}>{product.name.substring(0, 30)}{product.name.length > 30 ? "…" : ""}</span>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px 40px" }}>
+        {/* Main product section */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 32 }}>
+
+          {/* Image */}
+          <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: `1px solid ${C.border}`, boxShadow: "0 4px 20px rgba(0,0,0,.07)" }}>
+            <div style={{ height: 380, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${cc}14,${cc}06)`, position: "relative" }}>
+              {product.badge && (
+                <span style={{ position: "absolute", top: 16, left: 16, background: product.badge === "Hot" ? C.accent : product.badge === "New" ? C.green : C.primary, color: product.badge === "Hot" ? "#1C1C1C" : "#fff", fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 50 }}>{product.badge}</span>
+              )}
+              {disc > 0 && (
+                <span style={{ position: "absolute", top: 16, right: 16, background: C.primary, color: "#fff", fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 50 }}>-{disc}% OFF</span>
+              )}
+              {product.img
+                ? <img src={product.img} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} />
+                : <span style={{ fontSize: 120 }}>{product.icon || "📦"}</span>
+              }
+            </div>
+          </div>
+
+          {/* Info */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, color: cc, fontWeight: 700, textTransform: "uppercase", letterSpacing: .8, marginBottom: 6 }}>
+                {CATS.find(c => c.key === product.cat)?.icon} {CATS.find(c => c.key === product.cat)?.label}
+              </div>
+              <h1 style={{ fontSize: 22, fontWeight: 800, color: C.dark, lineHeight: 1.3, margin: "0 0 10px" }}>{product.name}</h1>
+
+              {/* Rating */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <StarRating rating={Math.round(parseFloat(avgRating))} size={16} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{avgRating}</span>
+                <span style={{ fontSize: 12, color: C.muted }}>({SAMPLE_REVIEWS.length} reviews)</span>
+              </div>
+
+              {/* Price */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+                <span style={{ fontSize: 30, fontWeight: 900, color: C.primary }}>{fmt(product.price)}</span>
+                {product.old && <span style={{ fontSize: 16, color: C.muted, textDecoration: "line-through" }}>{fmt(product.old)}</span>}
+              </div>
+              {product.old && <div style={{ fontSize: 13, color: C.green, fontWeight: 600, marginBottom: 14 }}>You save {fmt(product.old - product.price)} ({disc}% off)</div>}
+            </div>
+
+            {/* Features */}
+            <div style={{ background: C.bg, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}` }}>
+              {[["🚚", "Fast Delivery", "Dhaka 1-2 days · Bangladesh 3-5 days"], ["🔄", "Easy Returns", "7-day hassle-free returns"], ["🔒", "Secure Payment", "SSLCommerz · bKash · Nagad · COD"], ["✅", "Quality Check", "Verified before dispatch"]].map(([ic, t, d]) => (
+                <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, lastChild: { marginBottom: 0 } }}>
+                  <span style={{ fontSize: 16 }}>{ic}</span>
+                  <div>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{t}</span>
+                    <span style={{ fontSize: 12, color: C.muted }}> — {d}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Qty + Buttons */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Quantity:</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, border: `2px solid ${C.border}`, borderRadius: 10, padding: "4px 10px" }}>
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                  <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>
+                  <button onClick={() => setQty(q => q + 1)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+                <span style={{ fontSize: 12, color: C.muted }}>Total: <strong style={{ color: C.primary }}>{fmt(product.price * qty)}</strong></span>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={handleAdd}
+                  style={{ flex: 1, background: addedMsg ? "#2E7D52" : "#fff", color: addedMsg ? C.green : C.primary, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
+                  {addedMsg ? "✅ Added!" : "🛒 Add to Cart"}
+                </button>
+                <button onClick={() => { onAdd(product); onBuyNow(); }}
+                  style={{ flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  ⚡ Buy Now
+                </button>
+              </div>
+
+              <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20I%20want%20to%20order:%20${encodeURIComponent(product.name)}`} target="_blank" rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 10, background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px", borderRadius: 12, fontSize: 14, fontWeight: 700, boxSizing: "border-box" }}>
+                💬 Order via WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs: Description / Reviews */}
+        <div style={{ background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
+          <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
+            {[["description", "📋 Description"], ["reviews", "⭐ Reviews"]].map(([k, l]) => (
+              <button key={k} onClick={() => setActiveTab(k)}
+                style={{ flex: 1, background: "none", border: "none", padding: "14px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: activeTab === k ? C.primary : C.muted, borderBottom: activeTab === k ? `3px solid ${C.primary}` : "3px solid transparent", transition: "all .2s" }}>{l}</button>
+            ))}
+          </div>
+
+          <div style={{ padding: "24px" }}>
+            {activeTab === "description" && (
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}>About this product</h3>
+                <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.8, marginBottom: 16 }}>
+                  {product.name} is a premium quality product available exclusively at Outback Cartel. Carefully sourced and quality-checked before dispatch to ensure you receive exactly what you ordered.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {[["Category", CATS.find(c => c.key === product.cat)?.label || product.cat], ["Condition", "Brand New"], ["Warranty", "As per manufacturer"], ["Delivery", "Nationwide Bangladesh"], ["Return Policy", "7 days"], ["Payment", "bKash · Nagad · Rocket · COD"]].map(([k, v]) => (
+                    <div key={k} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+                      <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .4, marginBottom: 3 }}>{k}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "reviews" && (
+              <div>
+                {/* Rating summary */}
+                <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24, padding: "16px 20px", background: C.bg, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 44, fontWeight: 900, color: C.primary, lineHeight: 1 }}>{avgRating}</div>
+                    <StarRating rating={Math.round(parseFloat(avgRating))} size={18} />
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{SAMPLE_REVIEWS.length} reviews</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    {[5, 4, 3, 2, 1].map(star => {
+                      const count = SAMPLE_REVIEWS.filter(r => r.rating === star).length;
+                      const pct = Math.round((count / SAMPLE_REVIEWS.length) * 100);
+                      return (
+                        <div key={star} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, color: C.muted, width: 12 }}>{star}</span>
+                          <span style={{ color: C.accent, fontSize: 11 }}>★</span>
+                          <div style={{ flex: 1, height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: C.accent, borderRadius: 3 }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: C.muted, width: 26 }}>{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Review list */}
+                {SAMPLE_REVIEWS.map((r, i) => (
+                  <div key={i} style={{ padding: "16px 0", borderBottom: i < SAMPLE_REVIEWS.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{r.name.charAt(0)}</div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{r.name}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{r.date}</div>
+                        </div>
+                      </div>
+                      <StarRating rating={r.rating} size={13} />
+                    </div>
+                    <p style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.7, margin: "0 0 0 46px" }}>{r.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 //  PRODUCT CARD
 // ─────────────────────────────────────────────────────────────
-function ProductCard({ p, onAdd }) {
+function ProductCard({ p, onAdd, onView }) {
   const [hov, setHov] = useState(false);
   const disc = p.old ? Math.round((1 - p.price / p.old) * 100) : 0;
   const cc = CATS.find(c => c.key === p.cat)?.color || C.primary;
   return (
-    <div onClick={() => onAdd(p)} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ background: C.card, borderRadius: 14, overflow: "hidden", cursor: "pointer", boxShadow: hov ? "0 12px 32px rgba(0,0,0,.14)" : "0 2px 12px rgba(0,0,0,.07)", transform: hov ? "translateY(-4px)" : "none", transition: "all .2s", position: "relative", border: `1px solid ${C.border}` }}>
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ background: C.card, borderRadius: 14, overflow: "hidden", boxShadow: hov ? "0 12px 32px rgba(0,0,0,.14)" : "0 2px 12px rgba(0,0,0,.07)", transform: hov ? "translateY(-4px)" : "none", transition: "all .2s", position: "relative", border: `1px solid ${C.border}` }}>
       {p.badge && <span style={{ position: "absolute", top: 10, left: 10, zIndex: 2, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 50, color: p.badge === "Hot" ? "#1C1C1C" : "#fff", background: p.badge === "New" ? C.green : p.badge === "Hot" ? C.accent : C.primary }}>{p.badge}</span>}
       {disc > 0 && <span style={{ position: "absolute", top: 10, right: 10, zIndex: 2, background: C.primary, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 50 }}>-{disc}%</span>}
-      <div style={{ height: 170, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${cc}14,${cc}08)`, overflow: "hidden" }}>
+      {/* Clickable image area → product page */}
+      <div onClick={() => onView(p)} style={{ height: 170, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${cc}14,${cc}08)`, overflow: "hidden", cursor: "pointer" }}>
         {p.img ? <img src={p.img} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} /> : <span style={{ fontSize: 60 }}>{p.icon || "📦"}</span>}
       </div>
       <div style={{ padding: "12px 14px" }}>
-        <div style={{ fontSize: 10, color: cc, fontWeight: 700, textTransform: "uppercase", letterSpacing: .6, marginBottom: 4 }}>{CATS.find(c => c.key === p.cat)?.icon} {CATS.find(c => c.key === p.cat)?.label}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.dark, lineHeight: 1.3, marginBottom: 8, minHeight: 32, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.primary }}>{fmt(p.price)}</div>
-            {p.old && <div style={{ fontSize: 11, color: C.muted, textDecoration: "line-through" }}>{fmt(p.old)}</div>}
+        <div onClick={() => onView(p)} style={{ cursor: "pointer" }}>
+          <div style={{ fontSize: 10, color: cc, fontWeight: 700, textTransform: "uppercase", letterSpacing: .6, marginBottom: 4 }}>{CATS.find(c => c.key === p.cat)?.icon} {CATS.find(c => c.key === p.cat)?.label}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.dark, lineHeight: 1.3, marginBottom: 8, minHeight: 32, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: C.primary }}>{fmt(p.price)}</span>
+            {p.old && <span style={{ fontSize: 11, color: C.muted, textDecoration: "line-through" }}>{fmt(p.old)}</span>}
           </div>
-          <button onClick={e => { e.stopPropagation(); onAdd(p); }} style={{ background: C.primary, color: "#fff", border: "none", width: 34, height: 34, borderRadius: "50%", fontSize: 20, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+        </div>
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 7 }}>
+          <button onClick={() => onAdd(p)} style={{ flex: 1, background: "#fff", color: C.primary, border: `2px solid ${C.primary}`, borderRadius: 9, padding: "8px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.color = "#fff"; }} onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = C.primary; }}>
+            🛒 Cart
+          </button>
+          <button onClick={() => onView(p)} style={{ flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 9, padding: "8px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            View →
+          </button>
         </div>
       </div>
     </div>
@@ -1194,7 +1514,7 @@ function AIChatbot({ products }) {
 // ─────────────────────────────────────────────────────────────
 //  SHOP PAGE
 // ─────────────────────────────────────────────────────────────
-function ShopPage({ products, onAdd, activeCat, onCatChange }) { const [search, setSearch] = useState(""); const filtered = products.filter(p => (activeCat === "all" || p.cat === activeCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase()))); const cat = CATS.find(c => c.key === activeCat) || CATS[0]; return <div><div style={{ background: `linear-gradient(135deg,${C.dark},#2C1810)`, color: "#fff", padding: "46px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}><div style={{ position: "absolute", top: -50, left: -50, width: 200, height: 200, background: "rgba(200,57,43,.12)", borderRadius: "50%" }} /><div style={{ position: "absolute", bottom: -70, right: -30, width: 240, height: 240, background: "rgba(232,160,32,.08)", borderRadius: "50%" }} /><div style={{ position: "relative", maxWidth: 600, margin: "0 auto" }}><span style={{ display: "inline-block", background: C.primary, fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 50, marginBottom: 12, letterSpacing: 1.5, textTransform: "uppercase" }}>🔥 Premium Store</span><h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.1, marginBottom: 12, letterSpacing: -1 }}>Quality Products,<br /><span style={{ color: C.accent }}>Delivered Fast!</span></h1><p style={{ fontSize: 14, color: "rgba(255,255,255,.65)", marginBottom: 22, lineHeight: 1.7 }}>Electronics · Phone Accessories · Beauty Tech · Smartwatches · Gaming · Travel & more</p><div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}><Btn onClick={() => onCatChange("all")} style={{ padding: "12px 28px", fontSize: 14, borderRadius: 50 }}>Shop Now →</Btn><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>💬 WhatsApp</a></div></div></div><div style={{ background: "#fff", padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}><div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>🔒 Secure:</span>{[["bKash", "#E2136E"], ["Nagad", "#F05A28"], ["Rocket", "#8B2FC9"], ["Visa", "#003366"], ["COD", "#555"]].map(([l, bg]) => <span key={l} style={{ background: bg, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>{l}</span>)}<span style={{ marginLeft: "auto", fontSize: 11, color: C.muted }}>Free delivery above ৳999</span></div></div><div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 24 }}>{[["🚚", "Fast Delivery", "Dhaka 1-2d | BD 3-5d"], ["💳", "SSLCommerz", "bKash · Nagad · Cards"], ["🔄", "7-Day Returns", "Hassle free"], ["💬", "WhatsApp", "Text only support"]].map(([icon, t, d]) => <div key={t} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 8px rgba(0,0,0,.05)", border: `1px solid ${C.border}` }}><span style={{ fontSize: 24 }}>{icon}</span><div><div style={{ fontSize: 12, fontWeight: 700 }}>{t}</div><div style={{ fontSize: 10, color: C.muted }}>{d}</div></div></div>)}</div><div style={{ display: "flex", gap: 7, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>{CATS.map(c => <button key={c.key} onClick={() => onCatChange(c.key)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500, border: `2px solid ${activeCat === c.key ? c.color : C.border}`, background: activeCat === c.key ? c.color : "#fff", color: activeCat === c.key ? "#fff" : C.muted, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s", fontFamily: "inherit", flexShrink: 0 }}>{c.icon} {c.label}</button>)}</div><div style={{ display: "flex", border: `2px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 18 }}><input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search in ${cat.label}…`} style={{ flex: 1, border: "none", outline: "none", padding: "11px 16px", fontSize: 14, fontFamily: "inherit", background: "transparent" }} />{search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", padding: "11px 14px", cursor: "pointer", fontSize: 15, color: C.muted }}>✕</button>}</div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 20, background: cat.color || C.primary, borderRadius: 4, display: "inline-block" }} />{cat.icon} {cat.label}</h2><span style={{ fontSize: 12, color: C.muted }}>{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span></div>{filtered.length === 0 ? <div style={{ textAlign: "center", padding: "50px 20px", color: C.muted }}><div style={{ fontSize: 48, marginBottom: 10 }}>🔍</div><p style={{ fontSize: 14 }}>No products found.</p></div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>{filtered.map(p => <ProductCard key={p.id} p={p} onAdd={onAdd} />)}</div>}</div></div>; }
+function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [search, setSearch] = useState(""); const filtered = products.filter(p => (activeCat === "all" || p.cat === activeCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase()))); const cat = CATS.find(c => c.key === activeCat) || CATS[0]; return <div><div style={{ background: `linear-gradient(135deg,${C.dark},#2C1810)`, color: "#fff", padding: "46px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}><div style={{ position: "absolute", top: -50, left: -50, width: 200, height: 200, background: "rgba(200,57,43,.12)", borderRadius: "50%" }} /><div style={{ position: "absolute", bottom: -70, right: -30, width: 240, height: 240, background: "rgba(232,160,32,.08)", borderRadius: "50%" }} /><div style={{ position: "relative", maxWidth: 600, margin: "0 auto" }}><span style={{ display: "inline-block", background: C.primary, fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 50, marginBottom: 12, letterSpacing: 1.5, textTransform: "uppercase" }}>🔥 Premium Store</span><h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.1, marginBottom: 12, letterSpacing: -1 }}>Quality Products,<br /><span style={{ color: C.accent }}>Delivered Fast!</span></h1><p style={{ fontSize: 14, color: "rgba(255,255,255,.65)", marginBottom: 22, lineHeight: 1.7 }}>Electronics · Phone Accessories · Beauty Tech · Smartwatches · Gaming · Travel & more</p><div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}><Btn onClick={() => onCatChange("all")} style={{ padding: "12px 28px", fontSize: 14, borderRadius: 50 }}>Shop Now →</Btn><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>💬 WhatsApp</a></div></div></div><div style={{ background: "#fff", padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}><div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>🔒 Secure:</span>{[["bKash", "#E2136E"], ["Nagad", "#F05A28"], ["Rocket", "#8B2FC9"], ["Visa", "#003366"], ["COD", "#555"]].map(([l, bg]) => <span key={l} style={{ background: bg, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>{l}</span>)}<span style={{ marginLeft: "auto", fontSize: 11, color: C.muted }}>Free delivery above ৳999</span></div></div><div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 24 }}>{[["🚚", "Fast Delivery", "Dhaka 1-2d | BD 3-5d"], ["💳", "SSLCommerz", "bKash · Nagad · Cards"], ["🔄", "7-Day Returns", "Hassle free"], ["💬", "WhatsApp", "Text only support"]].map(([icon, t, d]) => <div key={t} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 8px rgba(0,0,0,.05)", border: `1px solid ${C.border}` }}><span style={{ fontSize: 24 }}>{icon}</span><div><div style={{ fontSize: 12, fontWeight: 700 }}>{t}</div><div style={{ fontSize: 10, color: C.muted }}>{d}</div></div></div>)}</div><div style={{ display: "flex", gap: 7, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>{CATS.map(c => <button key={c.key} onClick={() => onCatChange(c.key)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500, border: `2px solid ${activeCat === c.key ? c.color : C.border}`, background: activeCat === c.key ? c.color : "#fff", color: activeCat === c.key ? "#fff" : C.muted, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s", fontFamily: "inherit", flexShrink: 0 }}>{c.icon} {c.label}</button>)}</div><div style={{ display: "flex", border: `2px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 18 }}><input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search in ${cat.label}…`} style={{ flex: 1, border: "none", outline: "none", padding: "11px 16px", fontSize: 14, fontFamily: "inherit", background: "transparent" }} />{search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", padding: "11px 14px", cursor: "pointer", fontSize: 15, color: C.muted }}>✕</button>}</div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 20, background: cat.color || C.primary, borderRadius: 4, display: "inline-block" }} />{cat.icon} {cat.label}</h2><span style={{ fontSize: 12, color: C.muted }}>{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span></div>{filtered.length === 0 ? <div style={{ textAlign: "center", padding: "50px 20px", color: C.muted }}><div style={{ fontSize: 48, marginBottom: 10 }}>🔍</div><p style={{ fontSize: 14 }}>No products found.</p></div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>{filtered.map(p => <ProductCard key={p.id} p={p} onAdd={onAdd} onView={onView} />)}</div>}</div></div>; }
 
 // ─────────────────────────────────────────────────────────────
 //  MAIN APP
@@ -1203,6 +1523,7 @@ export default function OutbackCartel() {
   const [products, setProducts] = useState(() => ls.get("oc_products") || DEFAULT_PRODUCTS);
   const [page, setPage] = useState("shop");
   const [activeCat, setActiveCat] = useState("all");
+  const [selectedProd, setSelectedProd] = useState(null); // product detail page
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1220,12 +1541,13 @@ export default function OutbackCartel() {
   const upd = list => { setProducts(list); ls.set("oc_products", list); };
   const toast_ = msg => { setToast(msg); setTimeout(() => setToast(""), 2600); };
 
-  const nav = (p, cat) => { setPage(p); if (cat) setActiveCat(cat); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const nav = (p, cat) => { setPage(p); setSelectedProd(null); if (cat) setActiveCat(cat); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const addToCart = p => {
     setCart(prev => { const ex = prev.find(c => c.id === p.id); return ex ? prev.map(c => c.id === p.id ? { ...c, qty: c.qty + 1 } : c) : [...prev, { ...p, qty: 1 }]; });
     toast_(`✅ ${p.name.substring(0, 26)}… added!`);
   };
+  const viewProduct = p => { setSelectedProd(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const changeQty = (id, d) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: c.qty + d } : c).filter(c => c.qty > 0));
   const removeItem = id => setCart(prev => prev.filter(c => c.id !== id));
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
@@ -1236,6 +1558,15 @@ export default function OutbackCartel() {
   if (view === "admin" && adminAuthed) return <AdminPanel products={products} onSave={upd} onLogout={() => { setView("site"); setAdminAuthed(false); }} />;
 
   const pageContent = () => {
+    // Product detail page takes priority
+    if (selectedProd) return (
+      <ProductDetailPage
+        product={selectedProd}
+        onAdd={addToCart}
+        onBuyNow={() => { setSelectedProd(null); setCartOpen(false); setCheckoutOpen(true); }}
+        onBack={() => setSelectedProd(null)}
+      />
+    );
     if (page === "about") return <AboutPage />;
     if (page === "track") return <TrackPage />;
     if (page === "returns") return <ReturnsPage />;
