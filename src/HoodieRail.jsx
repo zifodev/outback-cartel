@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from "react";
 //  While price is 0 the card shows "Price coming soon" and the
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
-const ITEMS = [
+const HOUSE_ITEMS = [
   { id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
     colors: [{ name: "Pink", hex: "#F4B8C8", img: "hoodies/cut-bow.webp" }] },
   { id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
@@ -24,6 +24,15 @@ const ITEMS = [
   { id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-chicken.webp" }] },
 ];
+
+// hoodies from the shop (supplier range) hung on the rail after our own ones
+const RAIL_MAX = 12;
+const toItem = p => ({
+  id: p.id, name: p.name, price: p.price || 0, old: p.old || 0, remote: true,
+  note: "From our hoodie range. Pick a size and add to cart.",
+  cut: p.img,
+  colors: [{ name: (Array.isArray(p.colors) && p.colors[0]) || "Standard", hex: "#8A8070", img: p.img, photo: true }],
+});
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const SIDE = 72; // degrees a garment is turned when hanging side-on
@@ -93,6 +102,11 @@ const CSS = `
 .rk-box img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;filter:brightness(.86) saturate(.95) drop-shadow(0 12px 10px rgba(28,28,28,.2));transition:filter .9s ease,opacity .15s}
 .rk-slot[data-face="true"] .rk-box img{filter:brightness(1) saturate(1) drop-shadow(0 18px 16px rgba(28,28,28,.28))}
 .rk-h-touch{display:none}
+/* shop hoodies (product photos) hang as clipped photo cards on the hanger */
+.rk-box[data-photo="true"]{width:calc(var(--bw) * .74);height:calc(var(--bh) * .8);margin:-8px auto 0;background:#fff;padding:7px 7px 26px;border-radius:4px;box-shadow:0 12px 20px rgba(28,28,28,.2),0 1px 0 rgba(0,0,0,.06)}
+.rk-box[data-photo="true"]:before{content:"";position:absolute;top:-9px;left:50%;width:24px;height:13px;margin-left:-12px;border-radius:2px;z-index:2;background:linear-gradient(180deg,#f6f6f2,#a4a49f 60%,#6a6a65);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.rk-box[data-photo="true"] img{object-fit:cover;object-position:50% 30%;border-radius:2px;filter:brightness(.9)}
+.rk-ptag{position:absolute;left:0;right:0;bottom:5px;text-align:center;font-size:12px;font-weight:800;color:#C8392B;letter-spacing:.02em;transition:opacity .15s}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
 .rk-line{font-size:14px;font-weight:600;color:#1C1C1C;animation:rkFade .35s ease both}
@@ -177,7 +191,8 @@ const CSS = `
 
 const BURST = ["#C8392B", "#E8A020", "#2E7D52", "#1F3A8A", "#DB2777", "#1C1C1C", "#E8A020", "#C8392B"];
 
-export default function HoodieRail({ onAdd, onBrowse }) {
+export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
+  const ITEMS = [...HOUSE_ITEMS, ...extra.map(toItem)].slice(0, RAIL_MAX);
   const [facing, setFacing] = useState(null);   // garment turned towards the viewer
   const [active, setActive] = useState(null);   // garment pulled off the rail
   const [lifted, setLifted] = useState(() => ITEMS.map(() => false));
@@ -211,11 +226,17 @@ export default function HoodieRail({ onAdd, onBrowse }) {
   const loopId = useRef(0);
   const lastTs = useRef(0);
 
+  // total width of the hoodies on the rail (they overflow both sides of the row on phones)
+  const contentW = () => {
+    const row = rowRef.current; if (!row) return 0;
+    const kids = Array.from(row.children);
+    const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+    return kids.reduce((w, k) => w + k.offsetWidth, 0) + gap * Math.max(0, kids.length - 1);
+  };
   const maxX = () => {
-    const row = rowRef.current, sec = secRef.current;
-    if (!row || !sec) return 0;
-    const content = Math.max(row.scrollWidth, row.offsetWidth);
-    return Math.max(0, (content - sec.clientWidth) / 2 + 70);
+    const sec = secRef.current;
+    if (!rowRef.current || !sec) return 0;
+    return Math.max(0, (contentW() - sec.clientWidth) / 2 + 70);
   };
   const paint = () => {
     if (rowRef.current) rowRef.current.style.transform = `translate3d(${railX.current}px,0,0)`;
@@ -246,6 +267,15 @@ export default function HoodieRail({ onAdd, onBrowse }) {
     lastTs.current = performance.now();
     loopId.current = requestAnimationFrame(tick);
   };
+  // on phones the rail is wider than the screen: start with the first hoodie in view
+  useEffect(() => {
+    const row = rowRef.current, sec = secRef.current;
+    if (!row || !sec || sec.clientWidth >= 700) return;
+    const start = Math.max(0, (contentW() - sec.clientWidth) / 2 + 24);
+    railX.current = railT.current = start;
+    paint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const onRowDown = e => {
     if (active !== null || e.button !== 0) return;
     const d = dragS.current;
@@ -462,8 +492,9 @@ export default function HoodieRail({ onAdd, onBrowse }) {
                   <div className="rk-sway">
                     <ChromeHanger uid={i} />
                     <div className="rk-turn">
-                      <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                        <img src={it.cut} alt="" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
+                      <div className="rk-box" data-photo={it.remote ? "true" : undefined} ref={el => (boxRefs.current[i] = el)}>
+                        <img src={it.cut} alt="" loading="lazy" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
+                        {it.remote && <span className="rk-ptag" style={{ opacity: lifted[i] ? 0 : 1 }}>{it.price ? fmtBDT(it.price) : ""}</span>}
                       </div>
                     </div>
                   </div>
