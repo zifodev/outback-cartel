@@ -38,48 +38,10 @@ const CATS = [
 // ─────────────────────────────────────────────────────────────
 //  DEFAULT PRODUCTS
 // ─────────────────────────────────────────────────────────────
-const DEFAULT_PRODUCTS = [
-  { id: 1, name: "Samsung Galaxy A35 5G 128GB", cat: "electronics", price: 32999, old: 38000, icon: "📱", badge: "Hot", img: "" },
-  { id: 2, name: "JBL Tune 520BT Wireless Earbuds", cat: "electronics", price: 3499, old: 4500, icon: "🎧", badge: "Sale", img: "" },
-  { id: 3, name: "Anker Power Bank 20000mAh", cat: "electronics", price: 2799, old: 3500, icon: "🔋", badge: "New", img: "" },
-  { id: 4, name: "MagSafe Compatible Phone Case", cat: "accessories", price: 599, old: 900, icon: "📱", badge: "New", img: "" },
-  { id: 5, name: "65W GaN Fast Charger Adapter", cat: "accessories", price: 1299, old: 1800, icon: "🔌", badge: "Hot", img: "" },
-  { id: 6, name: "Wireless Charging Pad 15W", cat: "accessories", price: 899, old: 1200, icon: "⚡", badge: "Sale", img: "" },
-  { id: 7, name: "USB-C Hub 7-in-1 Multiport", cat: "accessories", price: 1799, old: 2400, icon: "🔌", badge: null, img: "" },
-  { id: 8, name: "Neutrogena Oil-Free Face Wash 200ml", cat: "beauty", price: 750, old: 950, icon: "🧴", badge: "New", img: "" },
-  { id: 9, name: "Vitamin C Serum + SPF Moisturizer", cat: "beauty", price: 1299, old: 1800, icon: "✨", badge: "Sale", img: "" },
-  { id: 10, name: "Men's Grooming Kit 8-in-1", cat: "beauty", price: 1450, old: 2000, icon: "🪒", badge: "Hot", img: "" },
-  { id: 11, name: "LED Face Mask Therapy Device", cat: "beautytech", price: 3999, old: 5500, icon: "😷", badge: "Hot", img: "" },
-  { id: 12, name: "Facial Steamer Nano Ionic", cat: "beautytech", price: 1899, old: 2600, icon: "💨", badge: "New", img: "" },
-  { id: 13, name: "Electric Facial Cleansing Brush", cat: "beautytech", price: 999, old: 1400, icon: "🌀", badge: "Sale", img: "" },
-  { id: 14, name: "Smart Watch Fitness Tracker Pro", cat: "watches", price: 4999, old: 6500, icon: "⌚", badge: "Hot", img: "" },
-  { id: 15, name: "Apple Watch Series 9 (45mm)", cat: "watches", price: 49999, old: 58000, icon: "⌚", badge: "New", img: "" },
-  { id: 16, name: "Samsung Galaxy Watch 6 Classic", cat: "watches", price: 34999, old: 42000, icon: "⌚", badge: "Sale", img: "" },
-  { id: 17, name: "PS5 DualSense Controller", cat: "gaming", price: 8499, old: 10000, icon: "🎮", badge: "Hot", img: "" },
-  { id: 18, name: "Gaming RGB Mouse Pad XL", cat: "gaming", price: 899, old: 1300, icon: "🖱️", badge: "New", img: "" },
-  { id: 19, name: "Mechanical Gaming Keyboard RGB", cat: "gaming", price: 3999, old: 5500, icon: "⌨️", badge: "Sale", img: "" },
-  { id: 20, name: "Gaming Headset 7.1 Surround", cat: "gaming", price: 2799, old: 3800, icon: "🎧", badge: null, img: "" },
-  { id: 21, name: "Travel Organiser Packing Cubes Set", cat: "travel", price: 1299, old: 1800, icon: "🧳", badge: "New", img: "" },
-  { id: 22, name: "Portable Neck Pillow Memory Foam", cat: "travel", price: 699, old: 1000, icon: "😴", badge: null, img: "" },
-  { id: 23, name: "TSA Approved Toiletry Bag", cat: "travel", price: 549, old: 800, icon: "🪥", badge: "Sale", img: "" },
-  { id: 24, name: "Travel Adapter Universal 5-in-1", cat: "travel", price: 899, old: 1200, icon: "🔌", badge: "Hot", img: "" },
-  { id: 25, name: "Anti-Theft Backpack USB Charging", cat: "bags", price: 3499, old: 4800, icon: "🎒", badge: "Hot", img: "" },
-  { id: 26, name: "Slim Laptop Bag 15.6 inch", cat: "bags", price: 1999, old: 2800, icon: "💼", badge: "New", img: "" },
-  { id: 27, name: "Waterproof Crossbody Sling Bag", cat: "bags", price: 1299, old: 1800, icon: "👜", badge: "Sale", img: "" },
-  { id: 28, name: "Adjustable Monitor Stand + Drawer", cat: "homeoffice", price: 2499, old: 3200, icon: "🖥️", badge: "New", img: "" },
-  { id: 29, name: "Ergonomic Lumbar Support Cushion", cat: "homeoffice", price: 1199, old: 1700, icon: "🪑", badge: null, img: "" },
-  { id: 30, name: "Desk Cable Management Organiser", cat: "homeoffice", price: 599, old: 900, icon: "🗂️", badge: "Hot", img: "" },
-  { id: 31, name: "LED Desk Lamp with Wireless Charger", cat: "homeoffice", price: 2299, old: 3000, icon: "💡", badge: "Sale", img: "" },
-  { id: 32, name: "Men's Cotton Panjabi Eid Edition", cat: "clothing", price: 1299, old: 1800, icon: "👘", badge: "Hot", img: "" },
-  { id: 33, name: "Women's Silk Saree Hand-Painted", cat: "clothing", price: 3499, old: 4500, icon: "👗", badge: "New", img: "" },
-  { id: 34, name: "Premium Running Shoes Unisex", cat: "clothing", price: 2199, old: 3200, icon: "👟", badge: "Sale", img: "" },
-  { id: 35, name: "Stainless Steel Vacuum Flask 1L", cat: "home", price: 649, old: 900, icon: "🍶", badge: "New", img: "" },
-  { id: 36, name: "Bamboo Bedsheet Set King Size", cat: "home", price: 2199, old: 3000, icon: "🛏️", badge: null, img: "" },
-  { id: 37, name: "Anti-Slip Yoga Mat 6mm", cat: "sports", price: 799, old: 1100, icon: "🧘", badge: "New", img: "" },
-  { id: 38, name: "Cricket Bat Kashmir Willow", cat: "sports", price: 1699, old: 2200, icon: "🏏", badge: "Hot", img: "" },
-  { id: 39, name: "LEGO Classic Creative Bricks", cat: "toys", price: 2499, old: 3200, icon: "🧱", badge: "New", img: "" },
-  { id: 40, name: "RC Car 4WD Monster Truck", cat: "toys", price: 1899, old: 2500, icon: "🚗", badge: "Sale", img: "" },
-];
+// Demo products removed — the shop now shows your own products (added in the admin panel)
+// plus supplier products loaded from /api/products.
+const DEFAULT_PRODUCTS = [];
+const isDemoProduct = p => typeof p.id === "number" && p.id >= 1 && p.id <= 40; // ids of the old demo items
 
 // ─────────────────────────────────────────────────────────────
 //  THEME
@@ -1250,29 +1212,29 @@ const KB = [
   { tags: ["cancel", "cancel order", "অর্ডার বাতিল", "বাতিল করব"], reply: "⚠️ You can cancel your order within **2 hours** of placing it — before it's dispatched.\n\nJust WhatsApp us immediately at **01881816245** with your Order ID 📲" },
 
   // Products — Electronics
-  { tags: ["phone", "mobile", "samsung", "realme", "iphone", "smartphone", "ফোন", "মোবাইল"], reply: "📱 We have great smartphones!\n\n• Samsung Galaxy A35 5G — ৳32,999\n• And more coming soon!\n\nCheck the **Electronics** category for all phones 🔍" },
-  { tags: ["earbuds", "headphone", "earphone", "jbl", "speaker", "হেডফোন"], reply: "🎧 We've got amazing audio gear!\n\n• JBL Tune 520BT Earbuds — ৳3,499\n• Gaming Headset 7.1 — ৳2,799\n\nCheck **Electronics** or **Gaming Lifestyle** for more! 🎵" },
-  { tags: ["power bank", "charger", "charging", "চার্জার", "পাওয়ার ব্যাংক"], reply: "🔋 Great accessories available!\n\n• Anker Power Bank 20000mAh — ৳2,799\n• 65W GaN Fast Charger — ৳1,299\n• Wireless Charging Pad 15W — ৳899\n\nFind them in **Phone Accessories** 🔌" },
+  { tags: ["phone", "mobile", "samsung", "realme", "iphone", "smartphone", "ফোন", "মোবাইল"], reply: "📱 We have great smartphones!\n\nCheck the **Electronics** category for all phones 🔍" },
+  { tags: ["earbuds", "headphone", "earphone", "jbl", "speaker", "হেডফোন"], reply: "🎧 We've got amazing audio gear!\n\nCheck **Electronics** or **Gaming Lifestyle** for more! 🎵" },
+  { tags: ["power bank", "charger", "charging", "চার্জার", "পাওয়ার ব্যাংক"], reply: "🔋 Great accessories available!\n\nFind them in **Phone Accessories** 🔌" },
 
   // Products — Smartwatches
-  { tags: ["watch", "smartwatch", "apple watch", "samsung watch", "ঘড়ি", "স্মার্টওয়াচ"], reply: "⌚ We have awesome smartwatches!\n\n• Smart Watch Fitness Tracker Pro — ৳4,999\n• Apple Watch Series 9 — ৳49,999\n• Samsung Galaxy Watch 6 — ৳34,999\n\nSee all in **Smartwatches** category! 😍" },
+  { tags: ["watch", "smartwatch", "apple watch", "samsung watch", "ঘড়ি", "স্মার্টওয়াচ"], reply: "⌚ We have awesome smartwatches!\n\nSee all in **Smartwatches** category! 😍" },
 
   // Products — Gaming
-  { tags: ["gaming", "game", "ps5", "controller", "keyboard", "mouse", "গেমিং"], reply: "🎮 Gamers, we've got you!\n\n• PS5 DualSense Controller — ৳8,499\n• Mechanical Gaming Keyboard — ৳3,999\n• Gaming Headset 7.1 — ৳2,799\n• RGB Mouse Pad XL — ৳899\n\nExplore **Gaming Lifestyle** for more! 🕹️" },
+  { tags: ["gaming", "game", "ps5", "controller", "keyboard", "mouse", "গেমিং"], reply: "🎮 Gamers, we've got you!\n\nExplore **Gaming Lifestyle** for more! 🕹️" },
 
   // Products — Beauty
-  { tags: ["beauty", "skincare", "face wash", "serum", "makeup", "মেকআপ", "স্কিনকেয়ার", "সৌন্দর্য"], reply: "💄 We have amazing beauty products!\n\n• Neutrogena Face Wash — ৳750\n• Vitamin C Serum + SPF — ৳1,299\n• Men's Grooming Kit — ৳1,450\n\nCheck **Beauty & Health** and **Beauty Tech** categories! ✨" },
-  { tags: ["led mask", "facial", "steamer", "cleansing brush", "beauty tech", "বিউটি টেক"], reply: "✨ Our Beauty Tech collection is 🔥\n\n• LED Face Mask Therapy — ৳3,999\n• Facial Steamer Nano Ionic — ৳1,899\n• Electric Cleansing Brush — ৳999\n\nSee all in **Beauty Tech** category! 💆" },
+  { tags: ["beauty", "skincare", "face wash", "serum", "makeup", "মেকআপ", "স্কিনকেয়ার", "সৌন্দর্য"], reply: "💄 We have amazing beauty products!\n\nCheck **Beauty & Health** and **Beauty Tech** categories! ✨" },
+  { tags: ["led mask", "facial", "steamer", "cleansing brush", "beauty tech", "বিউটি টেক"], reply: "✨ Our Beauty Tech collection is 🔥\n\nSee all in **Beauty Tech** category! 💆" },
 
   // Products — Bags & Travel
-  { tags: ["bag", "backpack", "laptop bag", "travel bag", "ব্যাগ", "ব্যাকপ্যাক"], reply: "🎒 Smart bags & backpacks!\n\n• Anti-Theft Backpack USB — ৳3,499\n• Slim Laptop Bag 15.6\" — ৳1,999\n• Waterproof Crossbody Bag — ৳1,299\n\nExplore **Smart Bags & Backpacks** 💼" },
-  { tags: ["travel", "travelling", "trip", "journey", "ট্রাভেল", "ভ্রমণ"], reply: "🧳 Travel in style with our kits!\n\n• Travel Packing Cubes Set — ৳1,299\n• Travel Adapter Universal — ৳899\n• Memory Foam Neck Pillow — ৳699\n• TSA Toiletry Bag — ৳549\n\nSee **Travel Kits** category! ✈️" },
+  { tags: ["bag", "backpack", "laptop bag", "travel bag", "ব্যাগ", "ব্যাকপ্যাক"], reply: "🎒 Smart bags & backpacks!\n\nExplore **Smart Bags & Backpacks** 💼" },
+  { tags: ["travel", "travelling", "trip", "journey", "ট্রাভেল", "ভ্রমণ"], reply: "🧳 Travel in style with our kits!\n\nSee **Travel Kits** category! ✈️" },
 
   // Products — Home Office
-  { tags: ["office", "desk", "monitor stand", "lamp", "lumbar", "home office", "অফিস"], reply: "🖥️ Level up your home office!\n\n• Monitor Stand + Drawer — ৳2,499\n• LED Desk Lamp w/ Wireless Charger — ৳2,299\n• Ergonomic Lumbar Cushion — ৳1,199\n• Cable Management Organiser — ৳599\n\nSee **Home Office Aesthetics**! 💡" },
+  { tags: ["office", "desk", "monitor stand", "lamp", "lumbar", "home office", "অফিস"], reply: "🖥️ Level up your home office!\n\nSee **Home Office Aesthetics**! 💡" },
 
   // Products — Clothing
-  { tags: ["panjabi", "saree", "clothes", "shirt", "shoes", "fashion", "পোশাক", "পাঞ্জাবি", "শাড়ি"], reply: "👗 Style yourself with Outback Cartel!\n\n• Men's Cotton Panjabi (Eid) — ৳1,299\n• Women's Silk Saree — ৳3,499\n• Premium Running Shoes — ৳2,199\n\nExplore **Clothing & Fashion** 👘" },
+  { tags: ["panjabi", "saree", "clothes", "shirt", "shoes", "fashion", "পোশাক", "পাঞ্জাবি", "শাড়ি"], reply: "👗 Style yourself with Outback Cartel!\n\nExplore **Clothing & Fashion** 👘" },
 
   // WhatsApp
   { tags: ["whatsapp", "contact", "support", "help", "সাহায্য", "যোগাযোগ", "কথা বলতে"], reply: "💬 Reach us on WhatsApp anytime!\n\n📱 **01881816245**\n\n⚠️ Text only — no calls please.\nWe usually reply within **30 minutes**! ⚡" },
@@ -1522,7 +1484,7 @@ function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [
 //  MAIN APP
 // ─────────────────────────────────────────────────────────────
 export default function OutbackCartel() {
-  const [products, setProducts] = useState(() => ls.get("oc_products") || DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState(() => (ls.get("oc_products") || DEFAULT_PRODUCTS).filter(p => !isDemoProduct(p)));
   const [page, setPage] = useState("shop");
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
