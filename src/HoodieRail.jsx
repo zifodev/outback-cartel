@@ -79,15 +79,18 @@ const CSS = `
 
 .rk-slot{position:relative;flex:none;width:var(--rest);height:100%;border:0;background:transparent;padding:0;z-index:2;transition:width .75s cubic-bezier(.2,.8,.2,1);animation:rkIn .8s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i) * 90ms + 250ms)}
 .rk-slot[data-face="true"]{width:var(--face);z-index:4}
-@keyframes rkIn{from{opacity:0;transform:translateY(-40px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rkIn{0%{opacity:0;transform:translateY(-70px) rotate(-7deg)}60%{opacity:1}100%{opacity:1;transform:translateY(0) rotate(0)}}
 .rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px;animation:rkSway 5.5s ease-in-out infinite;animation-delay:calc(var(--i) * -1.3s)}
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
-.rk-turn{transform-origin:50% 0;transform:perspective(1500px) rotateY(${SIDE}deg);transition:transform .8s cubic-bezier(.2,.8,.2,1)}
-.rk-slot[data-face="true"] .rk-turn{transform:perspective(1500px) rotateY(0deg)}
-.rk-hanger{display:block;width:100%;height:auto;overflow:visible}
+/* a hoodie turning on its hanger: cloth narrows as it turns away, with a little
+   overshoot and sway so it feels like fabric rather than a flat cut-out spinning */
+.rk-turn{transform-origin:50% 30%;transform:scaleX(.44) skewY(-2.5deg);transition:transform 1s cubic-bezier(.25,1.35,.4,1);will-change:transform}
+.rk-slot[data-face="true"] .rk-turn{transform:scaleX(1) skewY(0deg)}
+.rk-hanger{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.12))}
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:-14px}
-.rk-box img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;filter:brightness(.8) drop-shadow(0 12px 10px rgba(28,28,28,.22));transition:filter .8s ease,opacity .15s}
-.rk-slot[data-face="true"] .rk-box img{filter:brightness(1) drop-shadow(0 18px 16px rgba(28,28,28,.28))}
+.rk-box img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;filter:brightness(.86) saturate(.95) drop-shadow(0 12px 10px rgba(28,28,28,.2));transition:filter .9s ease,opacity .15s}
+.rk-slot[data-face="true"] .rk-box img{filter:brightness(1) saturate(1) drop-shadow(0 18px 16px rgba(28,28,28,.28))}
+.rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
 .rk-line{font-size:14px;font-weight:600;color:#1C1C1C;animation:rkFade .35s ease both}
@@ -159,6 +162,13 @@ const CSS = `
   .rk[data-on="true"] .rk-card{transform:translateY(0)}
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
+  /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
+  .rk{--bw:150px;--bh:196px;--rest:150px;--face:150px}
+  .rk-row{justify-content:safe center;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;gap:16px;padding:6px 20px 0;height:calc(var(--bh) + 80px);scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -12px}
+  .rk-row::-webkit-scrollbar{display:none}
+  .rk-slot{scroll-snap-align:center}
+  .rk-h-web{display:none}
+  .rk-h-touch{display:inline}
 }
 @media (prefers-reduced-motion:reduce){
   .rk *,.rk *:before{animation:none!important;transition:none!important}
@@ -350,7 +360,7 @@ export default function HoodieRail({ onAdd, onBrowse }) {
         <div className="rk-head">
           <div className="rk-kicker">Outback Cartel · The Rack</div>
           <h2 className="rk-title">Hoodies <span className="rk-badge">New</span></h2>
-          <p className="rk-hint">Hover a hoodie to turn it. Click to take it off the rail.</p>
+          <p className="rk-hint"><span className="rk-h-web">Hover a hoodie to turn it. Click to take it off the rail.</span><span className="rk-h-touch">Swipe along the rail. Tap a hoodie to turn it, tap again to take it off.</span></p>
         </div>
 
         <div className="rk-rack" onMouseLeave={() => { if (active === null && interacted.current) setFacing(null); }}>
@@ -364,8 +374,8 @@ export default function HoodieRail({ onAdd, onBrowse }) {
                 onKeyDown={e => slotKey(e, i)}
                 onClick={() => slotClick(i)}>
                 <div className="rk-sway">
+                  <ChromeHanger uid={i} />
                   <div className="rk-turn">
-                    <ChromeHanger uid={i} />
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
                       <img src={it.cut} alt="" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
                     </div>
