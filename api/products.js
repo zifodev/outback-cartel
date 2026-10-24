@@ -111,7 +111,11 @@ export default async function handler(req, res) {
       res.setHeader("Cache-Control", "no-store");
       const categories = {};
       raw.forEach(p => { const c = p.category || p.category_name || p.category_id || "?"; categories[c] = (categories[c] || 0) + 1; });
-      res.status(200).json({ ok: true, count: raw.length, pagesFetched: lastPage, lastPage: trueLastPage, categories, sample: raw[0] || null });
+      const stockStatuses = {};
+      raw.forEach(p => { const v = String(p.stock_status); stockStatuses[v] = (stockStatuses[v] || 0) + 1; });
+      const withImage = raw.filter(p => (Array.isArray(p.product_images) && p.product_images.length) || p.thumbnail_img).length;
+      const inStockWithImage = raw.filter(p => (p.stock_status === undefined || p.stock_status === "available") && ((Array.isArray(p.product_images) && p.product_images.length) || p.thumbnail_img)).length;
+      res.status(200).json({ ok: true, count: raw.length, pagesFetched: lastPage, lastPage: trueLastPage, stockStatuses, withImage, inStockWithImage, categories });
       return;
     }
 
