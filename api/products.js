@@ -16,8 +16,11 @@
 //    DROPSHIP_CATEGORY_MAP   (optional)  JSON mapping supplier category_id
 //                                        to your site's category keys,
 //                                        e.g. {"1":"clothing","5":"home"}
-//    DROPSHIP_MAX_PAGES      (optional)  safety limit, default 100 pages (all)
+//    DROPSHIP_MAX_PAGES      (optional)  page safety limit, default 100 (all)
+//    DROPSHIP_MAX_PRODUCTS   (optional)  total products shown, default 1500
+//                                        (all clothing/winter kept regardless)
 //    DROPSHIP_PRICE_FIELD    (optional)  "price" (default) or "sale_price"
+//    DROPSHIP_IN_STOCK_ONLY  (optional)  1 = only items marked "available"
 //
 //  Visit /api/products?debug=1 on your site to check the connection.
 // ─────────────────────────────────────────────────────────────
@@ -53,7 +56,8 @@ const CATEGORY_RULES = [
   [/travel|luggage/i, "travel"],
   [/bag|backpack|wallet/i, "bags"],
   [/office|desk|stationery/i, "homeoffice"],
-  [/fashion|cloth|men|women|saree|panjabi|shirt|hoodie|dress|shoe|jewel/i, "clothing"],
+  [/winter|jacket|sweater|hoodie|woolen|warm/i, "clothing"],
+  [/fashion|cloth|men|women|saree|panjabi|shirt|dress|shoe|jewel|t-shirt|tshirt/i, "clothing"],
   [/home|kitchen|lifestyle|decor|furniture|household/i, "home"],
   [/sport|fitness|gym|outdoor/i, "sports"],
   [/toy|kid|baby/i, "toys"],
@@ -125,7 +129,7 @@ export default async function handler(req, res) {
     const inStockOnly = /^(1|true|yes)$/i.test(String(process.env.DROPSHIP_IN_STOCK_ONLY || ""));
     const INACTIVE = new Set(["0", "inactive", "draft", "disabled", "unpublished", "pending", "false"]);
     const OUT = new Set(["stock_out", "out_of_stock", "out of stock", "unavailable", "sold_out", "sold out", "0", "no"]);
-    const products = raw
+    const all = raw
       .filter(p => !INACTIVE.has(String(p.status).toLowerCase()) &&
                    (inStockOnly
                      ? p.stock_status === "available"
@@ -165,9 +169,17 @@ export default async function handler(req, res) {
       };
     }).filter(p => p.price > 0 && p.img);
 
+    // Cap the total, but ALWAYS keep every clothing/winter item (user requirement).
+    // DROPSHIP_MAX_PRODUCTS sets the target total (default 1500); clothing is kept
+    // in full even if it alone exceeds that, then other categories fill the rest.
+    const maxProducts = Math.max(1, num(process.env.DROPSHIP_MAX_PRODUCTS) || 1500);
+    const clothing = all.filter(p => p.cat === "clothing");
+    const others = all.filter(p => p.cat !== "clothing");
+    const products = clothing.concat(others).slice(0, Math.max(maxProducts, clothing.length));
+
     // cache on Vercel's edge for 15 minutes, serve stale for up to an hour while refreshing
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600");
-    res.status(200).json({ products, updatedAt: new Date().toISOString() });
+    res.status(200).json({ products, count: products.length, clothingCount: clothing.length, updatedAt: new Date().toISOString() });
   } catch (err) {
     res.status(502).json({ error: "Could not load supplier products.", detail: String(err && err.message || err) });
   }
