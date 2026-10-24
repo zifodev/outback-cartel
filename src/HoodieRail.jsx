@@ -75,7 +75,9 @@ const CSS = `
 .rk-end{position:absolute;top:-5px;width:18px;height:18px;border-radius:50%;z-index:1;background:radial-gradient(circle at 35% 30%,#fff,#bdbdb8 55%,#6d6d68);box-shadow:0 3px 6px rgba(28,28,28,.3)}
 .rk-el{left:calc(4% - 9px)}.rk-er{right:calc(4% - 9px)}
 @keyframes rkRod{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.rk-row{position:relative;display:flex;justify-content:center;align-items:flex-start;gap:4px;height:calc(var(--bh) + 64px)}
+.rk-row{position:relative;display:flex;justify-content:center;align-items:flex-start;gap:4px;height:calc(var(--bh) + 64px);touch-action:pan-y;user-select:none;cursor:grab}
+.rk-row:active{cursor:grabbing}
+.rk-pend{position:relative;width:100%;height:100%;transform-origin:50% 0;will-change:transform}
 
 .rk-slot{position:relative;flex:none;width:var(--rest);height:100%;border:0;background:transparent;padding:0;z-index:2;transition:width .75s cubic-bezier(.2,.8,.2,1);animation:rkIn .8s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i) * 90ms + 250ms)}
 .rk-slot[data-face="true"]{width:var(--face);z-index:4}
@@ -164,9 +166,7 @@ const CSS = `
   .rk-size{height:40px}
   /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
   .rk{--bw:150px;--bh:196px;--rest:150px;--face:150px}
-  .rk-row{justify-content:safe center;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;gap:16px;padding:6px 20px 0;height:calc(var(--bh) + 80px);scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -12px}
-  .rk-row::-webkit-scrollbar{display:none}
-  .rk-slot{scroll-snap-align:center}
+  .rk-row{gap:16px;padding:6px 0 0;height:calc(var(--bh) + 80px);margin:0 -12px}
   .rk-h-web{display:none}
   .rk-h-touch{display:inline}
 }
@@ -197,6 +197,91 @@ export default function HoodieRail({ onAdd, onBrowse }) {
   const activeRef = useRef(null);
   const interacted = useRef(false);
   const zTop = useRef(20);
+
+  // ── The rail has weight. Grab it and slide the hoodies along the rod: each hook
+  // swings against the direction you pull, lags, overshoots a little and settles.
+  // Let go mid-motion and the rail keeps gliding, slowing to a stop on the rod.
+  const railX = useRef(0);   // how far the rail has been pushed (px)
+  const railT = useRef(0);   // where the rail is coming to rest (px)
+  const railV = useRef(0);   // rail speed (px/s)
+  const hang = useRef(ITEMS.map(() => ({ a: 0, v: 0 }))); // hook swing per hoodie (deg, deg/s)
+  const dragS = useRef({ on: false, moved: false, sx: 0, lx: 0, lt: 0, vx: 0, base: 0 });
+  const rowRef = useRef(null);
+  const pendRefs = useRef([]);
+  const loopId = useRef(0);
+  const lastTs = useRef(0);
+
+  const maxX = () => {
+    const row = rowRef.current, sec = secRef.current;
+    if (!row || !sec) return 0;
+    const content = Math.max(row.scrollWidth, row.offsetWidth);
+    return Math.max(0, (content - sec.clientWidth) / 2 + 70);
+  };
+  const paint = () => {
+    if (rowRef.current) rowRef.current.style.transform = `translate3d(${railX.current}px,0,0)`;
+    pendRefs.current.forEach((el, i) => { if (el) el.style.transform = `rotate(${hang.current[i].a}deg)`; });
+  };
+  function tick(now) {
+    const dt = Math.min(0.033, Math.max(0.001, (now - lastTs.current) / 1000));
+    lastTs.current = now;
+    const d = dragS.current;
+    if (!d.on) { // spring the rail towards its resting point
+      const acc = -170 * (railX.current - railT.current) - 24 * railV.current;
+      railV.current += acc * dt;
+      railX.current += railV.current * dt;
+    }
+    // hooks lag behind the rail's speed (a pendulum), so the hoodies swing as it moves
+    const lag = REDUCED() ? 0 : Math.max(-16, Math.min(16, -railV.current * 0.02));
+    let busy = d.on || Math.abs(railV.current) > 0.05 || Math.abs(railX.current - railT.current) > 0.05;
+    hang.current.forEach(h => {
+      h.v += (-90 * (h.a - lag) - 7 * h.v) * dt;
+      h.a += h.v * dt;
+      if (Math.abs(h.a) > 0.05 || Math.abs(h.v) > 0.05) busy = true;
+    });
+    paint();
+    loopId.current = busy ? requestAnimationFrame(tick) : 0;
+  }
+  const kick = () => {
+    if (loopId.current) return;
+    lastTs.current = performance.now();
+    loopId.current = requestAnimationFrame(tick);
+  };
+  const onRowDown = e => {
+    if (active !== null || e.button !== 0) return;
+    const d = dragS.current;
+    d.on = true; d.moved = false; d.sx = d.lx = e.clientX; d.lt = performance.now(); d.vx = 0; d.base = railX.current;
+    railV.current = 0;
+    const move = ev => {
+      const now = performance.now();
+      const dt = now - d.lt;
+      if (dt > 0) d.vx = d.vx * 0.6 + ((ev.clientX - d.lx) / dt * 1000) * 0.4;
+      d.lx = ev.clientX; d.lt = now;
+      const dx = ev.clientX - d.sx;
+      if (!d.moved && Math.abs(dx) > 6) d.moved = true;
+      if (!d.moved) return;
+      const raw = d.base + dx, m = maxX();
+      railX.current = raw > m ? m + (raw - m) * 0.35 : raw < -m ? -m + (raw + m) * 0.35 : raw; // rubber-band at the ends
+      railV.current = d.vx;
+      paint(); kick();
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      d.on = false;
+      if (performance.now() - d.lt > 90) d.vx = 0; // paused before letting go: no fling
+      if (d.moved) {
+        const m = maxX();
+        railV.current = d.vx;
+        railT.current = Math.max(-m, Math.min(m, railX.current + d.vx * 0.25));
+      }
+      kick();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    kick();
+  };
 
   // showcase: garments take turns facing the viewer until someone interacts
   useEffect(() => {
@@ -300,7 +385,7 @@ export default function HoodieRail({ onAdd, onBrowse }) {
   };
 
   // on touch screens the first tap turns the garment, the second takes it off the rail
-  const slotClick = i => { touch(); if (active === null && facing !== i && !window.matchMedia("(hover: hover)").matches) { setFacing(i); return; } select(i); };
+  const slotClick = i => { if (dragS.current.moved) return; touch(); if (active === null && facing !== i && !window.matchMedia("(hover: hover)").matches) { setFacing(i); return; } select(i); };
   const slotKey = (e, i) => {
     if (active !== null) return;
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -365,19 +450,21 @@ export default function HoodieRail({ onAdd, onBrowse }) {
 
         <div className="rk-rack" onMouseLeave={() => { if (active === null && interacted.current) setFacing(null); }}>
           <div className="rk-rod" /><div className="rk-end rk-el" /><div className="rk-end rk-er" />
-          <div className="rk-row">
+          <div className="rk-row" ref={rowRef} onPointerDown={onRowDown}>
             {ITEMS.map((it, i) => (
               <button key={it.id} ref={el => (slotRefs.current[i] = el)} className="rk-slot" style={{ "--i": i }}
                 data-face={facing === i} aria-pressed={active === i} aria-label={`${it.name}${it.price ? ", " + fmtBDT(it.price) : ""}. Open details`}
-                onMouseEnter={() => { touch(); if (active === null) setFacing(i); }}
+                onMouseEnter={() => { touch(); if (active === null && !dragS.current.on) setFacing(i); }}
                 onFocus={() => { if (active === null) setFacing(i); }}
                 onKeyDown={e => slotKey(e, i)}
                 onClick={() => slotClick(i)}>
-                <div className="rk-sway">
-                  <ChromeHanger uid={i} />
-                  <div className="rk-turn">
-                    <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                      <img src={it.cut} alt="" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
+                <div className="rk-pend" ref={el => (pendRefs.current[i] = el)}>
+                  <div className="rk-sway">
+                    <ChromeHanger uid={i} />
+                    <div className="rk-turn">
+                      <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
+                        <img src={it.cut} alt="" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
+                      </div>
                     </div>
                   </div>
                 </div>
