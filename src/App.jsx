@@ -42,6 +42,7 @@ const CATS = [
 // plus supplier products loaded from /api/products.
 const DEFAULT_PRODUCTS = [];
 const isDemoProduct = p => typeof p.id === "number" && p.id >= 1 && p.id <= 40; // ids of the old demo items
+const hasPicture = p => typeof p.img === "string" && p.img.trim() !== ""; // products without a picture are not shown
 
 // ─────────────────────────────────────────────────────────────
 //  THEME
@@ -1484,7 +1485,12 @@ function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [
 //  MAIN APP
 // ─────────────────────────────────────────────────────────────
 export default function OutbackCartel() {
-  const [products, setProducts] = useState(() => (ls.get("oc_products") || DEFAULT_PRODUCTS).filter(p => !isDemoProduct(p)));
+  const [products, setProducts] = useState(() => {
+    const saved = ls.get("oc_products") || DEFAULT_PRODUCTS;
+    const clean = saved.filter(p => !isDemoProduct(p) && hasPicture(p));
+    if (clean.length !== saved.length) ls.set("oc_products", clean); // also clears old copies saved in this browser
+    return clean;
+  });
   const [page, setPage] = useState("shop");
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
@@ -1502,7 +1508,7 @@ export default function OutbackCartel() {
   const [showDash, setShowDash] = useState(false);
   const [account, setAccount] = useState(() => ls.get("oc_account"));
 
-  const upd = list => { setProducts(list); ls.set("oc_products", list); };
+  const upd = list => { const own = list.filter(p => !p.remote); setProducts(list); ls.set("oc_products", own); };
 
   // Supplier products (dropshipping.com.bd) loaded through our own server function /api/products,
   // so the API key and secret key never reach the browser.
@@ -1512,7 +1518,7 @@ export default function OutbackCartel() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (!alive || !d || !Array.isArray(d.products)) return;
-        setProducts(prev => [...prev.filter(p => !p.remote), ...d.products]);
+        setProducts(prev => [...prev.filter(p => !p.remote), ...d.products.filter(hasPicture)]);
       })
       .catch(() => { /* supplier offline: keep showing our own products */ });
     return () => { alive = false; };
