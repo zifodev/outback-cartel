@@ -16,25 +16,21 @@
 //    DROPSHIP_CATEGORY_MAP   (optional)  JSON mapping supplier category_id
 //                                        to your site's category keys,
 //                                        e.g. {"1":"clothing","5":"home"}
-//    DROPSHIP_MAX_PAGES      (optional)  safety limit, default 10 pages
+//    DROPSHIP_MAX_PAGES      (optional)  safety limit, default 100 pages (all)
 //    DROPSHIP_PRICE_FIELD    (optional)  "price" (default) or "sale_price"
 //
 //  Visit /api/products?debug=1 on your site to check the connection.
 // ─────────────────────────────────────────────────────────────
 const API_URL = "https://mohasagor.com.bd/api/reseller/product";
 
+// allow up to 60s on the server to gather every page (Vercel function limit)
+export const config = { maxDuration: 60 };
+const BATCH = 8; // pages fetched in parallel per batch
+
 const num = v => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
-
-const stripHtml = html =>
-  String(html || "")
-    .replace(/<\/(li|p|div|br)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .split("\n").map(s => s.trim()).filter(Boolean).join("\n");
 
 // the API returns { status, products: [...] } — also accept a paginated { products: { data: [...] } } shape
 const pickList = data => {
@@ -79,7 +75,7 @@ export default async function handler(req, res) {
   const imageBase = (process.env.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
   const markupPct = num(process.env.DROPSHIP_MARKUP_PERCENT);
   const markupFlat = num(process.env.DROPSHIP_MARKUP_FLAT);
-  const maxPages = Math.max(1, num(process.env.DROPSHIP_MAX_PAGES) || 10);
+  const maxPages = Math.max(1, num(process.env.DROPSHIP_MAX_PAGES) || 100);
   let catMap = {};
   try { catMap = JSON.parse(process.env.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
 
@@ -89,28 +85,33 @@ export default async function handler(req, res) {
     return imageBase + String(path).replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
   };
 
+  const fetchPage = async pg => {
+    const r = await fetch(`${API_URL}?page=${pg}`, {
+      headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
+    });
+    if (!r.ok) throw new Error(`Supplier API answered ${r.status}`);
+    return r.json();
+  };
+
   try {
-    const raw = [];
-    let page = 1, lastPage = 1;
-    do {
-      const r = await fetch(`${API_URL}?page=${page}`, {
-        headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
-      });
-      if (!r.ok) throw new Error(`Supplier API answered ${r.status}`);
-      const data = await r.json();
-      const list = pickList(data);
-      raw.push(...list);
-      lastPage = pickLastPage(data);
-      if (list.length === 0) break;
-      page += 1;
-    } while (page <= lastPage && page <= maxPages);
+    // page 1 tells us how many pages there are; fetch the rest in parallel batches
+    const first = await fetchPage(1);
+    const raw = pickList(first);
+    const trueLastPage = pickLastPage(first);
+    const lastPage = Math.min(trueLastPage, maxPages);
+    for (let start = 2; start <= lastPage; start += BATCH) {
+      const pages = [];
+      for (let pg = start; pg < start + BATCH && pg <= lastPage; pg++) pages.push(pg);
+      const batch = await Promise.all(pages.map(pg => fetchPage(pg).catch(() => null)));
+      batch.forEach(d => { if (d) raw.push(...pickList(d)); });
+    }
 
     if (req.query && req.query.debug) {
       // connection check: shows how many products came back and one raw example (no keys)
       res.setHeader("Cache-Control", "no-store");
       const categories = {};
       raw.forEach(p => { const c = p.category || p.category_name || p.category_id || "?"; categories[c] = (categories[c] || 0) + 1; });
-      res.status(200).json({ ok: true, count: raw.length, pagesFetched: page - 1, lastPage, categories, sample: raw[0] || null });
+      res.status(200).json({ ok: true, count: raw.length, pagesFetched: lastPage, lastPage: trueLastPage, categories, sample: raw[0] || null });
       return;
     }
 
@@ -128,7 +129,8 @@ export default async function handler(req, res) {
       const imgList = Array.isArray(p.product_images) ? p.product_images : Array.isArray(p.product_image) ? p.product_image : [];
       const images = imgList
         .map(im => url(im && im.product_image))
-        .filter(Boolean);
+        .filter(Boolean)
+        .slice(0, 4); // keep the payload small across thousands of products
       return {
         id: `ds-${p.id}`,
         remote: true,
@@ -148,9 +150,8 @@ export default async function handler(req, res) {
         badge: null,
         img: images[0] || url(p.thumbnail_img),
         images,
-        details: stripHtml(p.details),
       };
-    }).filter(p => p.price > 0);
+    }).filter(p => p.price > 0 && p.img);
 
     // cache on Vercel's edge for 15 minutes, serve stale for up to an hour while refreshing
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600");
