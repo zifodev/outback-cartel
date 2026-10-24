@@ -119,9 +119,17 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Show everything except products explicitly marked inactive or out of stock.
+    // Most of this supplier's catalog has a blank stock_status, which we treat as sellable.
+    // Set DROPSHIP_IN_STOCK_ONLY=1 to list ONLY items explicitly marked "available".
+    const inStockOnly = /^(1|true|yes)$/i.test(String(process.env.DROPSHIP_IN_STOCK_ONLY || ""));
+    const INACTIVE = new Set(["0", "inactive", "draft", "disabled", "unpublished", "pending", "false"]);
+    const OUT = new Set(["stock_out", "out_of_stock", "out of stock", "unavailable", "sold_out", "sold out", "0", "no"]);
     const products = raw
-      .filter(p => (p.status === undefined || p.status === "active" || p.status === 1 || p.status === 3) &&
-                   (p.stock_status === undefined || p.stock_status === "available"))
+      .filter(p => !INACTIVE.has(String(p.status).toLowerCase()) &&
+                   (inStockOnly
+                     ? p.stock_status === "available"
+                     : !OUT.has(String(p.stock_status || "").toLowerCase())))
       .map(p => {
       // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
       // supplier's regular price, the higher number) or "sale_price" (their discounted price).
