@@ -17,8 +17,8 @@
 //                                        to your site's category keys,
 //                                        e.g. {"1":"clothing","5":"home"}
 //    DROPSHIP_MAX_PAGES      (optional)  page safety limit, default 100 (all)
-//    DROPSHIP_MAX_PRODUCTS   (optional)  total products shown, default 1500
-//                                        (all clothing/winter kept regardless)
+//    DROPSHIP_MAX_PRODUCTS   (optional)  total products shown, default = all
+//                                        (clothing/winter listed first)
 //    DROPSHIP_PRICE_FIELD    (optional)  "price" (default) or "sale_price"
 //    DROPSHIP_IN_STOCK_ONLY  (optional)  1 = only items marked "available"
 //
@@ -169,10 +169,11 @@ export default async function handler(req, res) {
       };
     }).filter(p => p.price > 0 && p.img);
 
-    // Cap the total, but ALWAYS keep every clothing/winter item (user requirement).
-    // DROPSHIP_MAX_PRODUCTS sets the target total (default 1500); clothing is kept
-    // in full even if it alone exceeds that, then other categories fill the rest.
-    const maxProducts = Math.max(1, num(process.env.DROPSHIP_MAX_PRODUCTS) || 1500);
+    // Show all products by default, clothing/winter listed first. Set
+    // DROPSHIP_MAX_PRODUCTS to a number to cap the total (clothing is always
+    // kept in full, then other categories fill the rest up to that number).
+    const maxEnv = num(process.env.DROPSHIP_MAX_PRODUCTS);
+    const maxProducts = maxEnv > 0 ? maxEnv : Infinity;
     const clothing = all.filter(p => p.cat === "clothing");
     const others = all.filter(p => p.cat !== "clothing");
     const products = clothing.concat(others).slice(0, Math.max(maxProducts, clothing.length));
