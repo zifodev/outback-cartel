@@ -16,7 +16,8 @@
 //    DROPSHIP_CATEGORY_MAP   (optional)  JSON mapping supplier category_id
 //                                        to your site's category keys,
 //                                        e.g. {"1":"clothing","5":"home"}
-//    DROPSHIP_MAX_PAGES      (optional)  safety limit, default 10 (×200 products)
+//    DROPSHIP_MAX_PAGES      (optional)  safety limit, default 10 pages
+//    DROPSHIP_PRICE_FIELD    (optional)  "price" (default) or "sale_price"
 //
 //  Visit /api/products?debug=1 on your site to check the connection.
 // ─────────────────────────────────────────────────────────────
@@ -117,10 +118,13 @@ export default async function handler(req, res) {
       .filter(p => (p.status === undefined || p.status === "active" || p.status === 1 || p.status === 3) &&
                    (p.stock_status === undefined || p.stock_status === "available"))
       .map(p => {
-      // reselling_price is the supplier's suggested selling price; fall back to sale_price / price
-      const base = num(p.reselling_price) || num(p.sale_price) || num(p.price);
+      // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
+      // supplier's regular price, the higher number) or "sale_price" (their discounted price).
+      // reselling_price, when the API sends it, is always preferred.
+      const field = (process.env.DROPSHIP_PRICE_FIELD || "price").trim();
+      const base = num(p.reselling_price) || num(p[field]) || num(p.price) || num(p.sale_price);
       const price = Math.round(base * (1 + markupPct / 100) + markupFlat);
-      const regular = num(p.price) > price ? num(p.price) : null;
+      const regular = field === "sale_price" && num(p.price) > price ? num(p.price) : null;
       const imgList = Array.isArray(p.product_images) ? p.product_images : Array.isArray(p.product_image) ? p.product_image : [];
       const images = imgList
         .map(im => url(im && im.product_image))
