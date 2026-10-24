@@ -45,27 +45,41 @@ const pickList = data => {
 const pickLastPage = data =>
   num(data?.last_page ?? data?.products?.last_page ?? data?.meta?.last_page ?? data?.pagination?.last_page) || 1;
 
-// supplier category names → this site's category keys (first matching rule wins)
+// supplier category name → this site's category key. The supplier uses a small
+// fixed set of categories, so map them exactly; the regex rules are a fallback
+// for any new/unexpected supplier category. These keys must match CATS in App.jsx.
+const EXACT_CATEGORY = {
+  "men's fashion": "mens",
+  "mens fashion": "mens",
+  "women's fashion": "womens",
+  "womens fashion": "womens",
+  "winter": "winter",
+  "kids zone": "kids",
+  "gadgets & electronics": "electronics",
+  "home & lifestyle": "home",
+  "watch": "watches",
+  "other's": "giftsfood",
+  "others": "giftsfood",
+  "customize & gift": "giftsfood",
+  "foods": "giftsfood",
+  "food": "giftsfood",
+};
 const CATEGORY_RULES = [
-  [/phone|mobile|charger|cable|case|cover/i, "accessories"],
+  [/winter|jacket|sweater|hoodie|woolen|warm/i, "winter"],
+  [/kid|baby|child|toy/i, "kids"],
+  [/\bmen|gents|panjabi|boys/i, "mens"],
+  [/\bwomen|ladies|saree|girls|kurti/i, "womens"],
+  [/fashion|cloth|shirt|dress|shoe|jewel|t-?shirt|pant|trouser/i, "mens"],
   [/watch/i, "watches"],
-  [/gaming|game/i, "gaming"],
-  [/gadget|electronic|computer|laptop|audio|headphone|earphone|speaker/i, "electronics"],
-  [/beauty tech|trimmer|shaver|massager/i, "beautytech"],
-  [/beauty|health|cosmetic|skin|hair|personal care/i, "beauty"],
-  [/travel|luggage/i, "travel"],
-  [/bag|backpack|wallet/i, "bags"],
-  [/office|desk|stationery/i, "homeoffice"],
-  [/winter|jacket|sweater|hoodie|woolen|warm/i, "clothing"],
-  [/fashion|cloth|men|women|saree|panjabi|shirt|dress|shoe|jewel|t-shirt|tshirt/i, "clothing"],
-  [/home|kitchen|lifestyle|decor|furniture|household/i, "home"],
-  [/sport|fitness|gym|outdoor/i, "sports"],
-  [/toy|kid|baby/i, "toys"],
+  [/gadget|electronic|computer|laptop|audio|headphone|earphone|speaker|phone|mobile|charger|gaming/i, "electronics"],
+  [/home|kitchen|lifestyle|decor|furniture|household|living/i, "home"],
+  [/gift|food|snack/i, "giftsfood"],
 ];
 const guessCategory = name => {
-  const n = String(name || "");
+  const n = String(name || "").trim();
+  if (EXACT_CATEGORY[n.toLowerCase()]) return EXACT_CATEGORY[n.toLowerCase()];
   for (const [re, key] of CATEGORY_RULES) if (re.test(n)) return key;
-  return "dropship";
+  return "giftsfood";
 };
 
 export default async function handler(req, res) {
@@ -169,18 +183,19 @@ export default async function handler(req, res) {
       };
     }).filter(p => p.price > 0 && p.img);
 
-    // Show all products by default, clothing/winter listed first. Set
-    // DROPSHIP_MAX_PRODUCTS to a number to cap the total (clothing is always
+    // Show all products by default, fashion (men/women/winter/kids) listed first.
+    // Set DROPSHIP_MAX_PRODUCTS to a number to cap the total (fashion is always
     // kept in full, then other categories fill the rest up to that number).
     const maxEnv = num(process.env.DROPSHIP_MAX_PRODUCTS);
     const maxProducts = maxEnv > 0 ? maxEnv : Infinity;
-    const clothing = all.filter(p => p.cat === "clothing");
-    const others = all.filter(p => p.cat !== "clothing");
-    const products = clothing.concat(others).slice(0, Math.max(maxProducts, clothing.length));
+    const FASHION = new Set(["mens", "womens", "winter", "kids"]);
+    const fashion = all.filter(p => FASHION.has(p.cat));
+    const others = all.filter(p => !FASHION.has(p.cat));
+    const products = fashion.concat(others).slice(0, Math.max(maxProducts, fashion.length));
 
     // cache on Vercel's edge for 15 minutes, serve stale for up to an hour while refreshing
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600");
-    res.status(200).json({ products, count: products.length, clothingCount: clothing.length, updatedAt: new Date().toISOString() });
+    res.status(200).json({ products, count: products.length, fashionCount: fashion.length, updatedAt: new Date().toISOString() });
   } catch (err) {
     res.status(502).json({ error: "Could not load supplier products.", detail: String(err && err.message || err) });
   }
