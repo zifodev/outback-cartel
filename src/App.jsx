@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-
-import CoverPage from "./CoverPage.jsx";
-const SHOW_COVER = true; // set to false to switch the cover page off
+import HoodieRail from "./HoodieRail.jsx";
 
 // ─────────────────────────────────────────────────────────────
 //  CONFIG
@@ -34,6 +32,7 @@ const CATS = [
   { key: "home", label: "Home & Living", icon: "🏡", color: "#15803D" },
   { key: "sports", label: "Sports & Fitness", icon: "⚽", color: "#B45309" },
   { key: "toys", label: "Toys & Kids", icon: "🧸", color: "#D97706" },
+  { key: "dropship", label: "Trending Now", icon: "🔥", color: "#B91C1C" }, // supplier products from /api/products
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -1517,14 +1516,14 @@ function AIChatbot({ products }) {
 // ─────────────────────────────────────────────────────────────
 //  SHOP PAGE
 // ─────────────────────────────────────────────────────────────
-function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [search, setSearch] = useState(""); const filtered = products.filter(p => (activeCat === "all" || p.cat === activeCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase()))); const cat = CATS.find(c => c.key === activeCat) || CATS[0]; return <div><div style={{ background: `linear-gradient(135deg,${C.dark},#2C1810)`, color: "#fff", padding: "46px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}><div style={{ position: "absolute", top: -50, left: -50, width: 200, height: 200, background: "rgba(200,57,43,.12)", borderRadius: "50%" }} /><div style={{ position: "absolute", bottom: -70, right: -30, width: 240, height: 240, background: "rgba(232,160,32,.08)", borderRadius: "50%" }} /><div style={{ position: "relative", maxWidth: 600, margin: "0 auto" }}><span style={{ display: "inline-block", background: C.primary, fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 50, marginBottom: 12, letterSpacing: 1.5, textTransform: "uppercase" }}>🔥 Premium Store</span><h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.1, marginBottom: 12, letterSpacing: -1 }}>Quality Products,<br /><span style={{ color: C.accent }}>Delivered Fast!</span></h1><p style={{ fontSize: 14, color: "rgba(255,255,255,.65)", marginBottom: 22, lineHeight: 1.7 }}>Electronics · Phone Accessories · Beauty Tech · Smartwatches · Gaming · Travel & more</p><div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}><Btn onClick={() => onCatChange("all")} style={{ padding: "12px 28px", fontSize: 14, borderRadius: 50 }}>Shop Now →</Btn><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>💬 WhatsApp</a></div></div></div><div style={{ background: "#fff", padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}><div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>🔒 Secure:</span>{[["bKash", "#E2136E"], ["Nagad", "#F05A28"], ["Rocket", "#8B2FC9"], ["Visa", "#003366"], ["COD", "#555"]].map(([l, bg]) => <span key={l} style={{ background: bg, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>{l}</span>)}<span style={{ marginLeft: "auto", fontSize: 11, color: C.muted }}>Free delivery above ৳999</span></div></div><div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 24 }}>{[["🚚", "Fast Delivery", "Dhaka 1-2d | BD 3-5d"], ["💳", "SSLCommerz", "bKash · Nagad · Cards"], ["🔄", "7-Day Returns", "Hassle free"], ["💬", "WhatsApp", "Text only support"]].map(([icon, t, d]) => <div key={t} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 8px rgba(0,0,0,.05)", border: `1px solid ${C.border}` }}><span style={{ fontSize: 24 }}>{icon}</span><div><div style={{ fontSize: 12, fontWeight: 700 }}>{t}</div><div style={{ fontSize: 10, color: C.muted }}>{d}</div></div></div>)}</div><div style={{ display: "flex", gap: 7, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>{CATS.map(c => <button key={c.key} onClick={() => onCatChange(c.key)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500, border: `2px solid ${activeCat === c.key ? c.color : C.border}`, background: activeCat === c.key ? c.color : "#fff", color: activeCat === c.key ? "#fff" : C.muted, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s", fontFamily: "inherit", flexShrink: 0 }}>{c.icon} {c.label}</button>)}</div><div style={{ display: "flex", border: `2px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 18 }}><input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search in ${cat.label}…`} style={{ flex: 1, border: "none", outline: "none", padding: "11px 16px", fontSize: 14, fontFamily: "inherit", background: "transparent" }} />{search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", padding: "11px 14px", cursor: "pointer", fontSize: 15, color: C.muted }}>✕</button>}</div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 20, background: cat.color || C.primary, borderRadius: 4, display: "inline-block" }} />{cat.icon} {cat.label}</h2><span style={{ fontSize: 12, color: C.muted }}>{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span></div>{filtered.length === 0 ? <div style={{ textAlign: "center", padding: "50px 20px", color: C.muted }}><div style={{ fontSize: 48, marginBottom: 10 }}>🔍</div><p style={{ fontSize: 14 }}>No products found.</p></div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>{filtered.map(p => <ProductCard key={p.id} p={p} onAdd={onAdd} onView={onView} />)}</div>}</div></div>; }
+function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [search, setSearch] = useState(""); const filtered = products.filter(p => (activeCat === "all" || p.cat === activeCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase()))); const cat = CATS.find(c => c.key === activeCat) || CATS[0]; return <div><div style={{ background: `linear-gradient(135deg,${C.dark},#2C1810)`, color: "#fff", padding: "46px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}><div style={{ position: "absolute", top: -50, left: -50, width: 200, height: 200, background: "rgba(200,57,43,.12)", borderRadius: "50%" }} /><div style={{ position: "absolute", bottom: -70, right: -30, width: 240, height: 240, background: "rgba(232,160,32,.08)", borderRadius: "50%" }} /><div style={{ position: "relative", maxWidth: 600, margin: "0 auto" }}><span style={{ display: "inline-block", background: C.primary, fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 50, marginBottom: 12, letterSpacing: 1.5, textTransform: "uppercase" }}>🔥 Premium Store</span><h1 style={{ fontSize: 38, fontWeight: 900, lineHeight: 1.1, marginBottom: 12, letterSpacing: -1 }}>Quality Products,<br /><span style={{ color: C.accent }}>Delivered Fast!</span></h1><p style={{ fontSize: 14, color: "rgba(255,255,255,.65)", marginBottom: 22, lineHeight: 1.7 }}>Electronics · Phone Accessories · Beauty Tech · Smartwatches · Gaming · Travel & more</p><div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}><Btn onClick={() => onCatChange("all")} style={{ padding: "12px 28px", fontSize: 14, borderRadius: 50 }}>Shop Now →</Btn><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>💬 WhatsApp</a></div></div></div>{activeCat === "all" && <HoodieRail onAdd={onAdd} />}<div style={{ background: "#fff", padding: "10px 20px", borderBottom: `1px solid ${C.border}` }}><div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>🔒 Secure:</span>{[["bKash", "#E2136E"], ["Nagad", "#F05A28"], ["Rocket", "#8B2FC9"], ["Visa", "#003366"], ["COD", "#555"]].map(([l, bg]) => <span key={l} style={{ background: bg, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6 }}>{l}</span>)}<span style={{ marginLeft: "auto", fontSize: 11, color: C.muted }}>Free delivery above ৳999</span></div></div><div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 24 }}>{[["🚚", "Fast Delivery", "Dhaka 1-2d | BD 3-5d"], ["💳", "SSLCommerz", "bKash · Nagad · Cards"], ["🔄", "7-Day Returns", "Hassle free"], ["💬", "WhatsApp", "Text only support"]].map(([icon, t, d]) => <div key={t} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 8px rgba(0,0,0,.05)", border: `1px solid ${C.border}` }}><span style={{ fontSize: 24 }}>{icon}</span><div><div style={{ fontSize: 12, fontWeight: 700 }}>{t}</div><div style={{ fontSize: 10, color: C.muted }}>{d}</div></div></div>)}</div><div style={{ display: "flex", gap: 7, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>{CATS.map(c => <button key={c.key} onClick={() => onCatChange(c.key)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 50, fontSize: 12, fontWeight: 500, border: `2px solid ${activeCat === c.key ? c.color : C.border}`, background: activeCat === c.key ? c.color : "#fff", color: activeCat === c.key ? "#fff" : C.muted, cursor: "pointer", whiteSpace: "nowrap", transition: "all .2s", fontFamily: "inherit", flexShrink: 0 }}>{c.icon} {c.label}</button>)}</div><div style={{ display: "flex", border: `2px solid ${C.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 18 }}><input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search in ${cat.label}…`} style={{ flex: 1, border: "none", outline: "none", padding: "11px 16px", fontSize: 14, fontFamily: "inherit", background: "transparent" }} />{search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", padding: "11px 14px", cursor: "pointer", fontSize: 15, color: C.muted }}>✕</button>}</div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><h2 style={{ fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 20, background: cat.color || C.primary, borderRadius: 4, display: "inline-block" }} />{cat.icon} {cat.label}</h2><span style={{ fontSize: 12, color: C.muted }}>{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span></div>{filtered.length === 0 ? <div style={{ textAlign: "center", padding: "50px 20px", color: C.muted }}><div style={{ fontSize: 48, marginBottom: 10 }}>🔍</div><p style={{ fontSize: 14 }}>No products found.</p></div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>{filtered.map(p => <ProductCard key={p.id} p={p} onAdd={onAdd} onView={onView} />)}</div>}</div></div>; }
 
 // ─────────────────────────────────────────────────────────────
 //  MAIN APP
 // ─────────────────────────────────────────────────────────────
 export default function OutbackCartel() {
   const [products, setProducts] = useState(() => ls.get("oc_products") || DEFAULT_PRODUCTS);
- const [page, setPage] = useState(SHOW_COVER ? "cover" : "shop");
+  const [page, setPage] = useState("shop");
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
   const [cart, setCart] = useState([]);
@@ -1542,6 +1541,20 @@ export default function OutbackCartel() {
   const [account, setAccount] = useState(() => ls.get("oc_account"));
 
   const upd = list => { setProducts(list); ls.set("oc_products", list); };
+
+  // Supplier products (dropshipping.com.bd) loaded through our own server function /api/products,
+  // so the API key and secret key never reach the browser.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/products")
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !Array.isArray(d.products)) return;
+        setProducts(prev => [...prev.filter(p => !p.remote), ...d.products]);
+      })
+      .catch(() => { /* supplier offline: keep showing our own products */ });
+    return () => { alive = false; };
+  }, []);
   const toast_ = msg => { setToast(msg); setTimeout(() => setToast(""), 2600); };
 
   const nav = (p, cat) => { setPage(p); setSelectedProd(null); if (cat) setActiveCat(cat); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -1559,15 +1572,7 @@ export default function OutbackCartel() {
   const handleAccountClick = () => account ? setShowDash(true) : setShowAuth(true);
 
   if (view === "admin" && adminAuthed) return <AdminPanel products={products} onSave={upd} onLogout={() => { setView("site"); setAdminAuthed(false); }} />;
-if (page === "cover") return (
-  <>
-    <CoverPage cartCount={cartCount} onAdd={addToCart}
-      onEnter={() => nav("shop")}
-      onOpenCart={() => { setPage("shop"); setCartOpen(true); }}
-      onNavigate={nav} />
-    {toast && <Toast msg={toast} />}
-  </>
-);
+
   const pageContent = () => {
     // Product detail page takes priority
     if (selectedProd) return (
@@ -1582,7 +1587,7 @@ if (page === "cover") return (
     if (page === "track") return <TrackPage />;
     if (page === "returns") return <ReturnsPage />;
     if (page === "faq") return <FAQPage />;
-    return <ShopPage products={products} onAdd={addToCart} activeCat={activeCat} onCatChange={cat => { setActiveCat(cat); setPage("shop"); }} />;
+    return <ShopPage products={products} onAdd={addToCart} onView={viewProduct} activeCat={activeCat} onCatChange={cat => { setActiveCat(cat); setPage("shop"); }} />;
   };
 
   return (
