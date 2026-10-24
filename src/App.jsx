@@ -1025,7 +1025,7 @@ function ProductCard({ p, onAdd, onView }) {
       {disc > 0 && <span style={{ position: "absolute", top: 10, right: 10, zIndex: 2, background: C.primary, color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 50 }}>-{disc}%</span>}
       {/* Clickable image area → product page */}
       <div onClick={() => onView(p)} style={{ height: 170, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${cc}14,${cc}08)`, overflow: "hidden", cursor: "pointer" }}>
-        {p.img ? <img src={p.img} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} /> : <span style={{ fontSize: 60 }}>{p.icon || "📦"}</span>}
+        {p.img ? <img src={p.img} alt={p.name} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} /> : <span style={{ fontSize: 60 }}>{p.icon || "📦"}</span>}
       </div>
       <div style={{ padding: "12px 14px" }}>
         <div onClick={() => onView(p)} style={{ cursor: "pointer" }}>

@@ -45,6 +45,28 @@ const pickList = data => {
 const pickLastPage = data =>
   num(data?.last_page ?? data?.products?.last_page ?? data?.meta?.last_page ?? data?.pagination?.last_page) || 1;
 
+// supplier category names → this site's category keys (first matching rule wins)
+const CATEGORY_RULES = [
+  [/phone|mobile|charger|cable|case|cover/i, "accessories"],
+  [/watch/i, "watches"],
+  [/gaming|game/i, "gaming"],
+  [/gadget|electronic|computer|laptop|audio|headphone|earphone|speaker/i, "electronics"],
+  [/beauty tech|trimmer|shaver|massager/i, "beautytech"],
+  [/beauty|health|cosmetic|skin|hair|personal care/i, "beauty"],
+  [/travel|luggage/i, "travel"],
+  [/bag|backpack|wallet/i, "bags"],
+  [/office|desk|stationery/i, "homeoffice"],
+  [/fashion|cloth|men|women|saree|panjabi|shirt|hoodie|dress|shoe|jewel/i, "clothing"],
+  [/home|kitchen|lifestyle|decor|furniture|household/i, "home"],
+  [/sport|fitness|gym|outdoor/i, "sports"],
+  [/toy|kid|baby/i, "toys"],
+];
+const guessCategory = name => {
+  const n = String(name || "");
+  for (const [re, key] of CATEGORY_RULES) if (re.test(n)) return key;
+  return "dropship";
+};
+
 export default async function handler(req, res) {
   const key = process.env.DROPSHIP_API_KEY;
   const secret = process.env.DROPSHIP_SECRET_KEY;
@@ -85,16 +107,22 @@ export default async function handler(req, res) {
     if (req.query && req.query.debug) {
       // connection check: shows how many products came back and one raw example (no keys)
       res.setHeader("Cache-Control", "no-store");
-      res.status(200).json({ ok: true, count: raw.length, pagesFetched: page - 1, lastPage, sample: raw[0] || null });
+      const categories = {};
+      raw.forEach(p => { const c = p.category || p.category_name || p.category_id || "?"; categories[c] = (categories[c] || 0) + 1; });
+      res.status(200).json({ ok: true, count: raw.length, pagesFetched: page - 1, lastPage, categories, sample: raw[0] || null });
       return;
     }
 
-    const products = raw.map(p => {
+    const products = raw
+      .filter(p => (p.status === undefined || p.status === "active" || p.status === 1 || p.status === 3) &&
+                   (p.stock_status === undefined || p.stock_status === "available"))
+      .map(p => {
       // reselling_price is the supplier's suggested selling price; fall back to sale_price / price
       const base = num(p.reselling_price) || num(p.sale_price) || num(p.price);
       const price = Math.round(base * (1 + markupPct / 100) + markupFlat);
       const regular = num(p.price) > price ? num(p.price) : null;
-      const images = (Array.isArray(p.product_image) ? p.product_image : [])
+      const imgList = Array.isArray(p.product_images) ? p.product_images : Array.isArray(p.product_image) ? p.product_image : [];
+      const images = imgList
         .map(im => url(im && im.product_image))
         .filter(Boolean);
       return {
@@ -104,7 +132,12 @@ export default async function handler(req, res) {
         code: p.product_code ?? null,
         slug: p.slug || "",
         name: String(p.name || "Product").trim(),
-        cat: catMap[String(p.category_id)] || "dropship",
+        cat: catMap[String(p.category_id)] || catMap[String(p.category)] || guessCategory(p.category || p.category_name),
+        supplierCategory: p.category || null,
+        colors: (Array.isArray(p.product_variants) ? p.product_variants : [])
+          .filter(v => /colou?r/i.test(v.attribute || "")).map(v => v.variant).filter(Boolean),
+        sizes: (Array.isArray(p.product_variants) ? p.product_variants : [])
+          .filter(v => /size/i.test(v.attribute || "")).map(v => v.variant).filter(Boolean),
         price,
         old: regular,
         icon: "📦",
