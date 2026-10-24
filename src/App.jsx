@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 
+import CoverPage from "./CoverPage.jsx";
+const SHOW_COVER = true; // set to false to switch the cover page off
+
 // ─────────────────────────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────────────────────────
@@ -1521,7 +1524,7 @@ function ShopPage({ products, onAdd, onView, activeCat, onCatChange }) { const [
 // ─────────────────────────────────────────────────────────────
 export default function OutbackCartel() {
   const [products, setProducts] = useState(() => ls.get("oc_products") || DEFAULT_PRODUCTS);
-  const [page, setPage] = useState("shop");
+ const [page, setPage] = useState(SHOW_COVER ? "cover" : "shop");
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
   const [cart, setCart] = useState([]);
@@ -1556,7 +1559,15 @@ export default function OutbackCartel() {
   const handleAccountClick = () => account ? setShowDash(true) : setShowAuth(true);
 
   if (view === "admin" && adminAuthed) return <AdminPanel products={products} onSave={upd} onLogout={() => { setView("site"); setAdminAuthed(false); }} />;
-
+if (page === "cover") return (
+  <>
+    <CoverPage cartCount={cartCount} onAdd={addToCart}
+      onEnter={() => nav("shop")}
+      onOpenCart={() => { setPage("shop"); setCartOpen(true); }}
+      onNavigate={nav} />
+    {toast && <Toast msg={toast} />}
+  </>
+);
   const pageContent = () => {
     // Product detail page takes priority
     if (selectedProd) return (
