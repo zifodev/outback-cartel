@@ -168,7 +168,7 @@ export default async function handler(req, res) {
         code: p.product_code ?? null,
         slug: p.slug || "",
         name: String(p.name || "Product").trim(),
-        cat: catMap[String(p.category_id)] || catMap[String(p.category)] || guessCategory(p.category || p.category_name),
+        cat: catMap[String(p.category_id)] || catMap[String(p.category)] || (/hoodie|hoody/i.test(p.name || "") ? "hoodies" : guessCategory(p.category || p.category_name)),
         supplierCategory: p.category || null,
         colors: (Array.isArray(p.product_variants) ? p.product_variants : [])
           .filter(v => /colou?r/i.test(v.attribute || "")).map(v => v.variant).filter(Boolean),
@@ -188,7 +188,7 @@ export default async function handler(req, res) {
     // kept in full, then other categories fill the rest up to that number).
     const maxEnv = num(process.env.DROPSHIP_MAX_PRODUCTS);
     const maxProducts = maxEnv > 0 ? maxEnv : Infinity;
-    const FASHION = new Set(["mens", "womens", "winter", "kids"]);
+    const FASHION = new Set(["hoodies", "mens", "womens", "winter", "kids"]);
     const fashion = all.filter(p => FASHION.has(p.cat));
     const others = all.filter(p => !FASHION.has(p.cat));
     const products = fashion.concat(others).slice(0, Math.max(maxProducts, fashion.length));

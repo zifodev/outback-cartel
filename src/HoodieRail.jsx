@@ -13,15 +13,15 @@ import { useState, useRef, useEffect } from "react";
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
 const ITEMS = [
-  { id: 101, name: "Bow Print Hoodie", price: 0, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
+  { id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
     colors: [{ name: "Pink", hex: "#F4B8C8", img: "hoodies/cut-bow.webp" }] },
-  { id: 102, name: "Meow Cat Hoodie", price: 0, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
+  { id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
     colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/cut-meow.webp" }] },
-  { id: 103, name: "I'm OK Hoodie", price: 0, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
+  { id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
     colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/cut-okay-grey.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
-  { id: 105, name: "Tribal Mark Hoodie", price: 0, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
+  { id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-tribal.webp" }] },
-  { id: 106, name: "Beware of Chicken Hoodie", price: 0, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
+  { id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-chicken.webp" }] },
 ];
 
@@ -167,7 +167,7 @@ const CSS = `
 
 const BURST = ["#C8392B", "#E8A020", "#2E7D52", "#1F3A8A", "#DB2777", "#1C1C1C", "#E8A020", "#C8392B"];
 
-export default function HoodieRail({ onAdd }) {
+export default function HoodieRail({ onAdd, onBrowse }) {
   const [facing, setFacing] = useState(null);   // garment turned towards the viewer
   const [active, setActive] = useState(null);   // garment pulled off the rail
   const [lifted, setLifted] = useState(() => ITEMS.map(() => false));
@@ -380,12 +380,12 @@ export default function HoodieRail({ onAdd }) {
           {face ? (
             <>
               <div className="rk-line" key={facing}>{face.name} — <span>{face.price ? fmtBDT(face.price) : "Price coming soon"}</span></div>
-              <button className="rk-avail" onClick={() => select(facing)}>See availability</button>
+              <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
             </>
           ) : (
             <>
               <div className="rk-line muted">{ITEMS.length} hoodies on the rail</div>
-              <button className="rk-avail" disabled>See availability</button>
+              <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
             </>
           )}
         </div>
