@@ -1,16 +1,14 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
-import { Spinner, spinSpec } from "./hoodie3d.js";
-// how far a hoodie hangs turned away from you (deg): side-on. It turns to 0° when you point at it
-const SPIN_REST = 84;
+// how far a hoodie hangs turned away from you (deg); it turns to 0° when you point at it
+const SPIN_REST = 72;
 
 // the Try-On studio (3D avatar + your own photo) loads only when someone opens it
 const TryOn = lazy(() => import("./TryOn.jsx"));
 
 // ─────────────────────────────────────────────────────────────
 //  HOODIE RACK — section shown on the shop home page.
-//  Hoodies hang side-on from a wire across a soft studio backdrop (3D side
-//  renders, see hoodie3d.js). Hover (or tap) one and it turns on its hanger
-//  to face you, ending on its real product photo. Click it (or tap again) and it lifts
+//  Real product photos hang side-on from a wire across a soft studio backdrop.
+//  Hover (or tap) one and it turns on its hanger to face you. Click it (or tap again) and it lifts
 //  off the rail into the foreground with price, colours, sizes,
 //  TRY IT ON and ADD TO CART. Esc / Back / clicking the dark area puts it back.
 //
@@ -126,10 +124,8 @@ const CSS = `
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
 /* real 3D hoodie renders (see hoodie3d.js) — the hook at the top of each frame hangs on the wire */
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:calc(var(--bh) * -.011);pointer-events:none;perspective:900px}
-.rk-turn{position:absolute;inset:0;transition:opacity .15s}
-.rk-spin,.rk-photo{position:absolute;inset:0;display:block;width:100%;height:100%;filter:drop-shadow(0 14px 12px rgba(28,28,28,.2))}
-.rk-photo{object-fit:contain;object-position:50% 0;transform-origin:50% 0;backface-visibility:hidden;opacity:0}
-.rk-slot[data-face="true"] .rk-spin,.rk-slot[data-face="true"] .rk-photo{filter:drop-shadow(0 20px 18px rgba(28,28,28,.24))}
+.rk-photo{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transform-origin:50% 0;backface-visibility:hidden;filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.2));transition:opacity .15s}
+.rk-slot[data-face="true"] .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 20px 18px rgba(28,28,28,.24))}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -269,8 +265,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const keepUntil = useRef(0); // keep animating while hangers make room for a turning hoodie
   // ── each hoodie turns on its hanger: angle springs towards its target (0° = facing you)
   const photoRefs = useRef([]);
-  const canvasRefs = useRef([]);
-  const spinners = useRef([]);
   const turn = useRef(ITEMS.map(() => ({ a: SPIN_REST, v: 0, t: SPIN_REST })));
 
   // total width of the hoodies on the rail (they overflow both sides of the row on phones)
@@ -358,14 +352,13 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
         g.a += g.v * dt;
       }
       if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
-      // side-on it's the 3D render; as it comes round to face you it hands over to the real photo
-      const a = Math.max(-6, Math.min(84, g.a));
-      const sp = spinners.current[i];
-      if (sp) sp.draw(a);
-      const ph = photoRefs.current[i], cv = canvasRefs.current[i];
-      const p = Math.max(0, Math.min(1, (28 - Math.abs(a)) / 22)), e = p * p * (3 - 2 * p);
-      if (ph) { ph.style.opacity = e.toFixed(3); ph.style.transform = `rotateY(${(-a).toFixed(2)}deg)`; }
-      if (cv) cv.style.opacity = (1 - e).toFixed(3);
+      // the photo hangs side-on and turns about its hook to face you; the far side falls into shade
+      const ph = photoRefs.current[i];
+      if (ph) {
+        const a = Math.max(-6, Math.min(84, g.a)) * 0.85;
+        ph.style.transform = `rotateY(${(-a).toFixed(2)}deg)`;
+        ph.style.setProperty("--shade", (1 - 0.22 * Math.min(1, Math.abs(a) / 70)).toFixed(3));
+      }
     });
     paint();
     loopId.current = busy ? requestAnimationFrame(tick) : 0;
@@ -378,30 +371,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   // hangers slide apart when a hoodie turns to face you: follow the wire while they move
   useEffect(() => {
     turn.current.forEach((g, i) => { g.t = facing === i ? 0 : SPIN_REST; });
-    if (facing !== null && spinners.current[facing]) spinners.current[facing].preload();
     keepUntil.current = performance.now() + 1100;
     kick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
-  // one Spinner per hoodie draws its 3D side render into the slot's canvas
-  useEffect(() => {
-    spinners.current = ITEMS.map((it, i) => {
-      const sp = new Spinner(canvasRefs.current[i], spinSpec(it));
-      sp.draw(turn.current[i].a);
-      return sp;
-    });
-    const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
-    const id = idle(() => spinners.current.forEach(sp => sp.preload()));
-    const onResize = () => spinners.current.forEach(sp => sp.redraw());
-    window.addEventListener("resize", onResize);
-    return () => {
-      (window.cancelIdleCallback || clearTimeout)(id);
-      window.removeEventListener("resize", onResize);
-      spinners.current.forEach(sp => sp.dispose());
-      spinners.current = [];
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   useEffect(() => {
     fitRail(); paint();
     const onResize = () => { fitRail(); paint(); };
@@ -640,11 +613,8 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                   <div className="rk-sway">
                     <span className="rk-tag" style={{ opacity: lifted[i] ? 0 : 1 }}>{it.price ? fmtBDT(it.price) : "Soon"}</span>
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                      <div className="rk-turn" style={{ opacity: lifted[i] ? 0 : 1 }}>
-                        <canvas className="rk-spin" ref={el => (canvasRefs.current[i] = el)} />
-                        <img className="rk-photo" ref={el => (photoRefs.current[i] = el)} src={it.cut} alt="" draggable="false"
-                          style={{ mixBlendMode: it.remote ? "multiply" : "normal" }} />
-                      </div>
+                      <img className="rk-photo" ref={el => (photoRefs.current[i] = el)} src={it.cut} alt="" draggable="false"
+                        style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }} />
                     </div>
                   </div>
                 </div>
