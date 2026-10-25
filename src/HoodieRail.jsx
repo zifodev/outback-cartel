@@ -82,47 +82,61 @@ function ChromeHanger({ uid, part }) {
   );
 }
 
-// Drawn in a 120 x 250 box; the hanger hook enters the collar at (60, 5). The hood
-// drapes behind (left), the front with the pocket faces right, the sleeve hangs down
-// the side and ends in a ribbed cuff just above the ribbed hem.
+// Drawn in a 120 x 250 box; the hanger hook enters the collar at (60, 5). A relaxed
+// fleece hoodie seen from the side: broad shoulder, hood draped down the back, sleeve
+// hanging down the middle with soft creases and a ribbed cuff, pocket bulge at the front.
 const HD = {
-  outer: "M60 5C70 5 79 9 82 16C87 26 89 40 89 60C89 95 89 125 90 148C94 160 95 186 92 204C91 214 91 222 90 228L88 240C70 243 50 243 32 240L30 228C29 190 28 150 29 112C24 106 18 96 15 82C12 66 13 46 18 32C23 21 31 14 40 11C46 8 53 5 60 5Z",
-  hoodIn: "M44 12C54 10 64 15 68 24C64 33 56 38 48 38C50 30 49 20 44 12Z",
-  hoodSeam: "M38 13C26 22 19 44 21 68C23 86 26 100 30 110",
-  hoodEdge: "M29 112C35 102 39 88 41 72",
-  sleeve: "M52 18C64 14 76 18 78 30C79 70 78 120 77 160C76 185 77 200 76 211L75 226C69 229 59 229 53 226L53 211C51 196 50 182 50 160C49 118 47 70 47 34C47 25 48 20 52 18Z",
-  cuffSeam: "M53 212C60 214 69 214 76 212",
-  cuffRib: "M56 214V226M60 214.5V227.5M64 214.5V228M68 214.5V227.5M72 214V226.5",
-  hemSeam: "M30 228C50 231 72 231 90 228",
-  hemRib: "M35 229.5V239.5M41 230V240.5M47 230.5V241M53 230.5V241.5M59 230.5V241.5M65 230.5V241.5M71 230.5V241M77 230V240.5M83 229.5V239.5",
-  pocket: "M90 149C85 164 85 189 90 204",
-  fold: "M33 128C38 150 40 172 38 198M86 70C84 90 84 110 86 130",
-  crease: "M50 122C58 126 68 127 77 124M51 172C60 168 70 169 77 174",
-  string: "M80 22C81 44 82 64 83 86",
+  outer: "M60 6C70 6 80 8 86 13C92 18 94 27 94 38C95 64 94 102 95 140C99 152 100 182 98 198C97 207 97 215 96 223L94 238C78 243 44 243 28 238L25 223C23 192 23 160 25 132C19 126 13 112 12 96C10 78 10 56 14 40C18 27 26 18 36 13C44 9 52 6 60 6Z",
+  hoodFlap: "M36 13C31 26 30 52 31 76C32 96 30 116 26 132C19 126 13 112 12 96C10 78 10 56 14 40C18 27 26 18 36 13Z",
+  hoodLip: "M36 14C33 34 32 62 32 90C32 108 30 122 27 131C31 127 34 116 35 100C36 74 36 42 39 18Z",
+  hoodSeam: "M32 15C20 27 14 50 14 74C14 96 18 114 25 128",
+  hoodIn: "M44 11C53 9 62 13 66 21C61 28 54 31 48 31C50 24 48 16 44 11Z",
+  sleeve: "M54 22C64 18 76 18 83 24C85 50 83 92 82 132C81 160 83 182 82 198C81 204 80 208 79 211L78 226C72 229 61 229 56 226L55 211C53 207 52 202 52 196C51 176 52 154 51 132C50 96 49 56 50 32C50 27 51 24 54 22Z",
+  armSeam: "M50 32C58 24 72 20 84 25",
+  cuffSeam: "M55 211C62 213.5 72 213.5 79 211",
+  cuffRib: "M58 213.5V226.5M62 214V228M66 214V228.5M70 214V228.5M74 213.6V227.5",
+  hemSeam: "M25 223C46 227 75 227 96 223",
+  hemRib: "M30 224.5V238M36 225.3V239.6M42 225.8V240.5M48 226V241M54 226.2V241.3M60 226.2V241.4M66 226.2V241.3M72 226V241M78 225.8V240.6M84 225.3V240M90 224.6V239",
+  pocket: "M95 141C89 156 89 184 96 199",
+  folds: "M30 152C32 172 33 194 31 216M90 54C88 84 88 112 90 134M43 140C42 166 43 190 42 214",
+  creases: "M52 118C60 126 70 127 82 119M52 184C60 179 71 180 82 186M53 198C61 202 71 202 80 197",
+  creasesHi: "M52 115C60 122 70 123 82 116M52 181C60 176 71 177 82 183",
+  string: "M86 18C87 34 90 50 91 72",
+  string2: "M83 19C83 38 86 54 87 76",
 };
 function SideHoodie({ tone }) {
   return (
     <svg className="rk-side-svg" viewBox="0 0 120 250" aria-hidden="true">
-      <path d={HD.outer} fill={tone} />
-      <path d={HD.outer} fill="url(#rkShadeX)" />
-      <path d={HD.outer} fill="url(#rkShadeY)" />
-      <rect x="0" y="0" width="120" height="250" fill="#000" filter="url(#rkNoise)" clipPath="url(#rkClip)" opacity=".55" />
-      <path d={HD.hoodIn} fill="rgba(0,0,0,.4)" />
-      <path d={HD.hoodSeam} className="sd-seam" />
-      <path d={HD.hoodEdge} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.fold} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.pocket} className="sd-seam" />
-      <path d={HD.hemSeam} className="sd-seam" />
-      <path d={HD.hemRib} className="sd-rib" />
-      <g clipPath="url(#rkClip)"><path d={HD.sleeve} fill="rgba(0,0,0,.32)" transform="translate(3 3)" filter="url(#rkSoft)" /></g>
-      <path d={HD.sleeve} fill={tone} />
-      <path d={HD.sleeve} fill="url(#rkShadeSleeve)" />
-      <path d={HD.crease} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.cuffSeam} className="sd-seam" />
-      <path d={HD.cuffRib} className="sd-rib" />
-      <path d={HD.string} stroke="rgba(0,0,0,.28)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d={HD.string} stroke="#F2EFE8" strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      <rect x="81.7" y="84" width="2.6" height="6" rx="1" fill="#D8D4CB" />
+      <g filter="url(#rkSoften)">
+        <path d={HD.outer} fill={tone} />
+        <path d={HD.outer} fill="url(#rkShadeX)" />
+        <path d={HD.outer} fill="url(#rkShadeY)" />
+        <g clipPath="url(#rkClip)"><path d={HD.hoodFlap} fill="rgba(0,0,0,.3)" transform="translate(4 3)" filter="url(#rkSoft)" /></g>
+        <path d={HD.hoodFlap} fill={tone} />
+        <path d={HD.hoodFlap} fill="url(#rkShadeHood)" />
+        <path d={HD.hoodLip} fill="rgba(0,0,0,.28)" filter="url(#rkSoft05)" />
+        <path d={HD.hoodSeam} className="sd-seam" />
+        <path d={HD.hoodIn} fill="rgba(0,0,0,.42)" filter="url(#rkSoft05)" />
+        <path d={HD.pocket} className="sd-seam" />
+        <path d={HD.folds} className="sd-crease" filter="url(#rkSoft1)" />
+        <path d={HD.hemSeam} className="sd-seam" />
+        <path d={HD.hemRib} className="sd-rib" />
+        <g clipPath="url(#rkClip)"><path d={HD.sleeve} fill="rgba(0,0,0,.3)" transform="translate(4 3)" filter="url(#rkSoft)" /></g>
+        <path d={HD.sleeve} fill={tone} />
+        <path d={HD.sleeve} fill="url(#rkShadeSleeve)" />
+        <path d={HD.armSeam} className="sd-seam" />
+        <path d={HD.creasesHi} className="sd-hi" filter="url(#rkSoft1)" />
+        <path d={HD.creases} className="sd-crease" filter="url(#rkSoft1)" />
+        <path d={HD.cuffSeam} className="sd-seam" />
+        <path d={HD.cuffRib} className="sd-rib" />
+        <rect x="0" y="0" width="120" height="250" fill="#000" filter="url(#rkNoise)" clipPath="url(#rkClip)" />
+      </g>
+      <path d={HD.string2} stroke="rgba(0,0,0,.25)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      <path d={HD.string2} stroke="#ECE8DF" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <path d={HD.string} stroke="rgba(0,0,0,.25)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      <path d={HD.string} stroke="#F4F1EA" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+      <rect x="85.7" y="74" width="2.6" height="6" rx="1.1" fill="#D8D4CB" />
+      <rect x="89.7" y="70" width="2.6" height="6" rx="1.1" fill="#D8D4CB" />
     </svg>
   );
 }
@@ -133,23 +147,29 @@ function SideDefs() {
       <defs>
         <clipPath id="rkClip"><path d={HD.outer} /></clipPath>
         <linearGradient id="rkShadeX" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".42" /><stop offset=".3" stopColor="#000" stopOpacity=".12" />
-          <stop offset=".62" stopColor="#fff" stopOpacity=".06" /><stop offset="1" stopColor="#000" stopOpacity=".3" />
+          <stop offset="0" stopColor="#000" stopOpacity=".34" /><stop offset=".35" stopColor="#000" stopOpacity=".08" />
+          <stop offset=".7" stopColor="#fff" stopOpacity=".07" /><stop offset="1" stopColor="#000" stopOpacity=".22" />
         </linearGradient>
         <linearGradient id="rkShadeY" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity=".16" /><stop offset=".25" stopColor="#fff" stopOpacity="0" />
-          <stop offset=".85" stopColor="#000" stopOpacity=".06" /><stop offset="1" stopColor="#000" stopOpacity=".22" />
+          <stop offset="0" stopColor="#fff" stopOpacity=".14" /><stop offset=".2" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".86" stopColor="#000" stopOpacity=".04" /><stop offset="1" stopColor="#000" stopOpacity=".2" />
+        </linearGradient>
+        <linearGradient id="rkShadeHood" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#000" stopOpacity=".3" /><stop offset=".55" stopColor="#fff" stopOpacity=".06" />
+          <stop offset="1" stopColor="#000" stopOpacity=".12" />
         </linearGradient>
         <linearGradient id="rkShadeSleeve" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".34" /><stop offset=".32" stopColor="#fff" stopOpacity=".12" />
-          <stop offset=".55" stopColor="#fff" stopOpacity=".04" /><stop offset="1" stopColor="#000" stopOpacity=".32" />
+          <stop offset="0" stopColor="#000" stopOpacity=".22" /><stop offset=".45" stopColor="#fff" stopOpacity=".05" />
+          <stop offset=".75" stopColor="#000" stopOpacity=".02" /><stop offset="1" stopColor="#000" stopOpacity=".2" />
         </linearGradient>
         <filter id="rkNoise" x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="7" />
-          <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0" />
+          <feTurbulence type="fractalNoise" baseFrequency=".55" numOctaves="3" seed="4" />
+          <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .12 0" />
         </filter>
-        <filter id="rkSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-        <filter id="rkSoft1" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".9" /></filter>
+        <filter id="rkSoften" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation=".35" /></filter>
+        <filter id="rkSoft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" /></filter>
+        <filter id="rkSoft1" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.1" /></filter>
+        <filter id="rkSoft05" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation=".6" /></filter>
       </defs>
     </svg>
   );
@@ -207,9 +227,10 @@ const CSS = `
 .rk-side:before{content:"";position:absolute;left:calc(50% - 1px);bottom:calc(100% - 4px);width:2px;border-radius:1px;
   height:calc(var(--bw) * 33 / 210 - 14px + var(--bh) * .07 + 4px);background:linear-gradient(90deg,#7d7d78,#f4f4f0 50%,#8d8d88)}
 .rk-side-svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 16px 12px rgba(28,28,28,.2))}
-.sd-seam{fill:none;stroke:rgba(0,0,0,.26);stroke-width:.8}
-.sd-rib{fill:none;stroke:rgba(0,0,0,.16);stroke-width:.6}
-.sd-crease{fill:none;stroke:rgba(0,0,0,.16);stroke-width:1.8;stroke-linecap:round}
+.sd-seam{fill:none;stroke:rgba(0,0,0,.22);stroke-width:.7}
+.sd-rib{fill:none;stroke:rgba(0,0,0,.13);stroke-width:.6}
+.sd-crease{fill:none;stroke:rgba(0,0,0,.13);stroke-width:2;stroke-linecap:round}
+.sd-hi{fill:none;stroke:rgba(255,255,255,.1);stroke-width:2;stroke-linecap:round}
 .rk-hanger{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));transform:scaleX(0);transform-origin:50% 0;transition:transform .32s cubic-bezier(.5,0,.75,0)}
 .rk-slot[data-face="true"] .rk-hanger{transform:scaleX(1);transition:transform .7s cubic-bezier(.2,1.25,.4,1) .26s}
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:-14px}
