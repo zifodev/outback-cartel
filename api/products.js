@@ -28,7 +28,7 @@ const API_URL = "https://mohasagor.com.bd/api/reseller/product";
 
 // allow up to 60s on the server to gather every page (Vercel function limit)
 export const config = { maxDuration: 60 };
-const BATCH = 8; // pages fetched in parallel per batch
+const BATCH = 3; // pages fetched in parallel per batch (the supplier limits how fast we can ask)
 
 const num = v => {
   const n = Number(v);
@@ -118,28 +118,6 @@ export default async function handler(req, res) {
     return r.json();
   };
 
-  // ?debug=probe: try the few common ways of sending the keys, to spot a change on the supplier's side
-  if (req.query && req.query.debug === "probe") {
-    const ways = {
-      "api-key + secret-key": { "api-key": key, "secret-key": secret },
-      "x-api-key + x-secret-key": { "x-api-key": key, "x-secret-key": secret },
-      "apikey + secretkey": { apikey: key, secretkey: secret },
-      "x-api-key + x-api-secret": { "x-api-key": key, "x-api-secret": secret },
-      "bearer + secret-key": { Authorization: `Bearer ${key}`, "secret-key": secret },
-    };
-    const results = {};
-    for (const [name, h] of Object.entries(ways)) {
-      try {
-        const r = await fetch(`${API_URL}?page=1`, { headers: { ...h, Accept: "application/json" } });
-        const t = (await r.text()).replace(/\s+/g, " ").slice(0, 140);
-        results[name] = `${r.status} ${t}`;
-      } catch (e) { results[name] = "failed: " + String(e && e.message || e); }
-    }
-    res.setHeader("Cache-Control", "no-store");
-    res.status(200).json({ probe: results });
-    return;
-  }
-
   try {
     // page 1 tells us how many pages there are; fetch the rest in parallel batches
     const first = await fetchPage(1);
@@ -222,8 +200,9 @@ export default async function handler(req, res) {
     const others = all.filter(p => !FASHION.has(p.cat));
     const products = fashion.concat(others).slice(0, Math.max(maxProducts, fashion.length));
 
-    // cache on Vercel's edge for 15 minutes, serve stale for up to an hour while refreshing
-    res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600");
+    // cache on Vercel's edge for an hour and keep serving it for a day while it refreshes in the
+    // background, so the supplier is asked rarely (they block keys that call too often)
+    res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=86400");
     res.status(200).json({ products, count: products.length, fashionCount: fashion.length, updatedAt: new Date().toISOString() });
   } catch (err) {
     const out = { error: "Could not load supplier products.", detail: String(err && err.message || err) };
@@ -235,7 +214,7 @@ export default async function handler(req, res) {
       const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
       console.log(`[products] key check api=${fp(key)} secret=${fp(secret)}`);
     }
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", req.query && req.query.debug ? "no-store" : "s-maxage=60");
     res.status(502).json(out);
   }
 }
