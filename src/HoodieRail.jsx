@@ -1,18 +1,19 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
-import { Spinner, SPIN_REST, spinSpec } from "./hoodie3d.js";
+// how far a hoodie hangs turned away from you (deg); it turns to 0° when you point at it
+const SPIN_REST = 72;
 
 // the Try-On studio (3D avatar + your own photo) loads only when someone opens it
 const TryOn = lazy(() => import("./TryOn.jsx"));
 
 // ─────────────────────────────────────────────────────────────
 //  HOODIE RACK — section shown on the shop home page.
-//  Real 3D hoodies hang side-on from a wire across a soft studio backdrop
-//  (rendered turntables, see hoodie3d.js). Hover (or tap) one and it turns
-//  on its hanger to face you. Click it (or tap again) and it lifts
+//  Real product photos hang from a wire across a soft studio backdrop.
+//  Hover (or tap) one and it turns on its hanger to face you. Click it (or tap again) and it lifts
 //  off the rail into the foreground with price, colours, sizes,
 //  TRY IT ON and ADD TO CART. Esc / Back / clicking the dark area puts it back.
 //
-//  Images live in public/hoodies/ (cut-*.webp = background removed).
+//  Images live in public/hoodies/ (cut-*.webp = background removed). Shop
+//  hoodies use their own product photo (multiplied onto the backdrop).
 //  EDIT HERE: names, notes, colours and PRICES (in ৳).
 //  While price is 0 the card shows "Price coming soon" and the
 //  ADD TO CART button stays disabled.
@@ -122,9 +123,9 @@ const CSS = `
 .rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px;animation:rkSway 5.5s ease-in-out infinite;animation-delay:calc(var(--i) * -1.3s)}
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
 /* real 3D hoodie renders (see hoodie3d.js) — the hook at the top of each frame hangs on the wire */
-.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:calc(var(--bh) * -.011);pointer-events:none}
-.rk-spin{display:block;width:100%;height:100%;filter:drop-shadow(0 14px 12px rgba(28,28,28,.2));transition:opacity .15s}
-.rk-slot[data-face="true"] .rk-spin{filter:drop-shadow(0 20px 18px rgba(28,28,28,.24))}
+.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:calc(var(--bh) * -.011);pointer-events:none;perspective:900px}
+.rk-photo{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transform-origin:50% 0;backface-visibility:hidden;filter:drop-shadow(0 14px 12px rgba(28,28,28,.2));transition:opacity .15s}
+.rk-slot[data-face="true"] .rk-photo{filter:drop-shadow(0 20px 18px rgba(28,28,28,.24))}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -160,9 +161,6 @@ const CSS = `
 .rk-fly:before{content:"";position:absolute;left:50%;bottom:calc(100% - 6px);width:1px;height:1200px;background:linear-gradient(rgba(60,60,60,0),#555 30%);opacity:0;transition:opacity .25s}
 .rk[data-on="true"] .rk-fly:before{opacity:1;transition:opacity .6s ease .55s}
 .rk-fly img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transition:opacity .45s ease}
-.rk-fly-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .45s ease}
-.rk-fly[data-cv="1"] .rk-fly-cv{opacity:1}
-.rk-fly[data-cv="1"] img,.rk-fly[data-cv="1"] .rk-sweep{opacity:0}
 .rk-fly img.photo{object-fit:cover;object-position:50% 20%;border-radius:12px}
 .rk-sweep{position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,rgba(255,244,225,0) 40%,rgba(255,244,225,.45) 50%,rgba(255,244,225,0) 60%);background-size:300% 100%;background-position:150% 0;opacity:0;mix-blend-mode:soft-light;-webkit-mask:var(--m) center top/contain no-repeat;mask:var(--m) center top/contain no-repeat}
 .rk-fly[data-sweep="1"] .rk-sweep{animation:rkSweep 1.3s ease .6s both}
@@ -244,7 +242,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const slotRefs = useRef([]);
   const boxRefs = useRef([]);
   const flyRefs = useRef([]);
-  const flyCvRefs = useRef([]);   // 3D render of the hoodie while it lifts off / goes back
   const backRef = useRef(null);
   const geo = useRef(ITEMS.map(() => null));
   const anims = useRef(ITEMS.map(() => null));
@@ -267,8 +264,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const wireRef = useRef(null);
   const keepUntil = useRef(0); // keep animating while hangers make room for a turning hoodie
   // ── each hoodie turns on its hanger: angle springs towards its target (0° = facing you)
-  const canvasRefs = useRef([]);
-  const spinners = useRef([]);
+  const photoRefs = useRef([]);
   const turn = useRef(ITEMS.map(() => ({ a: SPIN_REST, v: 0, t: SPIN_REST })));
 
   // total width of the hoodies on the rail (they overflow both sides of the row on phones)
@@ -356,8 +352,9 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
         g.a += g.v * dt;
       }
       if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
-      const sp = spinners.current[i];
-      if (sp) sp.draw(Math.max(-6, Math.min(84, g.a)));
+      // the photo turns about its hook (a card-like 3D turn: about 0.4° of yaw per degree of turn)
+      const ph = photoRefs.current[i];
+      if (ph) ph.style.transform = `rotateY(${(-0.4 * Math.max(-6, Math.min(84, g.a))).toFixed(2)}deg)`;
     });
     paint();
     loopId.current = busy ? requestAnimationFrame(tick) : 0;
@@ -370,31 +367,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   // hangers slide apart when a hoodie turns to face you: follow the wire while they move
   useEffect(() => {
     turn.current.forEach((g, i) => { g.t = facing === i ? 0 : SPIN_REST; });
-    if (facing !== null && spinners.current[facing]) spinners.current[facing].preload();
     keepUntil.current = performance.now() + 1100;
     kick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
-  // one Spinner per hoodie draws its 3D turntable into the slot's canvas
-  useEffect(() => {
-    spinners.current = ITEMS.map((it, i) => {
-      const sp = new Spinner(canvasRefs.current[i], spinSpec(it));
-      sp.draw(turn.current[i].a);
-      return sp;
-    });
-    // stream the rest of every hoodie's frames in once the page has settled
-    const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
-    const id = idle(() => spinners.current.forEach(sp => sp.preload()));
-    const onResize = () => spinners.current.forEach(sp => sp.redraw());
-    window.addEventListener("resize", onResize);
-    return () => {
-      (window.cancelIdleCallback || clearTimeout)(id);
-      window.removeEventListener("resize", onResize);
-      spinners.current.forEach(sp => sp.dispose());
-      spinners.current = [];
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   useEffect(() => {
     fitRail(); paint();
     const onResize = () => { fitRail(); paint(); };
@@ -486,7 +462,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
   const openTryOn = i => { touch(); setTryOn(Math.max(0, Math.min(ITEMS.length - 1, i || 0))); };
 
-  const openFlyer = (i, fromSide) => {
+  const openFlyer = i => {
     const fly = flyRefs.current[i];
     const g = measure(i);
     if (!fly || !g) return;
@@ -498,12 +474,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     if (!wasOut) {
       Object.assign(fly.style, { display: "block", transform: start, filter: SHADOW_REST });
       fly.dataset.sweep = "0"; void fly.offsetWidth; fly.dataset.sweep = "1";
-      // lift the 3D hoodie itself (it keeps turning to face you on the way), then fade to the photo
-      const sp = spinners.current[i];
-      if (sp) sp.setMirror(flyCvRefs.current[i]);
-      fly.dataset.cv = "1";
-      clearTimeout(fly._cvT);
-      fly._cvT = setTimeout(() => { fly.dataset.cv = "0"; if (sp) sp.setMirror(null); }, quick ? 0 : fromSide ? 780 : 520);
     }
     geo.current[i] = g;
     fly.style.zIndex = String(++zTop.current);
@@ -525,7 +495,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     const fly = flyRefs.current[i];
     if (!fly || fly.style.display !== "block") { setLifted(l => l.map((v, k) => (k === i ? false : v))); return; }
     stopAnim(i);
-    clearTimeout(fly._cvT); fly.dataset.cv = "1";
     const g0 = geo.current[i], g1 = measure(i);
     if (g0 && g1) {
       Object.assign(fly.style, { left: g1.sx + "px", top: g1.sy + "px", transform: TF(g0.dx + g0.sx - g1.sx, g0.dy + g0.sy - g1.sy, g0.s, -5) });
@@ -543,11 +512,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const select = i => {
     touch();
     if (active === i) return;
-    const fromSide = facing !== i;
     if (active !== null) closeFlyer(active);
     setFacing(i);
     setLifted(l => l.map((v, k) => (k === i ? true : v)));
-    openFlyer(i, fromSide);
+    openFlyer(i);
     activeRef.current = i;
     setActive(i); setSize(null); setAdded(false);
     const sec = secRef.current;
@@ -641,7 +609,8 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                   <div className="rk-sway">
                     <span className="rk-tag" style={{ opacity: lifted[i] ? 0 : 1 }}>{it.price ? fmtBDT(it.price) : "Soon"}</span>
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                      <canvas className="rk-spin" ref={el => (canvasRefs.current[i] = el)} style={{ opacity: lifted[i] ? 0 : 1 }} />
+                      <img className="rk-photo" ref={el => (photoRefs.current[i] = el)} src={it.cut} alt="" draggable="false"
+                        style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }} />
                     </div>
                   </div>
                 </div>
@@ -675,7 +644,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
           <div key={it.id} className="rk-fly" ref={el => (flyRefs.current[i] = el)} aria-hidden="true">
             <img src={v.img} alt="" className={v.photo ? "photo" : ""} draggable="false" />
             {!v.photo && <div className="rk-sweep" style={{ "--m": `url(${v.img})` }} />}
-            <canvas className="rk-fly-cv" ref={el => (flyCvRefs.current[i] = el)} />
           </div>
         );
       })}
