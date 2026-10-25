@@ -118,6 +118,28 @@ export default async function handler(req, res) {
     return r.json();
   };
 
+  // ?debug=probe: try the few common ways of sending the keys, to spot a change on the supplier's side
+  if (req.query && req.query.debug === "probe") {
+    const ways = {
+      "api-key + secret-key": { "api-key": key, "secret-key": secret },
+      "x-api-key + x-secret-key": { "x-api-key": key, "x-secret-key": secret },
+      "apikey + secretkey": { apikey: key, secretkey: secret },
+      "x-api-key + x-api-secret": { "x-api-key": key, "x-api-secret": secret },
+      "bearer + secret-key": { Authorization: `Bearer ${key}`, "secret-key": secret },
+    };
+    const results = {};
+    for (const [name, h] of Object.entries(ways)) {
+      try {
+        const r = await fetch(`${API_URL}?page=1`, { headers: { ...h, Accept: "application/json" } });
+        const t = (await r.text()).replace(/\s+/g, " ").slice(0, 140);
+        results[name] = `${r.status} ${t}`;
+      } catch (e) { results[name] = "failed: " + String(e && e.message || e); }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json({ probe: results });
+    return;
+  }
+
   try {
     // page 1 tells us how many pages there are; fetch the rest in parallel batches
     const first = await fetchPage(1);
