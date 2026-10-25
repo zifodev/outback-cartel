@@ -1,6 +1,42 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
 // how far a hoodie hangs turned away from you (deg); it turns to 0° when you point at it
-const SPIN_REST = 72;
+const SPIN_REST = 72;     // shop photos (they have a background, so they stay a flat card)
+const SPIN_SIDE = 87;     // our own hoodies hang fully side-on, like a wardrobe rail
+
+// ── Turning a real photo to the side. The front of the hoodie stays flat; the outer
+// sleeve bands fold back around the body (curving over FOLD_K strips) as it turns, so at
+// ~90° you are looking straight at the sleeve side of the actual photo, and at 0° it
+// unfolds back into the untouched photo.
+const FOLD_C = 0.26;      // share of the garment width on each side that folds round (sleeve)
+const FOLD_K = 4;         // strips per side (more = rounder)
+const FOLD_STRETCH = 0.7; // the side gains a little fullness as it turns
+const FOLD_STRIPS = Array.from({ length: 1 + 2 * FOLD_K }, (_, j) => j);
+function foldLayout(gw, a, BW) {
+  const f = Math.min(1, Math.max(0, a / 90));
+  const Wg = gw * BW;
+  const w = FOLD_C * Wg, sw = w / FOLD_K * (1 + FOLD_STRETCH * f), F = 90 * f, half = (0.5 - FOLD_C) * Wg;
+  const out = [{ x: 0, z: 0, r: 0, s: 1, lit: 1 }];
+  let depth = 0;
+  for (const side of [1, -1]) {
+    let px = side * half, pz = 0;
+    for (let k = 1; k <= FOLD_K; k++) {
+      const Fk = F * (k / FOLD_K) * Math.PI / 180;
+      const nx = px + side * sw * Math.cos(Fk), nz = pz - sw * Math.sin(Fk);
+      out.push({ x: (px + nx) / 2, z: (pz + nz) / 2, r: side * F * k / FOLD_K, s: 1 + FOLD_STRETCH * f, lit: 1 - 0.2 * f * k / FOLD_K });
+      if (side > 0) depth -= nz - pz;
+      px = nx; pz = nz;
+    }
+  }
+  return { strips: out, z0: -depth / 2 };
+}
+// which photo columns each strip shows (box px), and how wide the strip is before stretching
+function foldColumns(gw, BW) {
+  const Wg = gw * BW, left0 = (1 - gw) / 2 * BW, w = FOLD_C * Wg;
+  const cols = [{ col: left0 + FOLD_C * Wg, cw: (1 - 2 * FOLD_C) * Wg }];
+  for (let k = 1; k <= FOLD_K; k++) cols.push({ col: left0 + (1 - FOLD_C) * Wg + (k - 1) * w / FOLD_K, cw: w / FOLD_K });
+  for (let k = 1; k <= FOLD_K; k++) cols.push({ col: left0 + FOLD_C * Wg - k * w / FOLD_K, cw: w / FOLD_K });
+  return cols;
+}
 
 // the Try-On studio (3D avatar + your own photo) loads only when someone opens it
 const TryOn = lazy(() => import("./TryOn.jsx"));
@@ -19,15 +55,15 @@ const TryOn = lazy(() => import("./TryOn.jsx"));
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
 const HOUSE_ITEMS = [
-  { id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, tone: "#DC9EAB", note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
+  { id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, tone: "#DC9EAB", asp: 563 / 700, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
     colors: [{ name: "Pink", hex: "#F4B8C8", img: "hoodies/cut-bow.webp" }] },
-  { id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
+  { id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
     colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/cut-meow.webp" }] },
-  { id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
+  { id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
     colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/cut-okay-grey.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
-  { id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
+  { id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-tribal.webp" }] },
-  { id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
+  { id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 213 / 219, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-chicken.webp" }] },
 ];
 
@@ -66,7 +102,6 @@ const toItem = p => ({
 });
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
-const DEPTH = [6, 5, 4, 3, 2, 1]; // copies stacked behind each photo (furthest first) for soft depth
 const fmtBDT = n => "৳" + Number(n).toLocaleString();
 const REDUCED = () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TF = (x, y, s, r) => `perspective(1400px) translate3d(${x}px,${y}px,0px) scale(${s}) rotateY(${r}deg)`;
@@ -131,13 +166,11 @@ const CSS = `
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:var(--hookh);pointer-events:none;perspective:1600px}
 .rk-turnwrap{position:absolute;inset:0;transform-origin:50% 0;transform-style:preserve-3d;will-change:transform;transition:opacity .15s}
 .rk-turnwrap.flat{transform-style:flat}
-.rk-photo,.rk-depth{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none}
+.rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none}
 .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.18))}
 .rk-slot[data-face="true"] .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 20px 18px rgba(28,28,28,.24))}
-.rk-depth{opacity:var(--tf,0)}
-.rk-shade{position:absolute;inset:0;pointer-events:none;opacity:var(--tf,0);transform:translateZ(.5px);
-  background:linear-gradient(90deg,rgba(24,16,12,.34) 0%,rgba(24,16,12,.12) 38%,rgba(255,250,240,0) 62%,rgba(255,250,240,.10) 92%,rgba(24,16,12,.06) 100%);
-  -webkit-mask:var(--m) 50% 0/contain no-repeat;mask:var(--m) 50% 0/contain no-repeat}
+.rk-strip{position:absolute;top:0;left:50%;height:100%;overflow:hidden;pointer-events:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-origin:50% 50%}
+.rk-strip img{position:absolute;top:0;left:0;width:var(--bw);height:var(--bh);max-width:none;object-fit:contain;object-position:50% 0}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -277,7 +310,29 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const keepUntil = useRef(0); // keep animating while hangers make room for a turning hoodie
   // ── each hoodie turns on its hanger: angle springs towards its target (0° = facing you)
   const photoRefs = useRef([]);
-  const turn = useRef(ITEMS.map(() => ({ a: SPIN_REST, v: 0, t: SPIN_REST })));
+  const restFor = i => (ITEMS[i] && !ITEMS[i].remote ? SPIN_SIDE : SPIN_REST);
+  const turn = useRef(ITEMS.map((_, i) => ({ a: restFor(i), v: 0, t: restFor(i) })));
+  const stripRefs = useRef(ITEMS.map(() => []));
+  const boxW = useRef(245);
+  const gwRef = useRef([]); // share of the box width each of our hoodies fills
+  // size each strip to the photo columns it shows (on load and when the screen size changes)
+  const setupStrips = () => {
+    const b = boxRefs.current.find(Boolean);
+    if (b && b.offsetWidth) boxW.current = b.offsetWidth;
+    const BW = boxW.current, BH = b && b.offsetHeight ? b.offsetHeight : BW / 1.225;
+    ITEMS.forEach((it, i) => {
+      if (it.remote) return;
+      const gw = Math.min(1, (it.asp || 0.8) * BH / BW);
+      foldColumns(gw, BW).forEach((c, j) => {
+        const el = stripRefs.current[i] && stripRefs.current[i][j];
+        if (!el) return;
+        const W = c.cw + 0.8; // a hair of overlap hides the seams
+        el.style.width = W + "px"; el.style.marginLeft = -W / 2 + "px";
+        const img = el.firstChild; if (img) img.style.transform = `translateX(${(-c.col + 0.4).toFixed(2)}px)`;
+      });
+      gwRef.current[i] = gw;
+    });
+  };
 
   // total width of the hoodies on the rail (they overflow both sides of the row on phones)
   const contentW = () => {
@@ -366,7 +421,18 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
       // the photo hangs side-on and turns about its hook to face you; the far side falls into shade
       const ph = photoRefs.current[i];
-      if (ph) {
+      const it = ITEMS[i];
+      if (ph && it && !it.remote && gwRef.current[i]) {
+        // our own hoodies: the sleeves fold round as it turns, ~90° shows the side
+        const a = Math.max(-6, Math.min(92, g.a));
+        const { strips, z0 } = foldLayout(gwRef.current[i], Math.min(90, Math.max(0, a)), boxW.current);
+        ph.style.transform = `translateZ(${z0.toFixed(2)}px) rotateY(${(-a).toFixed(2)}deg) translateZ(${(-z0).toFixed(2)}px)`;
+        strips.forEach((st, j) => {
+          const el = stripRefs.current[i][j]; if (!el) return;
+          el.style.transform = `translate3d(${st.x.toFixed(2)}px,0,${st.z.toFixed(2)}px) rotateY(${st.r.toFixed(2)}deg) scaleX(${st.s.toFixed(4)})`;
+          el.style.filter = st.lit < 0.999 ? `brightness(${st.lit.toFixed(3)})` : "";
+        });
+      } else if (ph) {
         const a = Math.max(-6, Math.min(84, g.a)) * 0.8;
         const f = Math.min(1, Math.abs(a) / 60);
         ph.style.transform = `rotateY(${(-a).toFixed(2)}deg)`;
@@ -384,14 +450,15 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   };
   // hangers slide apart when a hoodie turns to face you: follow the wire while they move
   useEffect(() => {
-    turn.current.forEach((g, i) => { g.t = facing === i ? 0 : SPIN_REST; });
+    turn.current.forEach((g, i) => { g.t = facing === i ? 0 : restFor(i); });
     keepUntil.current = performance.now() + 1100;
     kick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
   useEffect(() => {
-    fitRail(); paint();
-    const onResize = () => { fitRail(); paint(); };
+    fitRail(); setupStrips(); paint();
+    keepUntil.current = performance.now() + 300; kick();
+    const onResize = () => { fitRail(); setupStrips(); paint(); keepUntil.current = performance.now() + 300; kick(); };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -633,12 +700,13 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
                       <div className={"rk-turnwrap" + (it.remote ? " flat" : "")} ref={el => (photoRefs.current[i] = el)}
                         style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }}>
-                        {!it.remote && DEPTH.map(k => (
-                          <img key={k} className="rk-depth" src={it.cut} alt="" draggable="false"
-                            style={{ transform: `translateZ(calc(var(--dz) * -${k}))`, filter: `brightness(${(0.72 + 0.03 * (DEPTH.length - k)).toFixed(2)}) blur(.6px)` }} />
-                        ))}
-                        <img className="rk-photo" src={it.cut} alt="" draggable="false" />
-                        {!it.remote && <div className="rk-shade" style={{ "--m": `url(${it.cut})` }} />}
+                        {it.remote
+                          ? <img className="rk-photo" src={it.cut} alt="" draggable="false" />
+                          : FOLD_STRIPS.map(j => (
+                            <div key={j} className="rk-strip" ref={el => { if (!stripRefs.current[i]) stripRefs.current[i] = []; stripRefs.current[i][j] = el; }}>
+                              <img src={it.cut} alt="" draggable="false" />
+                            </div>
+                          ))}
                       </div>
                     </div>
                   </div>
