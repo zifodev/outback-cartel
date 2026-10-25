@@ -5,68 +5,130 @@ const SPIN_REST = 87; // angle it hangs at (deg); it turns to 0° when you point
 // ── A hoodie seen from the side: hood hanging down the back, sleeve in front with a ribbed
 // cuff, drawstrings, ribbed hem and the pocket curving out at the front. One drawing,
 // tinted with the hoodie's colour, so every hoodie on the rail hangs the same proper way.
-const SIL = "M98 6 C58 2 8 40 6 118 C5 186 20 236 34 262 L31 440 L33 468 Q104 482 174 466 C182 420 184 340 180 300 C176 240 172 150 172 44 C172 20 150 9 124 8 C114 6 106 5 98 6 Z";
+const SIL = "M98 6 C58 2 8 40 6 118 C5 186 20 236 34 262 L31 446 C31 463 35 471 48 473 Q104 480 158 473 C171 471 176 463 177 450 C182 410 184 340 180 300 C176 240 172 150 172 44 C172 20 150 9 124 8 C114 6 106 5 98 6 Z";
 const HOOD = "M98 6 C58 2 8 40 6 118 C5 186 20 236 34 262 C58 252 74 226 74 190 C72 120 84 60 104 30 C100 20 98 12 98 6 Z";
-const SLV = "M86 44 C94 30 138 28 154 40 C158 140 154 300 148 446 L99 448 C100 330 78 150 86 44 Z";
+const SLV = "M86 44 C94 30 138 28 154 40 C158 140 154 300 149 438 C148 449 140 452 124 452 C108 452 100 449 99 440 C100 330 78 150 86 44 Z";
+// very dark fabric is lifted a touch so its folds and softness still show
+const softTone = hex => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return hex || "#3A3A3D";
+  const n = parseInt(m[1], 16), rgb = [n >> 16, (n >> 8) & 255, n & 255];
+  if ((0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255 > 0.14) return hex;
+  return "#" + rgb.map((c, k) => Math.round(c + ([74, 72, 76][k] - c) * 0.16).toString(16).padStart(2, "0")).join("");
+};
 function SideHoodie({ id, tone }) {
-  const u = k => `${k}${id}`;
+  const u = k => `${k}${id}`, url = k => `url(#${u(k)})`;
+  const c = softTone(tone);
+  const dark = c !== tone || /^#?[0-3]/.test(c); // dark fabric shows grain more, so less of it
+  const blur = (k, sd) => (
+    <filter id={u(k)} filterUnits="userSpaceOnUse" x="-20" y="-20" width="230" height="530"><feGaussianBlur stdDeviation={sd} /></filter>
+  );
+  // soft, brushed-fleece grain (fine) and a gentle heathered unevenness (broad)
+  const noise = (k, freq, oct, seed, slope, soft) => (
+    <filter id={u(k)} filterUnits="userSpaceOnUse" x="0" y="0" width="190" height="490" colorInterpolationFilters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency={freq} numOctaves={oct} seed={seed} />
+      {soft ? <feGaussianBlur stdDeviation={soft} /> : null}
+      <feColorMatrix type="saturate" values="0" />
+      <feComponentTransfer>
+        <feFuncR type="linear" slope={slope} intercept={0.5 - slope / 2} />
+        <feFuncG type="linear" slope={slope} intercept={0.5 - slope / 2} />
+        <feFuncB type="linear" slope={slope} intercept={0.5 - slope / 2} />
+        <feFuncA type="linear" slope="0" intercept="1" />
+      </feComponentTransfer>
+    </filter>
+  );
+  const fabric = (
+    <>
+      <rect width="190" height="490" fill={c} />
+      <rect width="190" height="490" filter={url("hz")} opacity={dark ? ".16" : ".22"} style={{ mixBlendMode: "soft-light" }} />
+    </>
+  );
+  const grain = <rect width="190" height="490" filter={url("gz")} opacity={dark ? ".16" : ".24"} style={{ mixBlendMode: "soft-light" }} />;
   return (
     <svg className="rk-side" viewBox="0 0 190 490" aria-hidden="true" focusable="false">
       <defs>
         <clipPath id={u("sil")}><path d={SIL} /></clipPath>
         <clipPath id={u("slv")}><path d={SLV} /></clipPath>
+        <linearGradient id={u("top")} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff4e6" stopOpacity=".16" /><stop offset=".45" stopColor="#fff4e6" stopOpacity=".03" /><stop offset="1" stopColor="#000" stopOpacity=".14" />
+        </linearGradient>
         <linearGradient id={u("cyl")} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".24" /><stop offset=".14" stopColor="#000" stopOpacity=".05" />
-          <stop offset=".4" stopColor="#fff" stopOpacity=".06" /><stop offset=".65" stopColor="#fff" stopOpacity=".1" />
-          <stop offset=".88" stopColor="#000" stopOpacity=".1" /><stop offset="1" stopColor="#000" stopOpacity=".3" />
+          <stop offset="0" stopColor="#000" stopOpacity=".2" /><stop offset=".16" stopColor="#000" stopOpacity=".03" />
+          <stop offset=".42" stopColor="#fff" stopOpacity=".05" /><stop offset=".66" stopColor="#fff" stopOpacity=".09" />
+          <stop offset=".88" stopColor="#000" stopOpacity=".08" /><stop offset="1" stopColor="#000" stopOpacity=".26" />
         </linearGradient>
         <linearGradient id={u("hood")} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#fff" stopOpacity=".1" /><stop offset=".6" stopColor="#000" stopOpacity=".04" /><stop offset="1" stopColor="#000" stopOpacity=".22" />
+          <stop offset="0" stopColor="#fff" stopOpacity=".08" /><stop offset=".55" stopColor="#000" stopOpacity=".02" /><stop offset="1" stopColor="#000" stopOpacity=".2" />
         </linearGradient>
+        <radialGradient id={u("open")} cx=".55" cy=".42" r=".62">
+          <stop offset="0" stopColor="#000" stopOpacity=".55" /><stop offset=".7" stopColor="#000" stopOpacity=".3" /><stop offset="1" stopColor="#000" stopOpacity=".08" />
+        </radialGradient>
         <linearGradient id={u("slg")} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".3" /><stop offset=".22" stopColor="#000" stopOpacity=".04" />
-          <stop offset=".55" stopColor="#fff" stopOpacity=".1" /><stop offset=".86" stopColor="#000" stopOpacity=".1" /><stop offset="1" stopColor="#000" stopOpacity=".24" />
+          <stop offset="0" stopColor="#000" stopOpacity=".24" /><stop offset=".24" stopColor="#000" stopOpacity=".02" />
+          <stop offset=".55" stopColor="#fff" stopOpacity=".1" /><stop offset=".86" stopColor="#000" stopOpacity=".07" /><stop offset="1" stopColor="#000" stopOpacity=".2" />
         </linearGradient>
-        <pattern id={u("rib")} width="6" height="8" patternUnits="userSpaceOnUse"><rect width="2.2" height="8" fill="#000" opacity=".2" /><rect x="3" width="1.2" height="8" fill="#fff" opacity=".06" /></pattern>
-        <filter id={u("nz")} x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed={id + 3} result="n" />
-          <feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  1.1 0 0 0 -.3" />
-        </filter>
-        <filter id={u("bl")} x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" /></filter>
-        <filter id={u("bs")} x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4" /></filter>
+        <linearGradient id={u("band")} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity=".06" /><stop offset=".3" stopColor="#000" stopOpacity=".05" /><stop offset="1" stopColor="#000" stopOpacity=".2" />
+        </linearGradient>
+        <linearGradient id={u("agl")} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#a9a392" /><stop offset=".45" stopColor="#f6f3ea" /><stop offset="1" stopColor="#938d7d" />
+        </linearGradient>
+        <pattern id={u("rib")} width="5" height="8" patternUnits="userSpaceOnUse">
+          <rect width="2" height="8" fill="#000" opacity=".16" /><rect x="2.6" width="1.4" height="8" fill="#fff" opacity=".07" />
+        </pattern>
+        {noise("gz", ".6", 2, id * 7 + 3, 3.2, 0.42)}
+        {noise("hz", ".03 .012", 3, id * 5 + 1, 2, 0)}
+        {blur("b1", 1.4)}{blur("b3", 3.4)}{blur("b6", 7)}
       </defs>
-      <g clipPath={`url(#${u("sil")})`}>
-        <rect width="190" height="490" fill={tone} />
-        <rect width="190" height="490" fill={`url(#${u("cyl")})`} />
-        <path d={HOOD} fill={`url(#${u("hood")})`} />
-        <path d="M104 30 C84 60 72 120 74 190 C74 226 58 252 34 262" fill="none" stroke="#000" strokeOpacity=".32" strokeWidth="3" filter={`url(#${u("bs")})`} />
-        <path d="M86 14 C102 6 124 10 138 28 C120 30 100 42 86 62 C78 46 78 26 86 14 Z" fill="#000" opacity=".4" filter={`url(#${u("bs")})`} />
-        <path d={SLV} fill="#000" opacity=".34" transform="translate(-5 4)" filter={`url(#${u("bl")})`} />
-        <rect y="436" width="190" height="50" fill="#000" opacity=".1" />
-        <rect y="436" width="190" height="50" fill={`url(#${u("rib")})`} />
-        <rect y="435" width="190" height="2.4" fill="#000" opacity=".22" />
-        <path d="M150 286 C168 296 178 340 174 392 C172 420 166 436 160 436" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="2.4" />
-        <path d="M153 288 C171 300 180 342 176 394" fill="none" stroke="#fff" strokeOpacity=".1" strokeWidth="2" />
-        <rect width="190" height="490" filter={`url(#${u("nz")})`} opacity=".4" style={{ mixBlendMode: "soft-light" }} />
+
+      {/* body and hood */}
+      <g clipPath={url("sil")}>
+        {fabric}
+        <rect width="190" height="490" fill={url("cyl")} />
+        <rect width="190" height="490" fill={url("top")} />
+        <path d={HOOD} fill={url("hood")} />
+        <ellipse cx="38" cy="122" rx="24" ry="64" fill="#fff" opacity=".12" filter={url("b6")} />
+        <path d="M104 30 C84 60 72 120 74 190 C74 226 58 252 34 262" fill="none" stroke="#000" strokeOpacity=".28" strokeWidth="4.5" filter={url("b1")} />
+        <path d="M99 33 C79 63 67 120 69 188 C69 222 55 246 33 256" fill="none" stroke="#fff" strokeOpacity=".09" strokeWidth="3.5" filter={url("b1")} />
+        <path d="M86 14 C102 6 124 10 138 28 C120 30 100 42 86 62 C78 46 78 26 86 14 Z" fill={url("open")} filter={url("b1")} />
+        <path d={SLV} fill="#000" opacity=".28" transform="translate(-6 5)" filter={url("b3")} />
+        <path d="M150 286 C168 296 178 340 174 392 C172 420 166 436 160 436" fill="none" stroke="#000" strokeOpacity=".22" strokeWidth="3" filter={url("b1")} />
+        <path d="M154 289 C172 302 181 342 177 394" fill="none" stroke="#fff" strokeOpacity=".1" strokeWidth="2.4" filter={url("b1")} />
+        <rect y="436" width="190" height="50" fill={url("band")} />
+        <rect y="436" width="190" height="50" fill={url("rib")} />
+        <rect y="429" width="190" height="5" fill="#fff" opacity=".07" filter={url("b1")} />
+        <rect y="434" width="190" height="3" fill="#000" opacity=".2" filter={url("b1")} />
+        <path d={SIL} fill="none" stroke="#000" strokeOpacity=".2" strokeWidth="14" filter={url("b6")} />
+        {grain}
       </g>
-      <g clipPath={`url(#${u("slv")})`}>
-        <rect width="190" height="490" fill={tone} />
-        <rect width="190" height="490" fill={`url(#${u("slg")})`} />
-        <path d="M90 236 Q120 264 152 230" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="6" filter={`url(#${u("bl")})`} />
-        <path d="M94 350 Q122 376 150 340" fill="none" stroke="#000" strokeOpacity=".28" strokeWidth="6" filter={`url(#${u("bl")})`} />
-        <path d="M92 252 Q120 276 152 246" fill="none" stroke="#fff" strokeOpacity=".08" strokeWidth="3" />
-        <rect y="410" width="190" height="50" fill="#000" opacity=".1" />
-        <rect y="410" width="190" height="50" fill={`url(#${u("rib")})`} />
-        <rect y="409" width="190" height="2.6" fill="#000" opacity=".25" />
-        <rect width="190" height="490" filter={`url(#${u("nz")})`} opacity=".4" style={{ mixBlendMode: "soft-light" }} />
+
+      {/* the sleeve hanging in front */}
+      <g clipPath={url("slv")}>
+        {fabric}
+        <rect width="190" height="490" fill={url("slg")} />
+        <rect width="190" height="490" fill={url("top")} />
+        <ellipse cx="122" cy="60" rx="26" ry="16" fill="#fff" opacity=".09" filter={url("b6")} />
+        <path d="M90 232 Q120 260 154 226" fill="none" stroke="#000" strokeOpacity=".15" strokeWidth="8" filter={url("b3")} />
+        <path d="M92 247 Q121 272 154 241" fill="none" stroke="#fff" strokeOpacity=".05" strokeWidth="6" filter={url("b3")} />
+        <path d="M94 346 Q122 372 152 338" fill="none" stroke="#000" strokeOpacity=".13" strokeWidth="8" filter={url("b3")} />
+        <path d="M96 360 Q123 384 152 352" fill="none" stroke="#fff" strokeOpacity=".05" strokeWidth="6" filter={url("b3")} />
+        <rect y="410" width="190" height="50" fill={url("band")} />
+        <rect y="410" width="190" height="50" fill={url("rib")} />
+        <rect y="402" width="190" height="5" fill="#fff" opacity=".08" filter={url("b1")} />
+        <rect y="408" width="190" height="3" fill="#000" opacity=".24" filter={url("b1")} />
+        <path d={SLV} fill="none" stroke="#000" strokeOpacity=".2" strokeWidth="10" filter={url("b3")} />
+        {grain}
       </g>
-      <path d="M86 44 C94 30 138 28 154 40" fill="none" stroke="#000" strokeOpacity=".28" strokeWidth="2" />
-      <path d="M86 44 C78 150 100 330 99 448" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="2" />
-      {[["M146 28 L148 148", 148, 148], ["M154 27 L156 160", 156, 160]].map(([d, x, y], k) => (
+      <path d="M86 44 C94 30 138 28 154 40" fill="none" stroke="#000" strokeOpacity=".2" strokeWidth="2" filter={url("b1")} />
+      <path d="M86 44 C78 150 100 330 99 440" fill="none" stroke="#000" strokeOpacity=".24" strokeWidth="2.4" filter={url("b1")} />
+
+      {/* drawstrings */}
+      {[["M146 28 C146.5 70 147.5 110 148 148", 148, 148], ["M154 27 C154.5 72 155.5 118 156 160", 156, 160]].map(([d, x, y], k) => (
         <g key={k}>
-          <path d={d} fill="none" stroke="#5f5c55" strokeOpacity=".4" strokeWidth="4.2" strokeLinecap="round" transform="translate(1.4 1)" />
-          <path d={d} fill="none" stroke="#f3f1ea" strokeWidth="2.6" strokeLinecap="round" />
-          <rect x={x - 2.4} y={y - 2} width="4.8" height="12" rx="2.4" fill="#dcd7c8" stroke="#8a867b" strokeWidth=".6" />
+          <path d={d} fill="none" stroke="#3d3a35" strokeOpacity=".28" strokeWidth="4.4" strokeLinecap="round" transform="translate(1.6 1.2)" filter={url("b1")} />
+          <path d={d} fill="none" stroke="#e9e5da" strokeWidth="2.8" strokeLinecap="round" />
+          <path d={d} fill="none" stroke="#fff" strokeOpacity=".75" strokeWidth="1" strokeLinecap="round" transform="translate(-.5 0)" />
+          <rect x={x - 2.5} y={y - 2} width="5" height="12" rx="2.5" fill={url("agl")} />
         </g>
       ))}
     </svg>
