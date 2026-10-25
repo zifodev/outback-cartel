@@ -107,7 +107,12 @@ export default async function handler(req, res) {
     const r = await fetch(`${API_URL}?page=${pg}`, {
       headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
     });
-    if (!r.ok) throw new Error(`Supplier API answered ${r.status}`);
+    if (!r.ok) {
+      // keep the supplier's own message (shown only with ?debug=1) so a rejected key is easy to diagnose
+      const e = new Error(`Supplier API answered ${r.status}`);
+      try { e.body = (await r.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400); } catch { /* ignore */ }
+      throw e;
+    }
     return r.json();
   };
 
@@ -197,6 +202,9 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "s-maxage=900, stale-while-revalidate=3600");
     res.status(200).json({ products, count: products.length, fashionCount: fashion.length, updatedAt: new Date().toISOString() });
   } catch (err) {
-    res.status(502).json({ error: "Could not load supplier products.", detail: String(err && err.message || err) });
+    const out = { error: "Could not load supplier products.", detail: String(err && err.message || err) };
+    if (req.query && req.query.debug && err && err.body) out.supplierSays = err.body;
+    res.setHeader("Cache-Control", "no-store");
+    res.status(502).json(out);
   }
 }
