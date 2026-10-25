@@ -1,41 +1,76 @@
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
-// how far a hoodie hangs turned away from you (deg); it turns to 0° when you point at it
-const SPIN_REST = 72;     // shop photos (they have a background, so they stay a flat card)
-const SPIN_SIDE = 87;     // our own hoodies hang fully side-on, like a wardrobe rail
+// every hoodie hangs side-on (like clothes on a wardrobe rail) and flips round to face you
+const SPIN_REST = 87; // angle it hangs at (deg); it turns to 0° when you point at it
 
-// ── Turning a real photo to the side. The front of the hoodie stays flat; the outer
-// sleeve bands fold back around the body (curving over FOLD_K strips) as it turns, so at
-// ~90° you are looking straight at the sleeve side of the actual photo, and at 0° it
-// unfolds back into the untouched photo.
-const FOLD_C = 0.26;      // share of the garment width on each side that folds round (sleeve)
-const FOLD_K = 4;         // strips per side (more = rounder)
-const FOLD_STRETCH = 0.7; // the side gains a little fullness as it turns
-const FOLD_STRIPS = Array.from({ length: 1 + 2 * FOLD_K }, (_, j) => j);
-function foldLayout(gw, a, BW) {
-  const f = Math.min(1, Math.max(0, a / 90));
-  const Wg = gw * BW;
-  const w = FOLD_C * Wg, sw = w / FOLD_K * (1 + FOLD_STRETCH * f), F = 90 * f, half = (0.5 - FOLD_C) * Wg;
-  const out = [{ x: 0, z: 0, r: 0, s: 1, lit: 1 }];
-  let depth = 0;
-  for (const side of [1, -1]) {
-    let px = side * half, pz = 0;
-    for (let k = 1; k <= FOLD_K; k++) {
-      const Fk = F * (k / FOLD_K) * Math.PI / 180;
-      const nx = px + side * sw * Math.cos(Fk), nz = pz - sw * Math.sin(Fk);
-      out.push({ x: (px + nx) / 2, z: (pz + nz) / 2, r: side * F * k / FOLD_K, s: 1 + FOLD_STRETCH * f, lit: 1 - 0.2 * f * k / FOLD_K });
-      if (side > 0) depth -= nz - pz;
-      px = nx; pz = nz;
-    }
-  }
-  return { strips: out, z0: -depth / 2 };
-}
-// which photo columns each strip shows (box px), and how wide the strip is before stretching
-function foldColumns(gw, BW) {
-  const Wg = gw * BW, left0 = (1 - gw) / 2 * BW, w = FOLD_C * Wg;
-  const cols = [{ col: left0 + FOLD_C * Wg, cw: (1 - 2 * FOLD_C) * Wg }];
-  for (let k = 1; k <= FOLD_K; k++) cols.push({ col: left0 + (1 - FOLD_C) * Wg + (k - 1) * w / FOLD_K, cw: w / FOLD_K });
-  for (let k = 1; k <= FOLD_K; k++) cols.push({ col: left0 + FOLD_C * Wg - k * w / FOLD_K, cw: w / FOLD_K });
-  return cols;
+// ── A hoodie seen from the side: hood hanging down the back, sleeve in front with a ribbed
+// cuff, drawstrings, ribbed hem and the pocket curving out at the front. One drawing,
+// tinted with the hoodie's colour, so every hoodie on the rail hangs the same proper way.
+const SIL = "M98 6 C58 2 8 40 6 118 C5 186 20 236 34 262 L31 440 L33 468 Q104 482 174 466 C182 420 184 340 180 300 C176 240 172 150 172 44 C172 20 150 9 124 8 C114 6 106 5 98 6 Z";
+const HOOD = "M98 6 C58 2 8 40 6 118 C5 186 20 236 34 262 C58 252 74 226 74 190 C72 120 84 60 104 30 C100 20 98 12 98 6 Z";
+const SLV = "M86 44 C94 30 138 28 154 40 C158 140 154 300 148 446 L99 448 C100 330 78 150 86 44 Z";
+function SideHoodie({ id, tone }) {
+  const u = k => `${k}${id}`;
+  return (
+    <svg className="rk-side" viewBox="0 0 190 490" aria-hidden="true" focusable="false">
+      <defs>
+        <clipPath id={u("sil")}><path d={SIL} /></clipPath>
+        <clipPath id={u("slv")}><path d={SLV} /></clipPath>
+        <linearGradient id={u("cyl")} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#000" stopOpacity=".24" /><stop offset=".14" stopColor="#000" stopOpacity=".05" />
+          <stop offset=".4" stopColor="#fff" stopOpacity=".06" /><stop offset=".65" stopColor="#fff" stopOpacity=".1" />
+          <stop offset=".88" stopColor="#000" stopOpacity=".1" /><stop offset="1" stopColor="#000" stopOpacity=".3" />
+        </linearGradient>
+        <linearGradient id={u("hood")} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity=".1" /><stop offset=".6" stopColor="#000" stopOpacity=".04" /><stop offset="1" stopColor="#000" stopOpacity=".22" />
+        </linearGradient>
+        <linearGradient id={u("slg")} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#000" stopOpacity=".3" /><stop offset=".22" stopColor="#000" stopOpacity=".04" />
+          <stop offset=".55" stopColor="#fff" stopOpacity=".1" /><stop offset=".86" stopColor="#000" stopOpacity=".1" /><stop offset="1" stopColor="#000" stopOpacity=".24" />
+        </linearGradient>
+        <pattern id={u("rib")} width="6" height="8" patternUnits="userSpaceOnUse"><rect width="2.2" height="8" fill="#000" opacity=".2" /><rect x="3" width="1.2" height="8" fill="#fff" opacity=".06" /></pattern>
+        <filter id={u("nz")} x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed={id + 3} result="n" />
+          <feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  1.1 0 0 0 -.3" />
+        </filter>
+        <filter id={u("bl")} x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" /></filter>
+        <filter id={u("bs")} x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4" /></filter>
+      </defs>
+      <g clipPath={`url(#${u("sil")})`}>
+        <rect width="190" height="490" fill={tone} />
+        <rect width="190" height="490" fill={`url(#${u("cyl")})`} />
+        <path d={HOOD} fill={`url(#${u("hood")})`} />
+        <path d="M104 30 C84 60 72 120 74 190 C74 226 58 252 34 262" fill="none" stroke="#000" strokeOpacity=".32" strokeWidth="3" filter={`url(#${u("bs")})`} />
+        <path d="M86 14 C102 6 124 10 138 28 C120 30 100 42 86 62 C78 46 78 26 86 14 Z" fill="#000" opacity=".4" filter={`url(#${u("bs")})`} />
+        <path d={SLV} fill="#000" opacity=".34" transform="translate(-5 4)" filter={`url(#${u("bl")})`} />
+        <rect y="436" width="190" height="50" fill="#000" opacity=".1" />
+        <rect y="436" width="190" height="50" fill={`url(#${u("rib")})`} />
+        <rect y="435" width="190" height="2.4" fill="#000" opacity=".22" />
+        <path d="M150 286 C168 296 178 340 174 392 C172 420 166 436 160 436" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="2.4" />
+        <path d="M153 288 C171 300 180 342 176 394" fill="none" stroke="#fff" strokeOpacity=".1" strokeWidth="2" />
+        <rect width="190" height="490" filter={`url(#${u("nz")})`} opacity=".4" style={{ mixBlendMode: "soft-light" }} />
+      </g>
+      <g clipPath={`url(#${u("slv")})`}>
+        <rect width="190" height="490" fill={tone} />
+        <rect width="190" height="490" fill={`url(#${u("slg")})`} />
+        <path d="M90 236 Q120 264 152 230" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="6" filter={`url(#${u("bl")})`} />
+        <path d="M94 350 Q122 376 150 340" fill="none" stroke="#000" strokeOpacity=".28" strokeWidth="6" filter={`url(#${u("bl")})`} />
+        <path d="M92 252 Q120 276 152 246" fill="none" stroke="#fff" strokeOpacity=".08" strokeWidth="3" />
+        <rect y="410" width="190" height="50" fill="#000" opacity=".1" />
+        <rect y="410" width="190" height="50" fill={`url(#${u("rib")})`} />
+        <rect y="409" width="190" height="2.6" fill="#000" opacity=".25" />
+        <rect width="190" height="490" filter={`url(#${u("nz")})`} opacity=".4" style={{ mixBlendMode: "soft-light" }} />
+      </g>
+      <path d="M86 44 C94 30 138 28 154 40" fill="none" stroke="#000" strokeOpacity=".28" strokeWidth="2" />
+      <path d="M86 44 C78 150 100 330 99 448" fill="none" stroke="#000" strokeOpacity=".3" strokeWidth="2" />
+      {[["M146 28 L148 148", 148, 148], ["M154 27 L156 160", 156, 160]].map(([d, x, y], k) => (
+        <g key={k}>
+          <path d={d} fill="none" stroke="#5f5c55" strokeOpacity=".4" strokeWidth="4.2" strokeLinecap="round" transform="translate(1.4 1)" />
+          <path d={d} fill="none" stroke="#f3f1ea" strokeWidth="2.6" strokeLinecap="round" />
+          <rect x={x - 2.4} y={y - 2} width="4.8" height="12" rx="2.4" fill="#dcd7c8" stroke="#8a867b" strokeWidth=".6" />
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 // the Try-On studio (3D avatar + your own photo) loads only when someone opens it
@@ -121,7 +156,7 @@ function TryIcon() {
 // colours follow the existing site theme: dark #1C1C1C, red #C8392B, gold #E8A020, bg #F5F3EF
 const CSS = `
 .rk{position:relative;overflow:hidden;background:linear-gradient(180deg,#ECE6F2 0%,#F3F0F2 48%,#E4EFE0 100%);color:#1C1C1C;border-bottom:1px solid #E8E4DE;font-family:inherit;
-  --bw:245px;--bh:200px;--rest:168px;--face:252px;--hookh:24px;--dz:.9px}
+  --bw:245px;--bh:340px;--rest:168px;--face:252px;--hookh:24px}
 .rk *{box-sizing:border-box}
 .rk button{font-family:inherit;cursor:pointer}
 .rk button:focus-visible{outline:2px solid #1C1C1C;outline-offset:3px}
@@ -164,13 +199,12 @@ const CSS = `
    copies stacked behind give the garment soft depth along its near edge, and a
    gentle light falls across the fabric (darker on the side turned away) */
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:var(--hookh);pointer-events:none;perspective:1600px}
-.rk-turnwrap{position:absolute;inset:0;transform-origin:50% 0;transform-style:preserve-3d;will-change:transform;transition:opacity .15s}
-.rk-turnwrap.flat{transform-style:flat}
-.rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none}
+.rk-turnwrap{position:absolute;inset:0;transition:opacity .15s}
+.rk-sidewrap{position:absolute;inset:0;transform-origin:50% 0;will-change:transform;backface-visibility:hidden;filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.2))}
+.rk-side{position:absolute;top:0;left:50%;height:100%;width:auto;aspect-ratio:190/490;transform:translateX(-50%);overflow:visible}
+.rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none;transform-origin:50% 0;backface-visibility:hidden}
 .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.18))}
 .rk-slot[data-face="true"] .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 20px 18px rgba(28,28,28,.24))}
-.rk-strip{position:absolute;top:0;left:50%;height:100%;overflow:hidden;pointer-events:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-origin:50% 50%}
-.rk-strip img{position:absolute;top:0;left:0;width:var(--bw);height:var(--bh);max-width:none;object-fit:contain;object-position:50% 0}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -248,7 +282,7 @@ const CSS = `
 @keyframes rkBurst{from{opacity:1;transform:translate(-50%,-50%) rotate(var(--a)) translateX(0)}to{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateX(70px)}}
 
 @media (max-width:700px){
-  .rk{--bw:196px;--bh:160px;--rest:34px;--face:186px}
+  .rk{--bw:196px;--bh:270px;--rest:34px;--face:186px}
   .rk-in{padding:26px 12px 20px;min-height:760px}
   .rk-title{font-size:30px}
   .rk-rack{margin-top:30px}
@@ -257,7 +291,7 @@ const CSS = `
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
   /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
-  .rk{--bw:196px;--bh:160px;--rest:116px;--face:178px;--hookh:18px;--dz:.8px}
+  .rk{--bw:196px;--bh:270px;--rest:124px;--face:178px;--hookh:18px}
   .rk-row{padding-top:6px;height:calc(var(--bh) + 80px)}
   .rk-wire{top:2px}
   .rk-tag{font-size:8px;padding:2px 4px}
@@ -309,30 +343,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const wireRef = useRef(null);
   const keepUntil = useRef(0); // keep animating while hangers make room for a turning hoodie
   // ── each hoodie turns on its hanger: angle springs towards its target (0° = facing you)
-  const photoRefs = useRef([]);
-  const restFor = i => (ITEMS[i] && !ITEMS[i].remote ? SPIN_SIDE : SPIN_REST);
-  const turn = useRef(ITEMS.map((_, i) => ({ a: restFor(i), v: 0, t: restFor(i) })));
-  const stripRefs = useRef(ITEMS.map(() => []));
-  const boxW = useRef(245);
-  const gwRef = useRef([]); // share of the box width each of our hoodies fills
-  // size each strip to the photo columns it shows (on load and when the screen size changes)
-  const setupStrips = () => {
-    const b = boxRefs.current.find(Boolean);
-    if (b && b.offsetWidth) boxW.current = b.offsetWidth;
-    const BW = boxW.current, BH = b && b.offsetHeight ? b.offsetHeight : BW / 1.225;
-    ITEMS.forEach((it, i) => {
-      if (it.remote) return;
-      const gw = Math.min(1, (it.asp || 0.8) * BH / BW);
-      foldColumns(gw, BW).forEach((c, j) => {
-        const el = stripRefs.current[i] && stripRefs.current[i][j];
-        if (!el) return;
-        const W = c.cw + 0.8; // a hair of overlap hides the seams
-        el.style.width = W + "px"; el.style.marginLeft = -W / 2 + "px";
-        const img = el.firstChild; if (img) img.style.transform = `translateX(${(-c.col + 0.4).toFixed(2)}px)`;
-      });
-      gwRef.current[i] = gw;
-    });
-  };
+  const restFor = () => SPIN_REST;
+  const turn = useRef(ITEMS.map(() => ({ a: SPIN_REST, v: 0, t: SPIN_REST })));
+  const sideRefs = useRef([]);   // the side-on drawing of each hoodie
+  const frontRefs = useRef([]);  // its real front photo
 
   // total width of the hoodies on the rail (they overflow both sides of the row on phones)
   const contentW = () => {
@@ -419,25 +433,21 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
         g.a += g.v * dt;
       }
       if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
-      // the photo hangs side-on and turns about its hook to face you; the far side falls into shade
-      const ph = photoRefs.current[i];
-      const it = ITEMS[i];
-      if (ph && it && !it.remote && gwRef.current[i]) {
-        // our own hoodies: the sleeves fold round as it turns, ~90° shows the side
-        const a = Math.max(-6, Math.min(92, g.a));
-        const { strips, z0 } = foldLayout(gwRef.current[i], Math.min(90, Math.max(0, a)), boxW.current);
-        ph.style.transform = `translateZ(${z0.toFixed(2)}px) rotateY(${(-a).toFixed(2)}deg) translateZ(${(-z0).toFixed(2)}px)`;
-        strips.forEach((st, j) => {
-          const el = stripRefs.current[i][j]; if (!el) return;
-          el.style.transform = `translate3d(${st.x.toFixed(2)}px,0,${st.z.toFixed(2)}px) rotateY(${st.r.toFixed(2)}deg) scaleX(${st.s.toFixed(4)})`;
-          el.style.filter = st.lit < 0.999 ? `brightness(${st.lit.toFixed(3)})` : "";
-        });
-      } else if (ph) {
-        const a = Math.max(-6, Math.min(84, g.a)) * 0.8;
-        const f = Math.min(1, Math.abs(a) / 60);
-        ph.style.transform = `rotateY(${(-a).toFixed(2)}deg)`;
-        ph.style.setProperty("--shade", (1 - 0.1 * f).toFixed(3));
-        ph.style.setProperty("--tf", f.toFixed(3));
+      // it hangs side-on and flips round its hook to show the real photo: the side view closes
+      // up to a sliver, then the front opens out the other way
+      const sd = sideRefs.current[i], fr = frontRefs.current[i];
+      if (sd && fr) {
+        const p = Math.max(-0.1, Math.min(1.04, 1 - g.a / SPIN_REST));
+        const th = p * 180;
+        if (th <= 90) {
+          sd.style.visibility = "visible"; fr.style.visibility = "hidden";
+          sd.style.transform = `perspective(1400px) rotateY(${th.toFixed(2)}deg)`;
+        } else {
+          sd.style.visibility = "hidden"; fr.style.visibility = "visible";
+          fr.style.transform = `perspective(1400px) rotateY(${(th - 180).toFixed(2)}deg)`;
+        }
+        const sh = 1 - 0.14 * Math.min(1, Math.abs(th <= 90 ? th : 180 - th) / 90);
+        (th <= 90 ? sd : fr).style.setProperty("--shade", sh.toFixed(3));
       }
     });
     paint();
@@ -456,9 +466,9 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
   useEffect(() => {
-    fitRail(); setupStrips(); paint();
+    fitRail(); paint();
     keepUntil.current = performance.now() + 300; kick();
-    const onResize = () => { fitRail(); setupStrips(); paint(); keepUntil.current = performance.now() + 300; kick(); };
+    const onResize = () => { fitRail(); paint(); keepUntil.current = performance.now() + 300; kick(); };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -698,15 +708,9 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                       <path d="M11 40V20C11 15 4 13 4 8C4 3.5 7.5 1 11.5 1C15.5 1 18.5 3.5 18.5 7" stroke={`url(#hk${i})`} strokeWidth="2.4" fill="none" strokeLinecap="round" />
                     </svg>
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                      <div className={"rk-turnwrap" + (it.remote ? " flat" : "")} ref={el => (photoRefs.current[i] = el)}
-                        style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }}>
-                        {it.remote
-                          ? <img className="rk-photo" src={it.cut} alt="" draggable="false" />
-                          : FOLD_STRIPS.map(j => (
-                            <div key={j} className="rk-strip" ref={el => { if (!stripRefs.current[i]) stripRefs.current[i] = []; stripRefs.current[i][j] = el; }}>
-                              <img src={it.cut} alt="" draggable="false" />
-                            </div>
-                          ))}
+                      <div className="rk-turnwrap" style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }}>
+                        <div className="rk-sidewrap" ref={el => (sideRefs.current[i] = el)}><SideHoodie id={i} tone={it.tone} /></div>
+                        <img className="rk-photo" ref={el => (frontRefs.current[i] = el)} src={it.cut} alt="" draggable="false" style={{ visibility: "hidden" }} />
                       </div>
                     </div>
                   </div>
