@@ -1,11 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { Spinner, SPIN_REST, spinSpec } from "./hoodie3d.js";
+
+// the Try-On studio (3D avatar + your own photo) loads only when someone opens it
+const TryOn = lazy(() => import("./TryOn.jsx"));
 
 // ─────────────────────────────────────────────────────────────
 //  HOODIE RACK — section shown on the shop home page.
-//  Hoodies hang side-on from a wire across a soft studio backdrop. Hover (or tap) one and it
-//  turns to face you. Click it (or "See availability") and it lifts
-//  off the rail into the foreground with price, colours, sizes and
-//  ADD TO CART. Esc / Back / clicking the dark area puts it back.
+//  Real 3D hoodies hang side-on from a wire across a soft studio backdrop
+//  (rendered turntables, see hoodie3d.js). Hover (or tap) one and it turns
+//  on its hanger to face you. Click it (or tap again) and it lifts
+//  off the rail into the foreground with price, colours, sizes,
+//  TRY IT ON and ADD TO CART. Esc / Back / clicking the dark area puts it back.
 //
 //  Images live in public/hoodies/ (cut-*.webp = background removed).
 //  EDIT HERE: names, notes, colours and PRICES (in ৳).
@@ -60,97 +65,18 @@ const toItem = p => ({
 });
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
-const SIDE = 72; // degrees a garment is turned when hanging side-on
 const fmtBDT = n => "৳" + Number(n).toLocaleString();
 const REDUCED = () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TF = (x, y, s, r) => `perspective(1400px) translate3d(${x}px,${y}px,0px) scale(${s}) rotateY(${r}deg)`;
 const SHADOW_REST = "drop-shadow(0px 10px 10px rgba(0,0,0,0.18))";
 const SHADOW_HERO = "drop-shadow(0px 30px 30px rgba(0,0,0,0.22))";
 
-function ChromeHanger({ uid, part }) {
+// little hanger-with-sparkle icon for the Try-On buttons
+function TryIcon() {
   return (
-    <svg className={part === "hook" ? "rk-hook" : "rk-hanger"} viewBox="0 0 210 60" aria-hidden="true">
-      <defs>
-        <linearGradient id={`ch${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#8d8d88" /><stop offset=".35" stopColor="#f6f6f2" /><stop offset=".6" stopColor="#a4a49f" /><stop offset="1" stopColor="#6a6a65" />
-        </linearGradient>
-      </defs>
-      {part === "hook"
-        ? <path d="M105 27V18C105 12 97 10 97 4C97 -1 101 -4 106 -4C111 -4 114 -1 114 3" stroke={`url(#ch${uid})`} strokeWidth="3" fill="none" strokeLinecap="round" />
-        : <path d="M105 26L34 50Q24 54 32 57L178 57Q186 54 176 50Z" stroke={`url(#ch${uid})`} strokeWidth="3" fill="none" strokeLinejoin="round" />}
-    </svg>
-  );
-}
-
-// Drawn in a 120 x 250 box; the hanger hook enters the collar at (60, 5). The hood
-// drapes behind (left), the front with the pocket faces right, the sleeve hangs down
-// the side and ends in a ribbed cuff just above the ribbed hem.
-const HD = {
-  outer: "M60 5C70 5 79 9 82 16C87 26 89 40 89 60C89 95 89 125 90 148C94 160 95 186 92 204C91 214 91 222 90 228L88 240C70 243 50 243 32 240L30 228C29 190 28 150 29 112C24 106 18 96 15 82C12 66 13 46 18 32C23 21 31 14 40 11C46 8 53 5 60 5Z",
-  hoodIn: "M44 12C54 10 64 15 68 24C64 33 56 38 48 38C50 30 49 20 44 12Z",
-  hoodSeam: "M38 13C26 22 19 44 21 68C23 86 26 100 30 110",
-  hoodEdge: "M29 112C35 102 39 88 41 72",
-  sleeve: "M52 18C64 14 76 18 78 30C79 70 78 120 77 160C76 185 77 200 76 211L75 226C69 229 59 229 53 226L53 211C51 196 50 182 50 160C49 118 47 70 47 34C47 25 48 20 52 18Z",
-  cuffSeam: "M53 212C60 214 69 214 76 212",
-  cuffRib: "M56 214V226M60 214.5V227.5M64 214.5V228M68 214.5V227.5M72 214V226.5",
-  hemSeam: "M30 228C50 231 72 231 90 228",
-  hemRib: "M35 229.5V239.5M41 230V240.5M47 230.5V241M53 230.5V241.5M59 230.5V241.5M65 230.5V241.5M71 230.5V241M77 230V240.5M83 229.5V239.5",
-  pocket: "M90 149C85 164 85 189 90 204",
-  fold: "M33 128C38 150 40 172 38 198M86 70C84 90 84 110 86 130",
-  crease: "M50 122C58 126 68 127 77 124M51 172C60 168 70 169 77 174",
-  string: "M80 22C81 44 82 64 83 86",
-};
-function SideHoodie({ tone }) {
-  return (
-    <svg className="rk-side-svg" viewBox="0 0 120 250" aria-hidden="true">
-      <path d={HD.outer} fill={tone} />
-      <path d={HD.outer} fill="url(#rkShadeX)" />
-      <path d={HD.outer} fill="url(#rkShadeY)" />
-      <rect x="0" y="0" width="120" height="250" fill="#000" filter="url(#rkNoise)" clipPath="url(#rkClip)" opacity=".55" />
-      <path d={HD.hoodIn} fill="rgba(0,0,0,.4)" />
-      <path d={HD.hoodSeam} className="sd-seam" />
-      <path d={HD.hoodEdge} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.fold} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.pocket} className="sd-seam" />
-      <path d={HD.hemSeam} className="sd-seam" />
-      <path d={HD.hemRib} className="sd-rib" />
-      <g clipPath="url(#rkClip)"><path d={HD.sleeve} fill="rgba(0,0,0,.32)" transform="translate(3 3)" filter="url(#rkSoft)" /></g>
-      <path d={HD.sleeve} fill={tone} />
-      <path d={HD.sleeve} fill="url(#rkShadeSleeve)" />
-      <path d={HD.crease} className="sd-crease" filter="url(#rkSoft1)" />
-      <path d={HD.cuffSeam} className="sd-seam" />
-      <path d={HD.cuffRib} className="sd-rib" />
-      <path d={HD.string} stroke="rgba(0,0,0,.28)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d={HD.string} stroke="#F2EFE8" strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      <rect x="81.7" y="84" width="2.6" height="6" rx="1" fill="#D8D4CB" />
-    </svg>
-  );
-}
-// gradients/filters shared by every side profile (colour-neutral, so any fabric works)
-function SideDefs() {
-  return (
-    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
-      <defs>
-        <clipPath id="rkClip"><path d={HD.outer} /></clipPath>
-        <linearGradient id="rkShadeX" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".42" /><stop offset=".3" stopColor="#000" stopOpacity=".12" />
-          <stop offset=".62" stopColor="#fff" stopOpacity=".06" /><stop offset="1" stopColor="#000" stopOpacity=".3" />
-        </linearGradient>
-        <linearGradient id="rkShadeY" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity=".16" /><stop offset=".25" stopColor="#fff" stopOpacity="0" />
-          <stop offset=".85" stopColor="#000" stopOpacity=".06" /><stop offset="1" stopColor="#000" stopOpacity=".22" />
-        </linearGradient>
-        <linearGradient id="rkShadeSleeve" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity=".34" /><stop offset=".32" stopColor="#fff" stopOpacity=".12" />
-          <stop offset=".55" stopColor="#fff" stopOpacity=".04" /><stop offset="1" stopColor="#000" stopOpacity=".32" />
-        </linearGradient>
-        <filter id="rkNoise" x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="7" />
-          <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0" />
-        </filter>
-        <filter id="rkSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-        <filter id="rkSoft1" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation=".9" /></filter>
-      </defs>
+    <svg className="rk-ticon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 6.2a1.9 1.9 0 1 1 1.9-1.9M12 6.2v1.6L3.4 13.6c-.9.6-.5 2 .6 2h16c1.1 0 1.5-1.4.6-2L12 7.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.5 2.5l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z" fill="currentColor" />
     </svg>
   );
 }
@@ -158,7 +84,7 @@ function SideDefs() {
 // colours follow the existing site theme: dark #1C1C1C, red #C8392B, gold #E8A020, bg #F5F3EF
 const CSS = `
 .rk{position:relative;overflow:hidden;background:linear-gradient(180deg,#ECE6F2 0%,#F3F0F2 48%,#E4EFE0 100%);color:#1C1C1C;border-bottom:1px solid #E8E4DE;font-family:inherit;
-  --bw:210px;--bh:262px;--ph:calc(var(--bh) * .9);--rest:168px;--face:252px}
+  --bw:245px;--bh:200px;--rest:168px;--face:252px}
 .rk *{box-sizing:border-box}
 .rk button{font-family:inherit;cursor:pointer}
 .rk button:focus-visible{outline:2px solid #1C1C1C;outline-offset:3px}
@@ -184,7 +110,7 @@ const CSS = `
 .rk-wire path{fill:none;stroke:#454543;stroke-width:3;vector-effect:non-scaling-stroke;animation:rkDraw 1s ease .1s both;filter:drop-shadow(0 6px 5px rgba(28,28,28,.18))}
 @keyframes rkDraw{from{opacity:0}to{opacity:1}}
 /* little white price tag tied to each hanger's neck */
-.rk-tag{position:absolute;top:calc(var(--bw) * 15 / 210);left:calc(50% + 6px);z-index:4;background:#fff;color:#1C1C1C;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 5px;border-radius:2px;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.18);transform:rotate(9deg);transform-origin:0 0;transition:opacity .2s}
+.rk-tag{position:absolute;top:calc(var(--bh) * .085);pointer-events:none;left:calc(50% + 6px);z-index:4;background:#fff;color:#1C1C1C;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 5px;border-radius:2px;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.18);transform:rotate(9deg);transform-origin:0 0;transition:opacity .2s}
 .rk-tag:before{content:"";position:absolute;left:-6px;top:3px;width:7px;height:1px;background:#777;transform:rotate(-30deg);transform-origin:100% 0}
 .rk-row{position:relative;display:flex;justify-content:flex-start;align-items:flex-start;gap:0;height:calc(var(--bh) + 64px);touch-action:pan-y;user-select:none;cursor:grab}
 .rk-row:active{cursor:grabbing}
@@ -195,41 +121,32 @@ const CSS = `
 @keyframes rkIn{0%{opacity:0;transform:translateY(-70px) rotate(-7deg)}60%{opacity:1}100%{opacity:1;transform:translateY(0) rotate(0)}}
 .rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px;animation:rkSway 5.5s ease-in-out infinite;animation-delay:calc(var(--i) * -1.3s)}
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
-/* a hoodie turning on its hanger: cloth narrows as it turns away, with a little
-   overshoot and sway so it feels like fabric rather than a flat cut-out spinning */
-.rk-turn{transform-origin:50% 30%;transform:scaleX(0);transition:transform .32s cubic-bezier(.5,0,.75,0);will-change:transform}
-.rk-slot[data-face="true"] .rk-turn{transform:scaleX(1);transition:transform .7s cubic-bezier(.2,1.25,.4,1) .26s}
-.rk-hook{position:absolute;left:0;top:0;width:100%;height:auto;overflow:visible;z-index:3;filter:drop-shadow(0 2px 2px rgba(0,0,0,.14))}
-.rk-side{position:absolute;z-index:2;pointer-events:none;width:calc(var(--ph) * .48);height:var(--ph);left:calc(50% - var(--ph) * .24);
-  top:calc(var(--bw) * 60 / 210 - 14px + var(--bh) * .07);transform-origin:50% 0;transform:scaleX(1);opacity:1;
-  transition:transform .7s cubic-bezier(.2,1.25,.4,1) .24s,opacity .2s ease .24s}
-.rk-slot[data-face="true"] .rk-side{transform:scaleX(0);opacity:0;transition:transform .3s cubic-bezier(.5,0,.75,0),opacity .15s ease .15s}
-.rk-side:before{content:"";position:absolute;left:calc(50% - 1px);bottom:calc(100% - 4px);width:2px;border-radius:1px;
-  height:calc(var(--bw) * 33 / 210 - 14px + var(--bh) * .07 + 4px);background:linear-gradient(90deg,#7d7d78,#f4f4f0 50%,#8d8d88)}
-.rk-side-svg{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 16px 12px rgba(28,28,28,.2))}
-.sd-seam{fill:none;stroke:rgba(0,0,0,.26);stroke-width:.8}
-.sd-rib{fill:none;stroke:rgba(0,0,0,.16);stroke-width:.6}
-.sd-crease{fill:none;stroke:rgba(0,0,0,.16);stroke-width:1.8;stroke-linecap:round}
-.rk-hanger{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));transform:scaleX(0);transform-origin:50% 0;transition:transform .32s cubic-bezier(.5,0,.75,0)}
-.rk-slot[data-face="true"] .rk-hanger{transform:scaleX(1);transition:transform .7s cubic-bezier(.2,1.25,.4,1) .26s}
-.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:-14px}
-.rk-box img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;filter:brightness(.86) saturate(.95) drop-shadow(0 12px 10px rgba(28,28,28,.2));transition:filter .9s ease,opacity .15s}
-.rk-slot[data-face="true"] .rk-box img{filter:brightness(1) saturate(1) drop-shadow(0 18px 16px rgba(28,28,28,.28))}
+/* real 3D hoodie renders (see hoodie3d.js) — the hook at the top of each frame hangs on the wire */
+.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:calc(var(--bh) * -.011);pointer-events:none}
+.rk-spin{display:block;width:100%;height:100%;filter:drop-shadow(0 14px 12px rgba(28,28,28,.2));transition:opacity .15s}
+.rk-slot[data-face="true"] .rk-spin{filter:drop-shadow(0 20px 18px rgba(28,28,28,.24))}
 .rk-h-touch{display:none}
-/* shop hoodies (product photos) hang as clipped photo cards on the hanger */
-.rk-box[data-photo="true"]{width:calc(var(--bw) * .74);height:calc(var(--bh) * .74);margin:-8px auto 0;background:#fff;padding:7px;border-radius:4px;box-shadow:0 12px 20px rgba(28,28,28,.2),0 1px 0 rgba(0,0,0,.06)}
-.rk-box[data-photo="true"]:before{content:"";position:absolute;top:-9px;left:50%;width:24px;height:13px;margin-left:-12px;border-radius:2px;z-index:2;background:linear-gradient(180deg,#f6f6f2,#a4a49f 60%,#6a6a65);box-shadow:0 1px 2px rgba(0,0,0,.3)}
-.rk-box[data-photo="true"] img{object-fit:cover;object-position:50% 30%;border-radius:2px;filter:brightness(.9)}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
 .rk-line{font-size:14px;font-weight:600;color:#1C1C1C;animation:rkFade .35s ease both}
 .rk-line span{color:#C8392B;font-weight:800}
+.rk-thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);background:#fff}
 .rk-line.muted{color:#8A8070;font-weight:500}
 @keyframes rkFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .rk-avail{border:1.5px solid #1C1C1C;background:transparent;color:#1C1C1C;border-radius:999px;padding:8px 18px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;transition:background .2s,color .2s,transform .15s}
 .rk-avail:hover{background:#1C1C1C;color:#fff;transform:translateY(-2px)}
 .rk-avail:disabled{opacity:.35;cursor:default;transform:none;background:transparent;color:#1C1C1C}
 .rk[data-on="true"] .rk-info{opacity:0}
+.rk-acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.rk-ticon{width:16px;height:16px;flex:none}
+.rk-try{display:inline-flex;align-items:center;gap:7px;background:#1C1C1C;color:#fff}
+.rk-try:hover{background:#C8392B;border-color:#C8392B}
+.rk-trybtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:44px;border-radius:12px;border:1.5px solid #1C1C1C;background:#fff;color:#1C1C1C;font-size:12px;font-weight:800;letter-spacing:.06em;transition:background .2s,color .2s,transform .15s}
+.rk-trybtn:hover{background:#1C1C1C;color:#fff;transform:translateY(-1px)}
+.rk-trybtn .rk-ticon{width:18px;height:18px}
+.rk-tryload{position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;gap:12px;background:rgba(245,243,239,.92);font-size:14px;font-weight:700;color:#1C1C1C}
+.rk-tryload span{width:22px;height:22px;border-radius:50%;border:3px solid #E8E4DE;border-top-color:#C8392B;animation:rkSpin .8s linear infinite}
+@keyframes rkSpin{to{transform:rotate(360deg)}}
 
 /* dim room + spotlight */
 .rk-dim{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .6s ease;background:radial-gradient(closest-side at var(--cx,40%) var(--cy,50%),rgba(255,255,255,.9),rgba(250,249,247,0) 80%),rgba(248,247,245,.96)}
@@ -242,7 +159,10 @@ const CSS = `
 .rk-fly{position:absolute;z-index:20;display:none;will-change:transform,filter;transform:${TF(0, 0, 1, 0)}}
 .rk-fly:before{content:"";position:absolute;left:50%;bottom:calc(100% - 6px);width:1px;height:1200px;background:linear-gradient(rgba(60,60,60,0),#555 30%);opacity:0;transition:opacity .25s}
 .rk[data-on="true"] .rk-fly:before{opacity:1;transition:opacity .6s ease .55s}
-.rk-fly img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0}
+.rk-fly img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transition:opacity .45s ease}
+.rk-fly-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .45s ease}
+.rk-fly[data-cv="1"] .rk-fly-cv{opacity:1}
+.rk-fly[data-cv="1"] img,.rk-fly[data-cv="1"] .rk-sweep{opacity:0}
 .rk-fly img.photo{object-fit:cover;object-position:50% 20%;border-radius:12px}
 .rk-sweep{position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,rgba(255,244,225,0) 40%,rgba(255,244,225,.45) 50%,rgba(255,244,225,0) 60%);background-size:300% 100%;background-position:150% 0;opacity:0;mix-blend-mode:soft-light;-webkit-mask:var(--m) center top/contain no-repeat;mask:var(--m) center top/contain no-repeat}
 .rk-fly[data-sweep="1"] .rk-sweep{animation:rkSweep 1.3s ease .6s both}
@@ -285,7 +205,7 @@ const CSS = `
 @keyframes rkBurst{from{opacity:1;transform:translate(-50%,-50%) rotate(var(--a)) translateX(0)}to{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateX(70px)}}
 
 @media (max-width:700px){
-  .rk{--bw:170px;--bh:212px;--rest:34px;--face:186px}
+  .rk{--bw:196px;--bh:160px;--rest:34px;--face:186px}
   .rk-in{padding:26px 12px 20px;min-height:760px}
   .rk-title{font-size:30px}
   .rk-rack{margin-top:30px}
@@ -294,7 +214,7 @@ const CSS = `
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
   /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
-  .rk{--bw:150px;--bh:196px;--rest:116px;--face:178px}
+  .rk{--bw:196px;--bh:160px;--rest:116px;--face:178px}
   .rk-row{padding-top:6px;height:calc(var(--bh) + 80px)}
   .rk-wire{top:2px}
   .rk-tag{font-size:8px;padding:2px 4px}
@@ -318,11 +238,13 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const [added, setAdded] = useState(false);
   const [burst, setBurst] = useState(0);
   const [dimPos, setDimPos] = useState({ cx: "40%", cy: "50%" });
+  const [tryOn, setTryOn] = useState(null); // index of the hoodie open in the Try-On studio
 
   const secRef = useRef(null);
   const slotRefs = useRef([]);
   const boxRefs = useRef([]);
   const flyRefs = useRef([]);
+  const flyCvRefs = useRef([]);   // 3D render of the hoodie while it lifts off / goes back
   const backRef = useRef(null);
   const geo = useRef(ITEMS.map(() => null));
   const anims = useRef(ITEMS.map(() => null));
@@ -344,6 +266,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const lastTs = useRef(0);
   const wireRef = useRef(null);
   const keepUntil = useRef(0); // keep animating while hangers make room for a turning hoodie
+  // ── each hoodie turns on its hanger: angle springs towards its target (0° = facing you)
+  const canvasRefs = useRef([]);
+  const spinners = useRef([]);
+  const turn = useRef(ITEMS.map(() => ({ a: SPIN_REST, v: 0, t: SPIN_REST })));
 
   // total width of the hoodies on the rail (they overflow both sides of the row on phones)
   const contentW = () => {
@@ -419,6 +345,20 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       h.a += h.v * dt;
       if (Math.abs(h.a) > 0.05 || Math.abs(h.v) > 0.05) busy = true;
     });
+    // hoodies twist a little on their hooks while the rail moves, and turn to face you on a
+    // soft spring (slight overshoot, like fabric settling)
+    const twist = REDUCED() ? 0 : Math.max(-9, Math.min(9, railV.current * 0.012));
+    turn.current.forEach((g, i) => {
+      const target = g.t === 0 ? 0 : g.t + twist;
+      if (REDUCED()) { g.a = target; g.v = 0; }
+      else {
+        g.v += (-95 * (g.a - target) - 15 * g.v) * dt;
+        g.a += g.v * dt;
+      }
+      if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
+      const sp = spinners.current[i];
+      if (sp) sp.draw(Math.max(-6, Math.min(84, g.a)));
+    });
     paint();
     loopId.current = busy ? requestAnimationFrame(tick) : 0;
   }
@@ -429,10 +369,32 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   };
   // hangers slide apart when a hoodie turns to face you: follow the wire while they move
   useEffect(() => {
+    turn.current.forEach((g, i) => { g.t = facing === i ? 0 : SPIN_REST; });
+    if (facing !== null && spinners.current[facing]) spinners.current[facing].preload();
     keepUntil.current = performance.now() + 1100;
     kick();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
+  // one Spinner per hoodie draws its 3D turntable into the slot's canvas
+  useEffect(() => {
+    spinners.current = ITEMS.map((it, i) => {
+      const sp = new Spinner(canvasRefs.current[i], spinSpec(it));
+      sp.draw(turn.current[i].a);
+      return sp;
+    });
+    // stream the rest of every hoodie's frames in once the page has settled
+    const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
+    const id = idle(() => spinners.current.forEach(sp => sp.preload()));
+    const onResize = () => spinners.current.forEach(sp => sp.redraw());
+    window.addEventListener("resize", onResize);
+    return () => {
+      (window.cancelIdleCallback || clearTimeout)(id);
+      window.removeEventListener("resize", onResize);
+      spinners.current.forEach(sp => sp.dispose());
+      spinners.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     fitRail(); paint();
     const onResize = () => { fitRail(); paint(); };
@@ -522,6 +484,8 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     if (a) { try { a.commitStyles(); } catch (e) { /* ignore */ } a.cancel(); anims.current[i] = null; }
   };
 
+  const openTryOn = i => { touch(); setTryOn(Math.max(0, Math.min(ITEMS.length - 1, i || 0))); };
+
   const openFlyer = (i, fromSide) => {
     const fly = flyRefs.current[i];
     const g = measure(i);
@@ -530,10 +494,16 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     const wasOut = fly.style.display === "block";
     stopAnim(i);
     Object.assign(fly.style, { left: g.sx + "px", top: g.sy + "px", width: g.w + "px", height: g.h + "px", transformOrigin: "50% 0" });
-    const start = TF(0, 0, 1, fromSide ? SIDE : 0);
+    const start = TF(0, 0, 1, 0);
     if (!wasOut) {
       Object.assign(fly.style, { display: "block", transform: start, filter: SHADOW_REST });
       fly.dataset.sweep = "0"; void fly.offsetWidth; fly.dataset.sweep = "1";
+      // lift the 3D hoodie itself (it keeps turning to face you on the way), then fade to the photo
+      const sp = spinners.current[i];
+      if (sp) sp.setMirror(flyCvRefs.current[i]);
+      fly.dataset.cv = "1";
+      clearTimeout(fly._cvT);
+      fly._cvT = setTimeout(() => { fly.dataset.cv = "0"; if (sp) sp.setMirror(null); }, quick ? 0 : fromSide ? 780 : 520);
     }
     geo.current[i] = g;
     fly.style.zIndex = String(++zTop.current);
@@ -555,6 +525,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     const fly = flyRefs.current[i];
     if (!fly || fly.style.display !== "block") { setLifted(l => l.map((v, k) => (k === i ? false : v))); return; }
     stopAnim(i);
+    clearTimeout(fly._cvT); fly.dataset.cv = "1";
     const g0 = geo.current[i], g1 = measure(i);
     if (g0 && g1) {
       Object.assign(fly.style, { left: g1.sx + "px", top: g1.sy + "px", transform: TF(g0.dx + g0.sx - g1.sx, g0.dy + g0.sy - g1.sy, g0.s, -5) });
@@ -605,7 +576,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
   // Esc closes, ← → switch while a garment is out
   useEffect(() => {
-    if (active === null) return;
+    if (active === null || tryOn !== null) return;   // the Try-On studio handles its own keys
     const onKey = e => {
       if (e.key === "Escape") { e.preventDefault(); close(); }
       else if (e.key === "ArrowRight") { e.preventDefault(); select((active + 1) % ITEMS.length); }
@@ -647,7 +618,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       style={{ "--cx": dimPos.cx, "--cy": dimPos.cy, scrollMarginTop: 70 }}
       onClick={e => { if (active !== null && !e.target.closest(".rk-slot, .rk-card, .rk-fly")) close(); }}>
       <style>{CSS}</style>
-      <SideDefs />
       <div className="rk-band" aria-hidden="true"><div className="rk-band-track">{bandItems}{bandItems}</div></div>
 
       <div className="rk-in">
@@ -669,14 +639,9 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                 onClick={() => slotClick(i)}>
                 <div className="rk-pend" ref={el => (pendRefs.current[i] = el)}>
                   <div className="rk-sway">
-                    <ChromeHanger uid={i} part="bar" />
-                    <ChromeHanger uid={i} part="hook" />
-                    <div className="rk-side" style={{ opacity: lifted[i] ? 0 : undefined }}><SideHoodie tone={it.tone || "#3A3A3D"} /></div>
                     <span className="rk-tag" style={{ opacity: lifted[i] ? 0 : 1 }}>{it.price ? fmtBDT(it.price) : "Soon"}</span>
-                    <div className="rk-turn">
-                      <div className="rk-box" data-photo={it.remote ? "true" : undefined} ref={el => (boxRefs.current[i] = el)}>
-                        <img src={it.cut} alt="" loading="lazy" style={{ opacity: lifted[i] ? 0 : 1 }} draggable="false" />
-                      </div>
+                    <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
+                      <canvas className="rk-spin" ref={el => (canvasRefs.current[i] = el)} style={{ opacity: lifted[i] ? 0 : 1 }} />
                     </div>
                   </div>
                 </div>
@@ -687,16 +652,19 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
         <div className="rk-info" aria-live="polite">
           {face ? (
-            <>
-              <div className="rk-line" key={facing}>{face.name} — <span>{face.price ? fmtBDT(face.price) : "Price coming soon"}</span></div>
-              <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
-            </>
+            <div className="rk-line" key={facing}>
+              {face.remote && <img className="rk-thumb" src={face.cut} alt="" draggable="false" />}
+              {face.name} — <span>{face.price ? fmtBDT(face.price) : "Price coming soon"}</span>
+            </div>
           ) : (
-            <>
-              <div className="rk-line muted">{ITEMS.length} hoodies on the rail</div>
-              <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
-            </>
+            <div className="rk-line muted">{ITEMS.length} hoodies on the rail</div>
           )}
+          <div className="rk-acts">
+            <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
+            <button className="rk-avail rk-try" onClick={() => openTryOn(facing === null ? 0 : facing)}>
+              <TryIcon />Try it on
+            </button>
+          </div>
         </div>
       </div>
 
@@ -707,6 +675,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
           <div key={it.id} className="rk-fly" ref={el => (flyRefs.current[i] = el)} aria-hidden="true">
             <img src={v.img} alt="" className={v.photo ? "photo" : ""} draggable="false" />
             {!v.photo && <div className="rk-sweep" style={{ "--m": `url(${v.img})` }} />}
+            <canvas className="rk-fly-cv" ref={el => (flyCvRefs.current[i] = el)} />
           </div>
         );
       })}
@@ -740,6 +709,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                 ))}
               </div>
             </div>
+            <button className="rk-trybtn" onClick={() => openTryOn(active)}><TryIcon />Try it on — avatar or your photo</button>
             <div className="rk-addwrap">
               <button className={"rk-add" + (added ? " done" : "")} onClick={add} disabled={!hasPrice || !size}>
                 {!hasPrice ? "Coming soon" : added ? "Added to cart ✓" : size ? "Add to cart" : "Choose a size"}
@@ -749,6 +719,12 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
           </div>
         )}
       </aside>
+
+      {tryOn !== null && (
+        <Suspense fallback={<div className="rk-tryload" role="status"><span />Opening the fitting room…</div>}>
+          <TryOn items={ITEMS} start={tryOn} onClose={() => setTryOn(null)} onAdd={onAdd} />
+        </Suspense>
+      )}
     </section>
   );
 }
