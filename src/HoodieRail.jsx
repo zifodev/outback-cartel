@@ -115,9 +115,10 @@ const CSS = `
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
 /* a hoodie turning on its hanger: cloth narrows as it turns away, with a little
    overshoot and sway so it feels like fabric rather than a flat cut-out spinning */
-.rk-turn{transform-origin:50% 30%;transform:scaleX(.36) skewY(-2.5deg);transition:transform 1s cubic-bezier(.25,1.35,.4,1);will-change:transform}
-.rk-slot[data-face="true"] .rk-turn{transform:scaleX(1) skewY(0deg)}
-.rk-hanger{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.12))}
+.rk-turn{transform-origin:50% 30%;transform:scaleX(.32);transition:transform 1s cubic-bezier(.25,1.35,.4,1);will-change:transform}
+.rk-slot[data-face="true"] .rk-turn{transform:scaleX(1)}
+.rk-hanger{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 2px rgba(0,0,0,.12));transform:scaleX(.3);transform-origin:50% 0;transition:transform 1s cubic-bezier(.25,1.35,.4,1)}
+.rk-slot[data-face="true"] .rk-hanger{transform:scaleX(1)}
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:-14px}
 .rk-box img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;filter:brightness(.86) saturate(.95) drop-shadow(0 12px 10px rgba(28,28,28,.2));transition:filter .9s ease,opacity .15s}
 .rk-slot[data-face="true"] .rk-box img{filter:brightness(1) saturate(1) drop-shadow(0 18px 16px rgba(28,28,28,.28))}
@@ -200,9 +201,10 @@ const CSS = `
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
   /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
-  .rk{--bw:150px;--bh:196px;--rest:150px;--face:150px}
-  .rk-row{gap:16px;padding:6px 0 0;height:calc(var(--bh) + 80px);margin:0 -12px}
+  .rk{--bw:150px;--bh:196px;--rest:46px;--face:170px}
+  .rk-row{justify-content:flex-start;gap:2px;padding:6px 0 0 20px;height:calc(var(--bh) + 80px);margin:0 -12px}
   .rk-wire{top:2px}
+  .rk-tag{font-size:8px;padding:2px 4px}
   .rk-h-web{display:none}
   .rk-h-touch{display:inline}
 }
@@ -257,10 +259,15 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
     return kids.reduce((w, k) => w + k.offsetWidth, 0) + gap * Math.max(0, kids.length - 1);
   };
-  const maxX = () => {
+  // how far the rail can slide: [left limit, right limit]. Phones line the hangers
+  // up from the left edge; wider screens keep them centred under the title.
+  const bounds = () => {
     const sec = secRef.current;
-    if (!rowRef.current || !sec) return 0;
-    return Math.max(0, (contentW() - sec.clientWidth) / 2 + 70);
+    if (!rowRef.current || !sec) return [0, 0];
+    const W = sec.clientWidth;
+    if (W < 700) return [-Math.max(0, contentW() + 40 - W), 0];
+    const m = Math.max(0, (contentW() - W) / 2 + 70);
+    return [-m, m];
   };
   const paint = () => {
     if (rowRef.current) rowRef.current.style.transform = `translate3d(${railX.current}px,0,0)`;
@@ -315,15 +322,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     return () => window.removeEventListener("resize", onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // on phones the rail is wider than the screen: start with the first hoodie in view
-  useEffect(() => {
-    const row = rowRef.current, sec = secRef.current;
-    if (!row || !sec || sec.clientWidth >= 700) return;
-    const start = Math.max(0, (contentW() - sec.clientWidth) / 2 + 24);
-    railX.current = railT.current = start;
-    paint();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const onRowDown = e => {
     if (active !== null || e.button !== 0) return;
     const d = dragS.current;
@@ -337,8 +335,8 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       const dx = ev.clientX - d.sx;
       if (!d.moved && Math.abs(dx) > 6) d.moved = true;
       if (!d.moved) return;
-      const raw = d.base + dx, m = maxX();
-      railX.current = raw > m ? m + (raw - m) * 0.35 : raw < -m ? -m + (raw + m) * 0.35 : raw; // rubber-band at the ends
+      const raw = d.base + dx, [lo, hi] = bounds();
+      railX.current = raw > hi ? hi + (raw - hi) * 0.35 : raw < lo ? lo + (raw - lo) * 0.35 : raw; // rubber-band at the ends
       railV.current = d.vx;
       paint(); kick();
     };
@@ -349,9 +347,9 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       d.on = false;
       if (performance.now() - d.lt > 90) d.vx = 0; // paused before letting go: no fling
       if (d.moved) {
-        const m = maxX();
+        const [lo, hi] = bounds();
         railV.current = d.vx;
-        railT.current = Math.max(-m, Math.min(m, railX.current + d.vx * 0.25));
+        railT.current = Math.max(lo, Math.min(hi, railX.current + d.vx * 0.25));
       }
       kick();
     };
