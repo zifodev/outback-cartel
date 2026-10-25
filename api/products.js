@@ -83,8 +83,10 @@ const guessCategory = name => {
 };
 
 export default async function handler(req, res) {
-  const key = process.env.DROPSHIP_API_KEY;
-  const secret = process.env.DROPSHIP_SECRET_KEY;
+  // tolerate stray spaces, line breaks or quotes picked up when pasting the keys into Vercel
+  const clean = v => String(v || "").trim().replace(/^["']+|["']+$/g, "").trim();
+  const key = clean(process.env.DROPSHIP_API_KEY);
+  const secret = clean(process.env.DROPSHIP_SECRET_KEY);
   if (!key || !secret) {
     res.status(500).json({ error: "DROPSHIP_API_KEY and DROPSHIP_SECRET_KEY are not set in Vercel Environment Variables." });
     return;
@@ -203,7 +205,14 @@ export default async function handler(req, res) {
     res.status(200).json({ products, count: products.length, fashionCount: fashion.length, updatedAt: new Date().toISOString() });
   } catch (err) {
     const out = { error: "Could not load supplier products.", detail: String(err && err.message || err) };
-    if (req.query && req.query.debug && err && err.body) out.supplierSays = err.body;
+    if (req.query && req.query.debug) {
+      if (err && err.body) out.supplierSays = err.body;
+      // which keys the site is really sending: lengths here, a short fingerprint only in the private Vercel logs
+      const raw = { apiKey: String(process.env.DROPSHIP_API_KEY || ""), secretKey: String(process.env.DROPSHIP_SECRET_KEY || "") };
+      out.keyCheck = { apiKeyLength: key.length, secretKeyLength: secret.length, hadExtraSpacesOrQuotes: raw.apiKey !== key || raw.secretKey !== secret };
+      const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
+      console.log(`[products] key check api=${fp(key)} secret=${fp(secret)}`);
+    }
     res.setHeader("Cache-Control", "no-store");
     res.status(502).json(out);
   }
