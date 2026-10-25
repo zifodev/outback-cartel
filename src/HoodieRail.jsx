@@ -66,6 +66,7 @@ const toItem = p => ({
 });
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+const DEPTH = [6, 5, 4, 3, 2, 1]; // copies stacked behind each photo (furthest first) for soft depth
 const fmtBDT = n => "৳" + Number(n).toLocaleString();
 const REDUCED = () => typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const TF = (x, y, s, r) => `perspective(1400px) translate3d(${x}px,${y}px,0px) scale(${s}) rotateY(${r}deg)`;
@@ -85,7 +86,7 @@ function TryIcon() {
 // colours follow the existing site theme: dark #1C1C1C, red #C8392B, gold #E8A020, bg #F5F3EF
 const CSS = `
 .rk{position:relative;overflow:hidden;background:linear-gradient(180deg,#ECE6F2 0%,#F3F0F2 48%,#E4EFE0 100%);color:#1C1C1C;border-bottom:1px solid #E8E4DE;font-family:inherit;
-  --bw:245px;--bh:200px;--rest:168px;--face:252px}
+  --bw:245px;--bh:200px;--rest:168px;--face:252px;--hookh:24px;--dz:.9px}
 .rk *{box-sizing:border-box}
 .rk button{font-family:inherit;cursor:pointer}
 .rk button:focus-visible{outline:2px solid #1C1C1C;outline-offset:3px}
@@ -111,7 +112,7 @@ const CSS = `
 .rk-wire path{fill:none;stroke:#454543;stroke-width:3;vector-effect:non-scaling-stroke;animation:rkDraw 1s ease .1s both;filter:drop-shadow(0 6px 5px rgba(28,28,28,.18))}
 @keyframes rkDraw{from{opacity:0}to{opacity:1}}
 /* little white price tag tied to each hanger's neck */
-.rk-tag{position:absolute;top:calc(var(--bh) * .085);pointer-events:none;left:calc(50% + 6px);z-index:4;background:#fff;color:#1C1C1C;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 5px;border-radius:2px;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.18);transform:rotate(9deg);transform-origin:0 0;transition:opacity .2s}
+.rk-tag{position:absolute;top:calc(var(--hookh) * .4);pointer-events:none;left:calc(50% + 6px);z-index:4;background:#fff;color:#1C1C1C;font-size:9px;font-weight:800;letter-spacing:.02em;padding:2px 5px;border-radius:2px;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.18);transform:rotate(9deg);transform-origin:0 0;transition:opacity .2s}
 .rk-tag:before{content:"";position:absolute;left:-6px;top:3px;width:7px;height:1px;background:#777;transform:rotate(-30deg);transform-origin:100% 0}
 .rk-row{position:relative;display:flex;justify-content:flex-start;align-items:flex-start;gap:0;height:calc(var(--bh) + 64px);touch-action:pan-y;user-select:none;cursor:grab}
 .rk-row:active{cursor:grabbing}
@@ -122,10 +123,21 @@ const CSS = `
 @keyframes rkIn{0%{opacity:0;transform:translateY(-70px) rotate(-7deg)}60%{opacity:1}100%{opacity:1;transform:translateY(0) rotate(0)}}
 .rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px;animation:rkSway 5.5s ease-in-out infinite;animation-delay:calc(var(--i) * -1.3s)}
 @keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
-/* real 3D hoodie renders (see hoodie3d.js) — the hook at the top of each frame hangs on the wire */
-.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:calc(var(--bh) * -.011);pointer-events:none;perspective:900px}
-.rk-photo{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transform-origin:50% 0;backface-visibility:hidden;filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.2));transition:opacity .15s}
+/* a small chrome hook rides on the wire and disappears behind the hood */
+.rk-hook{position:absolute;left:50%;top:-9px;width:22px;height:calc(var(--hookh) + 14px);margin-left:-11px;overflow:visible;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+/* the real product photo, hung side-on. It has a little body to it: a few darker
+   copies stacked behind give the garment soft depth along its near edge, and a
+   gentle light falls across the fabric (darker on the side turned away) */
+.rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:var(--hookh);pointer-events:none;perspective:1600px}
+.rk-turnwrap{position:absolute;inset:0;transform-origin:50% 0;transform-style:preserve-3d;will-change:transform;transition:opacity .15s}
+.rk-turnwrap.flat{transform-style:flat}
+.rk-photo,.rk-depth{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none}
+.rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.18))}
 .rk-slot[data-face="true"] .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 20px 18px rgba(28,28,28,.24))}
+.rk-depth{opacity:var(--tf,0)}
+.rk-shade{position:absolute;inset:0;pointer-events:none;opacity:var(--tf,0);transform:translateZ(.5px);
+  background:linear-gradient(90deg,rgba(24,16,12,.34) 0%,rgba(24,16,12,.12) 38%,rgba(255,250,240,0) 62%,rgba(255,250,240,.10) 92%,rgba(24,16,12,.06) 100%);
+  -webkit-mask:var(--m) 50% 0/contain no-repeat;mask:var(--m) 50% 0/contain no-repeat}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -212,7 +224,7 @@ const CSS = `
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
   /* phones: hoodies hang side by side on a swipeable rail (no overlapping) */
-  .rk{--bw:196px;--bh:160px;--rest:116px;--face:178px}
+  .rk{--bw:196px;--bh:160px;--rest:116px;--face:178px;--hookh:18px;--dz:.8px}
   .rk-row{padding-top:6px;height:calc(var(--bh) + 80px)}
   .rk-wire{top:2px}
   .rk-tag{font-size:8px;padding:2px 4px}
@@ -355,9 +367,11 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       // the photo hangs side-on and turns about its hook to face you; the far side falls into shade
       const ph = photoRefs.current[i];
       if (ph) {
-        const a = Math.max(-6, Math.min(84, g.a)) * 0.85;
+        const a = Math.max(-6, Math.min(84, g.a)) * 0.8;
+        const f = Math.min(1, Math.abs(a) / 60);
         ph.style.transform = `rotateY(${(-a).toFixed(2)}deg)`;
-        ph.style.setProperty("--shade", (1 - 0.22 * Math.min(1, Math.abs(a) / 70)).toFixed(3));
+        ph.style.setProperty("--shade", (1 - 0.1 * f).toFixed(3));
+        ph.style.setProperty("--tf", f.toFixed(3));
       }
     });
     paint();
@@ -612,9 +626,20 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                 <div className="rk-pend" ref={el => (pendRefs.current[i] = el)}>
                   <div className="rk-sway">
                     <span className="rk-tag" style={{ opacity: lifted[i] ? 0 : 1 }}>{it.price ? fmtBDT(it.price) : "Soon"}</span>
+                    <svg className="rk-hook" viewBox="0 0 22 40" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+                      <defs><linearGradient id={`hk${i}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8d8d88" /><stop offset=".4" stopColor="#f6f6f2" /><stop offset=".65" stopColor="#a4a49f" /><stop offset="1" stopColor="#6a6a65" /></linearGradient></defs>
+                      <path d="M11 40V20C11 15 4 13 4 8C4 3.5 7.5 1 11.5 1C15.5 1 18.5 3.5 18.5 7" stroke={`url(#hk${i})`} strokeWidth="2.4" fill="none" strokeLinecap="round" />
+                    </svg>
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
-                      <img className="rk-photo" ref={el => (photoRefs.current[i] = el)} src={it.cut} alt="" draggable="false"
-                        style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }} />
+                      <div className={"rk-turnwrap" + (it.remote ? " flat" : "")} ref={el => (photoRefs.current[i] = el)}
+                        style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }}>
+                        {!it.remote && DEPTH.map(k => (
+                          <img key={k} className="rk-depth" src={it.cut} alt="" draggable="false"
+                            style={{ transform: `translateZ(calc(var(--dz) * -${k}))`, filter: `brightness(${(0.72 + 0.03 * (DEPTH.length - k)).toFixed(2)}) blur(.6px)` }} />
+                        ))}
+                        <img className="rk-photo" src={it.cut} alt="" draggable="false" />
+                        {!it.remote && <div className="rk-shade" style={{ "--m": `url(${it.cut})` }} />}
+                      </div>
                     </div>
                   </div>
                 </div>
