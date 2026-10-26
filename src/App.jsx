@@ -781,12 +781,17 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
 // ─────────────────────────────────────────────────────────────
 //  PRODUCT DETAIL PAGE
 // ─────────────────────────────────────────────────────────────
-const SAMPLE_REVIEWS = [
-  { name: "Rafiq Ahmed", rating: 5, date: "2026-04-12", text: "Excellent product! Delivery was super fast to Dhaka. Highly recommended." },
-  { name: "Nusrat Jahan", rating: 4, date: "2026-04-20", text: "Good quality, matches the description. Packaging was nice." },
-  { name: "Karim Hossain", rating: 5, date: "2026-05-01", text: "Bought as a gift. My friend loved it! Will order again." },
-  { name: "Fatema Akter", rating: 4, date: "2026-05-03", text: "Fast delivery. Product is exactly as shown. Happy with purchase." },
-];
+// ── REAL customer reviews only. Add them here as customers send them, keyed by product id:
+//    "hoodie-okay": [{ name: "Customer name", rating: 5, date: "2026-11-02", text: "What they said" }],
+//    A product with no reviews shows "No reviews yet" and a button to send one on WhatsApp.
+const REVIEWS = {};
+
+// ── Hoodie details (fabric, care and size chart), shown in the Description tab of every hoodie
+const HOODIE_INFO = {
+  points: ["300+ GSM, 100% cotton premium fabric", "Cotton fleece, brushed soft on the inside", "Export-quality stitching", "Rubber or DTF print", "Fabric and print colour guarantee", "Washable and durable"],
+  specs: [["Material", "Cotton fleece (inside brushed)"], ["Fabric weight", "300+ GSM"], ["Print", "Rubber or DTF"], ["Care", "Machine washable"]],
+  sizes: [["M", 40, 28, 23], ["L", 42, 29, 23.5], ["XL", 44, 30, 24], ["XXL", 46, 31, 24.5]],
+};
 
 function StarRating({ rating, size = 14 }) {
   return (
@@ -809,7 +814,10 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
   const priced = product.price > 0;
   const cc = CATS.find(c => c.key === product.cat)?.color || C.primary;
   const disc = product.old ? Math.round((1 - product.price / product.old) * 100) : 0;
-  const avgRating = (SAMPLE_REVIEWS.reduce((s, r) => s + r.rating, 0) / SAMPLE_REVIEWS.length).toFixed(1);
+  const reviews = REVIEWS[product.id] || [];
+  const avgRating = reviews.length ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null;
+  const isHoodie = product.cat === "hoodies";
+  const waReview = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(`Review for ${product.name}: ⭐ _/5 — `)}`;
 
   const handleAdd = () => {
     for (let i = 0; i < qty; i++) onAdd(product);
@@ -867,12 +875,16 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               </div>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: C.dark, lineHeight: 1.3, margin: "0 0 10px" }}>{product.name}</h1>
 
-              {/* Rating */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                <StarRating rating={Math.round(parseFloat(avgRating))} size={16} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{avgRating}</span>
-                <span style={{ fontSize: 12, color: C.muted }}>({SAMPLE_REVIEWS.length} reviews)</span>
-              </div>
+              {/* Rating (real reviews only) */}
+              {avgRating ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                  <StarRating rating={Math.round(parseFloat(avgRating))} size={16} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{avgRating}</span>
+                  <button onClick={() => setActiveTab("reviews")} style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: C.muted, cursor: "pointer", fontFamily: "inherit" }}>({reviews.length} review{reviews.length !== 1 ? "s" : ""})</button>
+                </div>
+              ) : (
+                <button onClick={() => setActiveTab("reviews")} style={{ background: "none", border: "none", padding: 0, marginBottom: 14, fontSize: 12, color: C.muted, cursor: "pointer", fontFamily: "inherit" }}>No reviews yet</button>
+              )}
 
               {/* Price */}
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
@@ -926,24 +938,70 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
           </div>
         </div>
 
-        {/* Tabs: Description / Reviews */}
+        {/* Tabs: Description / How to order / Reviews */}
         <div style={{ background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,.06)" }}>
-          <div style={{ display: "flex", borderBottom: `1px solid ${C.border}` }}>
-            {[["description", "📋 Description"], ["reviews", "⭐ Reviews"]].map(([k, l]) => (
-              <button key={k} onClick={() => setActiveTab(k)}
-                style={{ flex: 1, background: "none", border: "none", padding: "14px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: activeTab === k ? C.primary : C.muted, borderBottom: activeTab === k ? `3px solid ${C.primary}` : "3px solid transparent", transition: "all .2s" }}>{l}</button>
+          <div role="tablist" style={{ display: "flex", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
+            {[["description", "📋 Description"], ["how", "🛒 How to Order"], ["reviews", `⭐ Reviews${reviews.length ? ` (${reviews.length})` : ""}`]].map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={activeTab === k} onClick={() => setActiveTab(k)}
+                style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: "14px 6px", fontSize: "clamp(12px, 3.3vw, 14px)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", color: activeTab === k ? C.primary : C.muted, borderBottom: `3px solid ${activeTab === k ? C.primary : "transparent"}`, transition: "all .2s" }}>
+                {l}
+              </button>
             ))}
           </div>
 
           <div style={{ padding: "24px" }}>
             {activeTab === "description" && (
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}>About this product</h3>
-                <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.8, marginBottom: 16 }}>
-                  {product.name} is a premium quality product available exclusively at Outback Cartel. Carefully sourced and quality-checked before dispatch to ensure you receive exactly what you ordered.
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {[["Category", CATS.find(c => c.key === product.cat)?.label || product.cat], ["Condition", "Brand New"], ["Warranty", "As per manufacturer"], ["Delivery", "Nationwide Bangladesh"], ["Return Policy", "7 days"], ["Payment", "bKash · Nagad · Rocket · COD"]].map(([k, v]) => (
+                <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", color: C.dark }}>{product.name}</h3>
+                {isHoodie ? (
+                  <>
+                    <ul style={{ listStyle: "none", padding: 0, margin: "0 0 18px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "8px 18px" }}>
+                      {HOODIE_INFO.points.map(t => (
+                        <li key={t} style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 14, color: "#374151", lineHeight: 1.5 }}>
+                          <span style={{ flex: "none", width: 20, height: 20, borderRadius: "50%", background: `${C.primary}14`, color: C.primary, fontSize: 12, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>{t}
+                        </li>
+                      ))}
+                    </ul>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 22 }}>
+                      {HOODIE_INFO.specs.map(([k, v]) => (
+                        <div key={k} style={{ background: C.bg, borderRadius: 10, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+                          <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .4, marginBottom: 3 }}>{k}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <h4 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 4px", color: C.dark }}>📏 Size chart</h4>
+                    <p style={{ fontSize: 12, color: C.muted, margin: "0 0 10px" }}>Measurements in inches · expected deviation under 3%</p>
+                    <div style={{ overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                        <thead>
+                          <tr style={{ background: C.dark, color: "#fff" }}>
+                            {["Size", "Chest", "Length", "Sleeve"].map(h => <th key={h} style={{ padding: "10px clamp(8px, 2.5vw, 14px)", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: .4, textTransform: "uppercase" }}>{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {HOODIE_INFO.sizes.map((r, i) => (
+                            <tr key={r[0]} style={{ background: i % 2 ? C.bg : "#fff", borderTop: `1px solid ${C.border}` }}>
+                              <td style={{ padding: "10px clamp(8px, 2.5vw, 14px)", fontWeight: 800, color: C.primary }}>{r[0]}</td>
+                              {r.slice(1).map((v, k) => <td key={k} style={{ padding: "10px clamp(8px, 2.5vw, 14px)", color: C.dark }}>{v}"</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p style={{ fontSize: 12, color: C.muted, margin: "10px 0 20px" }}>Tip: measure a hoodie you already own (armpit to armpit × 2 for chest) and pick the closest size.</p>
+                  </>
+                ) : Array.isArray(product.details) && product.details.length ? (
+                  <ul style={{ margin: "0 0 18px", paddingLeft: 20, color: "#374151", fontSize: 14, lineHeight: 1.8 }}>
+                    {product.details.map((t, i) => <li key={i}>{t}</li>)}
+                  </ul>
+                ) : (
+                  <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.8, marginBottom: 16 }}>
+                    {product.name} is a quality product from Outback Cartel, checked before dispatch so you receive exactly what you ordered.
+                  </p>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
+                  {[["Category", CATS.find(c => c.key === product.cat)?.label || product.cat], ["Condition", "Brand New"], ["Delivery", "Nationwide Bangladesh"], ["Return policy", "7 days"], ["Payment", "bKash · Nagad · Rocket · COD"]].map(([k, v]) => (
                     <div key={k} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
                       <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .4, marginBottom: 3 }}>{k}</div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{v}</div>
@@ -953,49 +1011,95 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               </div>
             )}
 
+            {activeTab === "how" && (
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px", color: C.dark }}>How to order</h3>
+                <p style={{ fontSize: 13, color: C.muted, margin: "0 0 18px" }}>Five quick steps. No account needed.</p>
+                <ol style={{ listStyle: "none", padding: 0, margin: "0 0 20px", display: "grid", gap: 12 }}>
+                  {[
+                    ["Choose your size" + (product.colors && product.colors.length > 1 ? " and colour" : ""), isHoodie ? "Check the size chart in the Description tab, then pick your size." : "Check the details in the Description tab."],
+                    ["Add to cart or Buy Now", "Add as many items as you like. Delivery is free on orders over ৳999."],
+                    ["Checkout", "Enter your name, phone number, area and full delivery address."],
+                    ["Pay your way", "bKash, Nagad, Rocket, or Cash on Delivery."],
+                    ["Get your Order ID", "We confirm your order, then deliver it: Dhaka 1–2 days, rest of Bangladesh 3–5 days."],
+                  ].map(([t, d], i) => (
+                    <li key={t} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+                      <span style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.dark, marginBottom: 2 }}>{t}</div>
+                        <div style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.6 }}>{d}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 16 }}>
+                  {[["🚚", "Delivery charge", "৳70 · free over ৳999"], ["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["🔄", "Easy returns", "7-day returns if it isn't right"]].map(([ic, t, d]) => (
+                    <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+                      <span style={{ fontSize: 20 }}>{ic}</span>
+                      <div><div style={{ fontSize: 12, fontWeight: 800, color: C.dark }}>{t}</div><div style={{ fontSize: 12, color: C.muted }}>{d}</div></div>
+                    </div>
+                  ))}
+                </div>
+                <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(`Hi! I want to order: ${product.name}`)}`} target="_blank" rel="noreferrer"
+                  style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", background: "#E8F8EE", border: "1px solid #B7E4C7", borderRadius: 12, padding: "14px 16px", color: C.dark }}>
+                  <span style={{ fontSize: 26 }}>💬</span>
+                  <span><strong style={{ display: "block", fontSize: 14 }}>Prefer WhatsApp?</strong><span style={{ fontSize: 13, color: "#4B5563" }}>Text us on {CONFIG.WHATSAPP_DISPLAY} with the product name and your size (text only).</span></span>
+                </a>
+              </div>
+            )}
+
             {activeTab === "reviews" && (
               <div>
-                {/* Rating summary */}
-                <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24, padding: "16px 20px", background: C.bg, borderRadius: 12, border: `1px solid ${C.border}` }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 44, fontWeight: 900, color: C.primary, lineHeight: 1 }}>{avgRating}</div>
-                    <StarRating rating={Math.round(parseFloat(avgRating))} size={18} />
-                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{SAMPLE_REVIEWS.length} reviews</div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    {[5, 4, 3, 2, 1].map(star => {
-                      const count = SAMPLE_REVIEWS.filter(r => r.rating === star).length;
-                      const pct = Math.round((count / SAMPLE_REVIEWS.length) * 100);
-                      return (
-                        <div key={star} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 11, color: C.muted, width: 12 }}>{star}</span>
-                          <span style={{ color: C.accent, fontSize: 11 }}>★</span>
-                          <div style={{ flex: 1, height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden" }}>
-                            <div style={{ width: `${pct}%`, height: "100%", background: C.accent, borderRadius: 3 }} />
-                          </div>
-                          <span style={{ fontSize: 11, color: C.muted, width: 26 }}>{pct}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Review list */}
-                {SAMPLE_REVIEWS.map((r, i) => (
-                  <div key={i} style={{ padding: "16px 0", borderBottom: i < SAMPLE_REVIEWS.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700 }}>{r.name.charAt(0)}</div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700 }}>{r.name}</div>
-                          <div style={{ fontSize: 11, color: C.muted }}>{r.date}</div>
-                        </div>
+                {reviews.length ? (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 24, padding: "16px 20px", background: C.bg, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 44, fontWeight: 900, color: C.primary, lineHeight: 1 }}>{avgRating}</div>
+                        <StarRating rating={Math.round(parseFloat(avgRating))} size={18} />
+                        <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{reviews.length} review{reviews.length !== 1 ? "s" : ""}</div>
                       </div>
-                      <StarRating rating={r.rating} size={13} />
+                      <div style={{ flex: 1 }}>
+                        {[5, 4, 3, 2, 1].map(star => {
+                          const pct = Math.round((reviews.filter(r => r.rating === star).length / reviews.length) * 100);
+                          return (
+                            <div key={star} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontSize: 11, color: C.muted, width: 12 }}>{star}</span>
+                              <span style={{ color: C.accent, fontSize: 11 }}>★</span>
+                              <div style={{ flex: 1, height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden" }}>
+                                <div style={{ width: `${pct}%`, height: "100%", background: C.accent, borderRadius: 3 }} />
+                              </div>
+                              <span style={{ fontSize: 11, color: C.muted, width: 26 }}>{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.7, margin: "0 0 0 46px" }}>{r.text}</p>
+                    {reviews.map((r, i) => (
+                      <div key={i} style={{ padding: "16px 0", borderBottom: i < reviews.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>{r.name[0]}</div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700 }}>{r.name}</div>
+                              <div style={{ fontSize: 11, color: C.muted }}>{r.date}</div>
+                            </div>
+                          </div>
+                          <StarRating rating={r.rating} size={13} />
+                        </div>
+                        <p style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.7, margin: "0 0 0 46px" }}>{r.text}</p>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div style={{ textAlign: "center", padding: "26px 10px 10px" }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>⭐</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: C.dark, marginBottom: 6 }}>No reviews yet</div>
+                    <p style={{ fontSize: 13, color: C.muted, margin: "0 auto 16px", maxWidth: 380, lineHeight: 1.6 }}>Bought this? Tell us what you think. Your review will appear here after we've checked it.</p>
                   </div>
-                ))}
+                )}
+                <div style={{ textAlign: "center", marginTop: reviews.length ? 18 : 0 }}>
+                  <a href={waReview} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: C.dark, color: "#fff", textDecoration: "none", padding: "11px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700 }}>✍️ Write a review on WhatsApp</a>
+                </div>
               </div>
             )}
           </div>
