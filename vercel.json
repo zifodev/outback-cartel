@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/products.js": {
-      "regions": ["bom1"]
-    }
-  }
-}
