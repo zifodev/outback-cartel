@@ -896,7 +896,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
 
             {/* Features */}
             <div style={{ background: C.bg, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}` }}>
-              {[["🚚", "Fast Delivery", "Dhaka 1-2 days · Bangladesh 3-5 days"], ["🔄", "Easy Returns", "7-day hassle-free returns"], ["🔒", "Secure Payment", "SSLCommerz · bKash · Nagad · COD"], ["✅", "Quality Check", "Verified before dispatch"]].map(([ic, t, d]) => (
+              {[["🚚", "Fast Delivery", "Inside Dhaka 1-2 days · Outside Dhaka 2-4 days"], ["🔄", "Easy Returns", "7-day hassle-free returns"], ["🔒", "Secure Payment", "bKash · Nagad · Rocket · Cash on Delivery"], ["✅", "Quality Check", "Verified before dispatch"]].map(([ic, t, d]) => (
                 <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, lastChild: { marginBottom: 0 } }}>
                   <span style={{ fontSize: 16 }}>{ic}</span>
                   <div>
@@ -1019,9 +1019,9 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                   {[
                     ["Choose your size" + (product.colors && product.colors.length > 1 ? " and colour" : ""), isHoodie ? "Check the size chart in the Description tab, then pick your size." : "Check the details in the Description tab."],
                     ["Add to cart or Buy Now", "Add as many items as you like. Delivery is free on orders over ৳999."],
-                    ["Checkout", "Enter your name, phone number, area and full delivery address."],
+                    ["Confirm your order", "Write, send a screenshot, or text us on WhatsApp to confirm your order and delivery charge."],
                     ["Pay your way", "bKash, Nagad, Rocket, or Cash on Delivery."],
-                    ["Get your Order ID", "We confirm your order, then deliver it: Dhaka 1–2 days, rest of Bangladesh 3–5 days."],
+                    ["Get your Order ID", "We confirm your order, then deliver it: inside Dhaka 1–2 days, outside Dhaka 2–4 days."],
                   ].map(([t, d], i) => (
                     <li key={t} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
                       <span style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
@@ -1032,8 +1032,14 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                     </li>
                   ))}
                 </ol>
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", background: C.bg, fontSize: 12, fontWeight: 800, color: C.dark, padding: "10px 14px" }}><span>Location</span><span>Time</span><span>Charge</span></div>
+                  {[["Inside Dhaka", "1-2 days", "৳60"], ["Dhaka Sub Area", "1-2 days", "৳100"], ["Outside Dhaka", "2-4 days", "৳120"]].map(([a, b, c]) => (
+                    <div key={a} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", fontSize: 13, color: "#4B5563", padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><span>{a}</span><span>{b}</span><span>{c}</span></div>
+                  ))}
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 16 }}>
-                  {[["🚚", "Delivery charge", "৳70 · free over ৳999"], ["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["🔄", "Easy returns", "7-day returns if it isn't right"]].map(([ic, t, d]) => (
+                  {[["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["🔄", "Easy returns", "7-day returns if it isn't right"]].map(([ic, t, d]) => (
                     <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
                       <span style={{ fontSize: 20 }}>{ic}</span>
                       <div><div style={{ fontSize: 12, fontWeight: 800, color: C.dark }}>{t}</div><div style={{ fontSize: 12, color: C.muted }}>{d}</div></div>
