@@ -42,11 +42,25 @@ const hasPicture = p => typeof p.img === "string" && p.img.trim() !== ""; // pro
 // EDIT PRICES HERE (৳). old = optional strike-through "was" price.
 const HSIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const HOUSE_HOODIES = [
-  { id: "hoodie-bow", house: true, cat: "hoodies", name: "Bow Print Hoodie", price: 990, old: 1290, icon: "🧥", badge: "New", img: "hoodies/bow.jpg", images: ["hoodies/bow.jpg"], colors: ["Pink"], sizes: HSIZES },
-  { id: "hoodie-meow", house: true, cat: "hoodies", name: "Meow Cat Hoodie", price: 990, old: 1290, icon: "🧥", badge: "New", img: "hoodies/meow.jpg", images: ["hoodies/meow.jpg"], colors: ["Pink"], sizes: HSIZES },
-  { id: "hoodie-okay", house: true, cat: "hoodies", name: "I'm OK Hoodie", price: 1090, old: 1390, icon: "🧥", badge: "Hot", img: "hoodies/okay-grey.jpg", images: ["hoodies/okay-grey.jpg", "hoodies/okay-pink.png"], colors: ["Grey", "Pink"], sizes: HSIZES },
-  { id: "hoodie-tribal", house: true, cat: "hoodies", name: "Tribal Mark Hoodie", price: 1090, old: 1390, icon: "🧥", badge: null, img: "hoodies/tribal.png", images: ["hoodies/tribal.png"], colors: ["Black"], sizes: HSIZES },
-  { id: "hoodie-chicken", house: true, cat: "hoodies", name: "Beware of Chicken Hoodie", price: 1090, old: 1390, icon: "🧥", badge: "Hot", img: "hoodies/chicken.png", images: ["hoodies/chicken.png"], colors: ["Black"], sizes: HSIZES },
+  { id: "hoodie-bow", house: true, cat: "hoodies", name: "Bow Print Hoodie", price: 990, old: 1290, icon: "🧥", badge: "New", img: "hoodies/bow.jpg", images: ["hoodies/bow.jpg", "hoodies/gallery/bow-back.jpg", "hoodies/gallery/bow-side.jpg", "hoodies/gallery/bow-side-l.jpg"], colors: ["Pink"], sizes: HSIZES },
+  { id: "hoodie-meow", house: true, cat: "hoodies", name: "Meow Cat Hoodie", price: 990, old: 1290, icon: "🧥", badge: "New", img: "hoodies/meow.jpg", images: ["hoodies/meow.jpg", "hoodies/gallery/meow-back.jpg", "hoodies/gallery/meow-side.jpg", "hoodies/gallery/meow-side-l.jpg"], colors: ["Pink"], sizes: HSIZES },
+  { id: "hoodie-okay", house: true, cat: "hoodies", name: "I'm OK Hoodie", price: 1090, old: 1390, icon: "🧥", badge: "Hot", img: "hoodies/okay-grey.jpg", images: ["hoodies/okay-grey.jpg", "hoodies/gallery/okay-back.jpg", "hoodies/gallery/okay-side.jpg", "hoodies/gallery/okay-side-l.jpg", "hoodies/okay-pink.png"], colors: ["Grey", "Pink"], sizes: HSIZES },
+  { id: "hoodie-tribal", house: true, cat: "hoodies", name: "Tribal Mark Hoodie", price: 1090, old: 1390, icon: "🧥", badge: null, img: "hoodies/tribal.png", images: ["hoodies/tribal.png", "hoodies/gallery/tribal-back.jpg", "hoodies/gallery/tribal-side.jpg", "hoodies/gallery/tribal-side-l.jpg"], colors: ["Black"], sizes: HSIZES },
+  { id: "hoodie-chicken", house: true, cat: "hoodies", name: "Beware of Chicken Hoodie", price: 1090, old: 1390, icon: "🧥", badge: "Hot", img: "hoodies/chicken.png", images: ["hoodies/chicken.png", "hoodies/gallery/chicken-back.jpg", "hoodies/gallery/chicken-side.jpg", "hoodies/gallery/chicken-side-l.jpg"], colors: ["Black"], sizes: HSIZES },
+  // new collection — price 0 shows "Coming soon" until you set a price
+  { id: "hoodie-moon-palm", house: true, cat: "hoodies", name: "Moonlit Palm Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/moon-palm-front.jpg", images: ["hoodies/gallery/moon-palm-front.jpg", "hoodies/gallery/moon-palm-back.jpg", "hoodies/gallery/moon-palm-side.jpg", "hoodies/gallery/moon-palm-side-l.jpg"], colors: ["Green"], sizes: HSIZES },
+  { id: "hoodie-death-note", house: true, cat: "hoodies", name: "Death Note Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/death-note-front.jpg", images: ["hoodies/gallery/death-note-front.jpg", "hoodies/gallery/death-note-back.jpg", "hoodies/gallery/death-note-side.jpg", "hoodies/gallery/death-note-side-l.jpg"], colors: ["Black"], sizes: HSIZES },
+  { id: "hoodie-move-forward", house: true, cat: "hoodies", name: "Let's Move Forward Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/move-forward-front.jpg", images: ["hoodies/gallery/move-forward-front.jpg", "hoodies/gallery/move-forward-back.jpg", "hoodies/gallery/move-forward-side.jpg", "hoodies/gallery/move-forward-side-l.jpg"], colors: ["Blush"], sizes: HSIZES },
+  { id: "hoodie-musafir", house: true, cat: "hoodies", name: "Musafir Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/musafir-front.jpg", images: ["hoodies/gallery/musafir-front.jpg", "hoodies/gallery/musafir-back.jpg", "hoodies/gallery/musafir-side.jpg", "hoodies/gallery/musafir-side-l.jpg"], colors: ["Red"], sizes: HSIZES },
+  { id: "hoodie-sunnah", house: true, cat: "hoodies", name: "Smile Is Sunnah Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/sunnah-front.jpg", images: ["hoodies/gallery/sunnah-front.jpg", "hoodies/gallery/sunnah-back.jpg", "hoodies/gallery/sunnah-side.jpg", "hoodies/gallery/sunnah-side-l.jpg"], colors: ["Navy"], sizes: HSIZES },
+  { id: "hoodie-butterfly", house: true, cat: "hoodies", name: "Butterfly Bloom Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/butterfly-front.jpg", images: ["hoodies/gallery/butterfly-front.jpg", "hoodies/gallery/butterfly-back.jpg", "hoodies/gallery/butterfly-side.jpg", "hoodies/gallery/butterfly-side-l.jpg"], colors: ["Pink"], sizes: HSIZES },
+  { id: "hoodie-kitty", house: true, cat: "hoodies", name: "Kitty Heart Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/kitty-front.jpg", images: ["hoodies/gallery/kitty-front.jpg", "hoodies/gallery/kitty-back.jpg", "hoodies/gallery/kitty-side.jpg", "hoodies/gallery/kitty-side-l.jpg"], colors: ["Cream"], sizes: HSIZES },
+  { id: "hoodie-paris", house: true, cat: "hoodies", name: "Paris Stripe Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/paris-front.jpg", images: ["hoodies/gallery/paris-front.jpg", "hoodies/gallery/paris-back.jpg", "hoodies/gallery/paris-side.jpg", "hoodies/gallery/paris-side-l.jpg", "hoodies/gallery/paris-three-q.jpg", "hoodies/gallery/paris-flat.jpg"], colors: ["White"], sizes: HSIZES },
+  { id: "hoodie-meow-mustard", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Mustard", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-mustard-front.jpg", images: ["hoodies/gallery/meow-mustard-front.jpg", "hoodies/gallery/meow-mustard-back.jpg", "hoodies/gallery/meow-mustard-side.jpg", "hoodies/gallery/meow-mustard-side-l.jpg"], colors: ["Mustard"], sizes: HSIZES },
+  { id: "hoodie-meow-lavender", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Lavender", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-lavender-front.jpg", images: ["hoodies/gallery/meow-lavender-front.jpg", "hoodies/gallery/meow-lavender-back.jpg", "hoodies/gallery/meow-lavender-side.jpg", "hoodies/gallery/meow-lavender-side-l.jpg"], colors: ["Lavender"], sizes: HSIZES },
+  { id: "hoodie-plain-navy", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Navy", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-navy-front.jpg", images: ["hoodies/gallery/plain-navy-front.jpg", "hoodies/gallery/plain-navy-back.jpg", "hoodies/gallery/plain-navy-side.jpg", "hoodies/gallery/plain-navy-side-l.jpg"], colors: ["Navy"], sizes: HSIZES },
+  { id: "hoodie-plain-grey", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Grey", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-grey-front.jpg", images: ["hoodies/gallery/plain-grey-front.jpg", "hoodies/gallery/plain-grey-back.jpg", "hoodies/gallery/plain-grey-side.jpg", "hoodies/gallery/plain-grey-side-l.jpg"], colors: ["Grey melange"], sizes: HSIZES },
+  { id: "hoodie-plain-maroon", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Maroon", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-maroon-front.jpg", images: ["hoodies/gallery/plain-maroon-front.jpg", "hoodies/gallery/plain-maroon-back.jpg", "hoodies/gallery/plain-maroon-side.jpg", "hoodies/gallery/plain-maroon-side-l.jpg"], colors: ["Maroon"], sizes: HSIZES },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -790,6 +804,11 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState("description");
   const [addedMsg, setAddedMsg] = useState(false);
+  const [picSel, setPicSel] = useState({ id: null, k: 0 }); // which gallery photo is shown (resets per product)
+  const pic = picSel.id === product.id ? picSel.k : 0;
+  const setPic = k => setPicSel({ id: product.id, k });
+  const pics = Array.isArray(product.images) && product.images.length ? product.images : (product.img ? [product.img] : []);
+  const priced = product.price > 0;
   const cc = CATS.find(c => c.key === product.cat)?.color || C.primary;
   const disc = product.old ? Math.round((1 - product.price / product.old) * 100) : 0;
   const avgRating = (SAMPLE_REVIEWS.reduce((s, r) => s + r.rating, 0) / SAMPLE_REVIEWS.length).toFixed(1);
@@ -826,11 +845,20 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               {disc > 0 && (
                 <span style={{ position: "absolute", top: 16, right: 16, background: C.primary, color: "#fff", fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 50 }}>-{disc}% OFF</span>
               )}
-              {product.img
-                ? <img src={product.img} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} />
+              {pics.length
+                ? <img src={pics[Math.min(pic, pics.length - 1)]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => e.target.style.display = "none"} />
                 : <span style={{ fontSize: 120 }}>{product.icon || "📦"}</span>
               }
             </div>
+            {pics.length > 1 && (
+              <div style={{ display: "flex", gap: 8, padding: 12, overflowX: "auto", borderTop: `1px solid ${C.border}` }}>
+                {pics.map((u, k) => (
+                  <button key={u} onClick={() => setPic(k)} aria-label={`Photo ${k + 1}`} style={{ flex: "none", width: 62, height: 62, padding: 0, borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#fff", border: `2px solid ${k === pic ? C.primary : C.border}` }}>
+                    <img src={u} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Info */}
@@ -850,7 +878,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
 
               {/* Price */}
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span style={{ fontSize: 30, fontWeight: 900, color: C.primary }}>{fmt(product.price)}</span>
+                <span style={{ fontSize: priced ? 30 : 22, fontWeight: 900, color: C.primary }}>{priced ? fmt(product.price) : "Price coming soon"}</span>
                 {product.old && <span style={{ fontSize: 16, color: C.muted, textDecoration: "line-through" }}>{fmt(product.old)}</span>}
               </div>
               {product.old && <div style={{ fontSize: 13, color: C.green, fontWeight: 600, marginBottom: 14 }}>You save {fmt(product.old - product.price)} ({disc}% off)</div>}
@@ -878,16 +906,16 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                   <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>
                   <button onClick={() => setQty(q => q + 1)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                 </div>
-                <span style={{ fontSize: 12, color: C.muted }}>Total: <strong style={{ color: C.primary }}>{fmt(product.price * qty)}</strong></span>
+                {priced && <span style={{ fontSize: 12, color: C.muted }}>Total: <strong style={{ color: C.primary }}>{fmt(product.price * qty)}</strong></span>}
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={handleAdd}
-                  style={{ flex: 1, background: addedMsg ? "#2E7D52" : "#fff", color: addedMsg ? C.green : C.primary, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}>
+                <button onClick={handleAdd} disabled={!priced}
+                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "#2E7D52" : "#fff", color: addedMsg ? C.green : C.primary, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
                   {addedMsg ? "✅ Added!" : "🛒 Add to Cart"}
                 </button>
-                <button onClick={() => { onAdd(product); onBuyNow(); }}
-                  style={{ flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={() => { onAdd(product); onBuyNow(); }} disabled={!priced}
+                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
                   ⚡ Buy Now
                 </button>
               </div>
@@ -1000,13 +1028,13 @@ function ProductCard({ p, onAdd, onView }) {
           <div style={{ fontSize: 10, color: cc, fontWeight: 700, textTransform: "uppercase", letterSpacing: .6, marginBottom: 4 }}>{CATS.find(c => c.key === p.cat)?.icon} {CATS.find(c => c.key === p.cat)?.label}</div>
           <div className="ocp-title" style={{ fontSize: 13, fontWeight: 600, color: C.dark, lineHeight: 1.3, marginBottom: 8, minHeight: 32, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.name}</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: C.primary }}>{fmt(p.price)}</span>
+            <span style={{ fontSize: p.price > 0 ? 16 : 13, fontWeight: 800, color: C.primary }}>{p.price > 0 ? fmt(p.price) : "Coming soon"}</span>
             {p.old && <span style={{ fontSize: 11, color: C.muted, textDecoration: "line-through" }}>{fmt(p.old)}</span>}
           </div>
         </div>
         {/* Action buttons */}
         <div className="ocp-btns" style={{ display: "flex", gap: 7 }}>
-          <button onClick={() => onAdd(p)} style={{ flex: 1, background: "#fff", color: C.primary, border: `2px solid ${C.primary}`, borderRadius: 9, padding: "8px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}
+          <button onClick={() => p.price > 0 ? onAdd(p) : onView(p)} style={{ opacity: p.price > 0 ? 1 : .45, flex: 1, background: "#fff", color: C.primary, border: `2px solid ${C.primary}`, borderRadius: 9, padding: "8px 6px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }}
             onMouseEnter={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.color = "#fff"; }} onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = C.primary; }}>
             🛒 Cart
           </button>
