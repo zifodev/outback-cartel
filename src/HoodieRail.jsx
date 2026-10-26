@@ -152,21 +152,27 @@ const TryOn = lazy(() => import("./TryOn.jsx"));
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
 const HOUSE_ITEMS = [
-  { id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, tone: "#DC9EAB", asp: 563 / 700, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
+  { side: "hoodies/views/bow-side.webp", views: ["hoodies/cut-bow.webp", "hoodies/views/bow-back.webp", "hoodies/views/bow-side.webp", "hoodies/views/bow-side-l.webp"], id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, tone: "#DC9EAB", asp: 563 / 700, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
     colors: [{ name: "Pink", hex: "#F4B8C8", img: "hoodies/cut-bow.webp" }] },
-  { id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
+  { side: "hoodies/views/meow-side.webp", views: ["hoodies/cut-meow.webp", "hoodies/views/meow-back.webp", "hoodies/views/meow-side.webp", "hoodies/views/meow-side-l.webp"], id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
     colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/cut-meow.webp" }] },
-  { id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
+  { side: "hoodies/views/okay-side.webp", views: ["hoodies/cut-okay-grey.webp", "hoodies/views/okay-back.webp", "hoodies/views/okay-side.webp", "hoodies/views/okay-side-l.webp"], id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
     colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/cut-okay-grey.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
-  { id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
+  { side: "hoodies/views/tribal-side.webp", views: ["hoodies/cut-tribal.webp", "hoodies/views/tribal-back.webp", "hoodies/views/tribal-side.webp", "hoodies/views/tribal-side-l.webp"], id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-tribal.webp" }] },
-  { id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 213 / 219, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
+  { side: "hoodies/views/chicken-side.webp", views: ["hoodies/cut-chicken.webp", "hoodies/views/chicken-back.webp", "hoodies/views/chicken-side.webp", "hoodies/views/chicken-side-l.webp"], id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 213 / 219, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-chicken.webp" }] },
 ];
 
 // The rail collection (photos cut out, in public/hoodies/rail/). Price 0 = "Price coming soon".
-const R = (id, name, tone, file, colour, note) => ({ id, name, price: 0, old: 0, tone, note, cut: `hoodies/rail/${file}.webp`,
-  colors: [{ name: colour, hex: tone, img: `hoodies/rail/${file}.webp` }] });
+const R = (id, name, tone, file, colour, note) => {
+  const front = file === "paris" ? "hoodies/views/paris-front.webp" : `hoodies/rail/${file}.webp`;
+  const v = `hoodies/views/${file}`;
+  return { id, name, price: 0, old: 0, tone, note, cut: front, side: `${v}-side.webp`,
+    views: [front, `${v}-back.webp`, `${v}-side.webp`, `${v}-side-l.webp`],
+    colors: [{ name: colour, hex: tone, img: front }] };
+};
+const VIEW_NAMES = ["Front", "Back", "Side", "Other side"];
 const RAIL_ITEMS = [
   R(201, "Moonlit Palm Hoodie", "#1D5A3A", "moon-palm", "Green", "Forest green hoodie with a golden moon and palm print."),
   R(202, "Death Note Hoodie", "#1A1A1C", "death-note", "Black", "Black hoodie with the Death Note title print."),
@@ -293,6 +299,7 @@ const CSS = `
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:var(--hookh);pointer-events:none;perspective:1600px}
 .rk-turnwrap{position:absolute;inset:0;transition:opacity .15s}
 .rk-sidewrap{position:absolute;inset:0;transform-origin:50% 0;will-change:transform;backface-visibility:hidden;filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.2))}
+.rk-sideimg{position:absolute;top:0;left:50%;height:100%;width:auto;max-width:none;transform:translateX(-50%);pointer-events:none}
 .rk-side{position:absolute;top:0;left:50%;height:100%;width:auto;aspect-ratio:190/490;transform:translateX(-50%);overflow:visible}
 .rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none;transform-origin:50% 0;backface-visibility:hidden}
 .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.18))}
@@ -359,6 +366,11 @@ const CSS = `
 .rk-sw i{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.25);display:block}
 .rk-sw[aria-pressed="true"]{border-color:#1C1C1C}
 .rk-sw:active{transform:scale(.95)}
+.rk-views{display:flex;gap:8px}
+.rk-view{width:52px;height:52px;border-radius:10px;border:2px solid #E8E4DE;background:#fff;padding:4px;transition:border-color .2s,transform .15s}
+.rk-view img{width:100%;height:100%;object-fit:contain}
+.rk-view[aria-pressed="true"]{border-color:#1C1C1C}
+.rk-view:hover{transform:translateY(-2px)}
 .rk-sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .rk-size{height:44px;border-radius:999px;font-size:13px;font-weight:700;background:#fff;color:#1C1C1C;border:2px solid #E8E4DE;transition:transform .15s,background .2s,color .2s,border-color .2s}
 .rk-size:hover{transform:translateY(-2px);border-color:#1C1C1C}
@@ -404,6 +416,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const [lifted, setLifted] = useState(() => ITEMS.map(() => false));
   const [variant, setVariant] = useState(() => ITEMS.map(() => 0));
   const [size, setSize] = useState(null);
+  const [view, setView] = useState(0); // front / back / side shown in the fitting room
   const [added, setAdded] = useState(false);
   const [burst, setBurst] = useState(0);
   const [dimPos, setDimPos] = useState({ cx: "40%", cy: "50%" });
@@ -704,7 +717,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     setLifted(l => l.map((v, k) => (k === i ? true : v)));
     openFlyer(i);
     activeRef.current = i;
-    setActive(i); setSize(null); setAdded(false);
+    setActive(i); setSize(null); setAdded(false); setView(0);
     const sec = secRef.current;
     if (sec) { const r = sec.getBoundingClientRect(); if (r.top < -40 || r.bottom > window.innerHeight + 40) sec.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
     setTimeout(() => backRef.current && backRef.current.focus({ preventScroll: true }), 450);
@@ -811,7 +824,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                     </svg>
                     <div className="rk-box" ref={el => (boxRefs.current[i] = el)}>
                       <div className="rk-turnwrap" style={{ opacity: lifted[i] ? 0 : 1, mixBlendMode: it.remote ? "multiply" : "normal" }}>
-                        <div className="rk-sidewrap" ref={el => (sideRefs.current[i] = el)}><SideHoodie id={i} tone={it.tone} /></div>
+                        <div className="rk-sidewrap" ref={el => (sideRefs.current[i] = el)}>{it.side ? <img className="rk-sideimg" src={it.side} alt="" draggable="false" /> : <SideHoodie id={i} tone={it.tone} />}</div>
                         <img className="rk-photo" ref={el => (frontRefs.current[i] = el)} src={it.cut} alt="" draggable="false" style={{ visibility: "hidden" }} />
                       </div>
                     </div>
@@ -843,9 +856,10 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       <div className="rk-dim" aria-hidden="true" />
       {ITEMS.map((it, i) => {
         const v = active === i ? it.colors[variant[i]] : it.colors[0];
+        const src = active === i && view > 0 && variant[i] === 0 && it.views ? it.views[view] : v.img;
         return (
           <div key={it.id} className="rk-fly" ref={el => (flyRefs.current[i] = el)} aria-hidden="true">
-            <img src={v.img} alt="" className={v.photo ? "photo" : ""} draggable="false" />
+            <img src={src} alt="" className={v.photo && src === v.img ? "photo" : ""} draggable="false" />
             {!v.photo && <div className="rk-sweep" style={{ "--m": `url(${v.img})` }} />}
           </div>
         );
@@ -872,6 +886,18 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                 ))}
               </div>
             </div>
+            {sel.views && variant[active] === 0 && (
+              <div>
+                <div className="rk-lbl">View · {VIEW_NAMES[view]}</div>
+                <div className="rk-views">
+                  {sel.views.map((u, k) => (
+                    <button key={u} className="rk-view" aria-pressed={k === view} aria-label={`Show ${VIEW_NAMES[k]}`} onClick={() => setView(k)}>
+                      <img src={u} alt="" draggable="false" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <div className="rk-lbl">Select size</div>
               <div className="rk-sizes">
