@@ -83,6 +83,12 @@ const guessCategory = name => {
   return "giftsfood";
 };
 
+// supplier description (HTML) → a few short plain-text lines for the Description tab
+const detailLines = html => String(html || "")
+  .replace(/<\s*(br|\/li|\/p|\/div|\/h\d)\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ")
+  .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+  .split("\n").map(t => t.replace(/\s+/g, " ").trim()).filter(t => t.length > 1).slice(0, 8).map(t => t.slice(0, 140));
+
 export default async function handler(req, res) {
   // tolerate stray spaces, line breaks or quotes picked up when pasting the keys into Vercel
   const clean = v => String(v || "").trim().replace(/^["']+|["']+$/g, "").trim();
@@ -188,6 +194,7 @@ export default async function handler(req, res) {
         badge: null,
         img: images[0] || url(p.thumbnail_img),
         images,
+        details: detailLines(p.details),
       };
     }).filter(p => p.price > 0 && p.img);
 
