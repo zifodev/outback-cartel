@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useEffect } from "react";
 // every hoodie hangs side-on (like clothes on a wardrobe rail) and flips round to face you
 const SPIN_REST = 87; // angle it hangs at (deg); it turns to 0° when you point at it
 
@@ -135,15 +135,13 @@ function SideHoodie({ id, tone }) {
   );
 }
 
-// the Try-On studio (3D avatar + your own photo) loads only when someone opens it
-const TryOn = lazy(() => import("./TryOn.jsx"));
 
 // ─────────────────────────────────────────────────────────────
 //  HOODIE RACK — section shown on the shop home page.
 //  Real product photos hang side-on from a wire across a soft studio backdrop.
 //  Hover (or tap) one and it turns on its hanger to face you. Click it (or tap again) and it lifts
 //  off the rail into the foreground with price, colours, sizes,
-//  TRY IT ON and ADD TO CART. Esc / Back / clicking the dark area puts it back.
+//  ADD TO CART. Esc / Back / clicking the dark area puts it back.
 //
 //  Images live in public/hoodies/ (cut-*.webp = background removed). Shop
 //  hoodies use their own product photo (multiplied onto the backdrop).
@@ -152,16 +150,12 @@ const TryOn = lazy(() => import("./TryOn.jsx"));
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
 const HOUSE_ITEMS = [
-  { side: "hoodies/views/bow-side.webp", views: ["hoodies/cut-bow.webp", "hoodies/views/bow-back.webp", "hoodies/views/bow-side.webp", "hoodies/views/bow-side-l.webp"], id: 101, name: "Bow Print Hoodie", price: 990, old: 1290, tone: "#DC9EAB", asp: 563 / 700, note: "Pink fleece hoodie with a black bow graphic.", cut: "hoodies/cut-bow.webp",
-    colors: [{ name: "Pink", hex: "#F4B8C8", img: "hoodies/cut-bow.webp" }] },
   { side: "hoodies/views/meow-side.webp", views: ["hoodies/cut-meow.webp", "hoodies/views/meow-back.webp", "hoodies/views/meow-side.webp", "hoodies/views/meow-side-l.webp"], id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
     colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/cut-meow.webp" }] },
   { side: "hoodies/views/okay-side.webp", views: ["hoodies/cut-okay-grey.webp", "hoodies/views/okay-back.webp", "hoodies/views/okay-side.webp", "hoodies/views/okay-side-l.webp"], id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
     colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/cut-okay-grey.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
   { side: "hoodies/views/tribal-side.webp", views: ["hoodies/cut-tribal.webp", "hoodies/views/tribal-back.webp", "hoodies/views/tribal-side.webp", "hoodies/views/tribal-side-l.webp"], id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-tribal.webp" }] },
-  { side: "hoodies/views/chicken-side.webp", views: ["hoodies/cut-chicken.webp", "hoodies/views/chicken-back.webp", "hoodies/views/chicken-side.webp", "hoodies/views/chicken-side-l.webp"], id: 106, name: "Beware of Chicken Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 213 / 219, note: "Black hoodie with a bold lettered print.", cut: "hoodies/cut-chicken.webp",
-    colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-chicken.webp" }] },
 ];
 
 // The rail collection (photos cut out, in public/hoodies/rail/). Price 0 = "Price coming soon".
@@ -191,7 +185,6 @@ const RAIL_ITEMS = [
 
 // hoodies from the shop (supplier range) hung on the rail after our own ones
 const RAIL_MAX = 40;
-const SAG = 0; // the steel rod is straight (no dip)
 // never hang the same hoodie twice: skip shop copies of our own designs, and shop
 // listings that repeat a picture or the same name (ignoring filler words)
 const HOUSE_RE = /\bbow\b|meow|i'?m\s*ok|tribal|chicken/i;
@@ -230,15 +223,6 @@ const TF = (x, y, s, r) => `perspective(1400px) translate3d(${x}px,${y}px,0px) s
 const SHADOW_REST = "drop-shadow(0px 10px 10px rgba(0,0,0,0.18))";
 const SHADOW_HERO = "drop-shadow(0px 30px 30px rgba(0,0,0,0.22))";
 
-// little hanger-with-sparkle icon for the Try-On buttons
-function TryIcon() {
-  return (
-    <svg className="rk-ticon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 6.2a1.9 1.9 0 1 1 1.9-1.9M12 6.2v1.6L3.4 13.6c-.9.6-.5 2 .6 2h16c1.1 0 1.5-1.4.6-2L12 7.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M19.5 2.5l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z" fill="currentColor" />
-    </svg>
-  );
-}
 
 // colours follow the existing site theme: dark #1C1C1C, red #C8392B, gold #E8A020, bg #F5F3EF
 const CSS = `
@@ -285,11 +269,10 @@ const CSS = `
 .rk-row:active{cursor:grabbing}
 .rk-pend{position:relative;width:100%;height:100%;transform-origin:50% 0;will-change:transform}
 
-.rk-slot{position:relative;flex:none;width:var(--rest);height:100%;border:0;background:transparent;padding:0;z-index:2;transition:width .75s cubic-bezier(.2,.8,.2,1);animation:rkIn .8s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i) * 90ms + 250ms)}
+.rk-slot{position:relative;flex:none;width:var(--rest);height:100%;border:0;background:transparent;padding:0;z-index:2;transition:width .9s cubic-bezier(.25,.8,.25,1);animation:rkIn .8s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i) * 90ms + 250ms)}
 .rk-slot[data-face="true"]{width:var(--face);z-index:4}
 @keyframes rkIn{0%{opacity:0;transform:translateY(-70px) rotate(-7deg)}60%{opacity:1}100%{opacity:1;transform:translateY(0) rotate(0)}}
-.rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px;animation:rkSway 5.5s ease-in-out infinite;animation-delay:calc(var(--i) * -1.3s)}
-@keyframes rkSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
+.rk-sway{position:absolute;left:50%;top:-6px;width:var(--bw);margin-left:calc(var(--bw) / -2);transform-origin:50% 2px}
 /* a small chrome hook rides on the wire and disappears behind the hood */
 /* chrome hook over the rod, into a small wooden hanger neck that tucks under the hood */
 .rk-hook{position:absolute;left:50%;top:-2px;width:30px;height:52px;margin-left:-15px;overflow:visible;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.2))}
@@ -298,12 +281,12 @@ const CSS = `
    gentle light falls across the fabric (darker on the side turned away) */
 .rk-box{position:relative;width:var(--bw);height:var(--bh);margin-top:var(--hookh);pointer-events:none;perspective:1600px}
 .rk-turnwrap{position:absolute;inset:0;transition:opacity .15s}
-.rk-sidewrap{position:absolute;inset:0;transform-origin:50% 0;will-change:transform;backface-visibility:hidden;filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.2))}
+.rk-sidewrap{position:absolute;inset:0;transform-origin:50% 0;will-change:transform;backface-visibility:hidden}
 .rk-sideimg{position:absolute;top:0;left:50%;height:100%;width:auto;max-width:none;transform:translateX(-50%);pointer-events:none}
 .rk-side{position:absolute;top:0;left:50%;height:100%;width:auto;aspect-ratio:190/490;transform:translateX(-50%);overflow:visible}
 .rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none;transform-origin:50% 0;backface-visibility:hidden}
-.rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 14px 12px rgba(28,28,28,.18))}
-.rk-slot[data-face="true"] .rk-photo{filter:brightness(var(--shade,1)) drop-shadow(0 20px 18px rgba(28,28,28,.24))}
+/* a soft shadow on the floor under each hoodie (cheap: no filters while things move) */
+.rk-box:after{content:"";position:absolute;left:50%;bottom:-17px;width:62%;height:26px;margin-left:-31%;border-radius:50%;background:radial-gradient(closest-side,rgba(28,28,28,.2),rgba(28,28,28,0));pointer-events:none}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
@@ -317,14 +300,6 @@ const CSS = `
 .rk-avail:disabled{opacity:.35;cursor:default;transform:none;background:transparent;color:#1C1C1C}
 .rk[data-on="true"] .rk-info{opacity:0}
 .rk-acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.rk-ticon{width:16px;height:16px;flex:none}
-.rk-try{display:inline-flex;align-items:center;gap:7px;background:#1C1C1C;color:#fff}
-.rk-try:hover{background:#C8392B;border-color:#C8392B}
-.rk-trybtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:44px;border-radius:12px;border:1.5px solid #1C1C1C;background:#fff;color:#1C1C1C;font-size:12px;font-weight:800;letter-spacing:.06em;transition:background .2s,color .2s,transform .15s}
-.rk-trybtn:hover{background:#1C1C1C;color:#fff;transform:translateY(-1px)}
-.rk-trybtn .rk-ticon{width:18px;height:18px}
-.rk-tryload{position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;gap:12px;background:rgba(245,243,239,.92);font-size:14px;font-weight:700;color:#1C1C1C}
-.rk-tryload span{width:22px;height:22px;border-radius:50%;border:3px solid #E8E4DE;border-top-color:#C8392B;animation:rkSpin .8s linear infinite}
 @keyframes rkSpin{to{transform:rotate(360deg)}}
 
 /* dim room + spotlight */
@@ -420,7 +395,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const [added, setAdded] = useState(false);
   const [burst, setBurst] = useState(0);
   const [dimPos, setDimPos] = useState({ cx: "40%", cy: "50%" });
-  const [tryOn, setTryOn] = useState(null); // index of the hoodie open in the Try-On studio
 
   const secRef = useRef(null);
   const slotRefs = useRef([]);
@@ -494,20 +468,14 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     railT.current = Math.max(lo, Math.min(hi, railX.current + dx));
     kick();
   };
+  const lastPend = useRef([]);
   const paint = () => {
-    if (rowRef.current) rowRef.current.style.transform = `translate3d(${railX.current}px,0,0)`;
-    const w = wireRef.current ? wireRef.current.getBoundingClientRect() : null;
+    if (rowRef.current) rowRef.current.style.transform = `translate3d(${railX.current.toFixed(2)}px,0,0)`;
     pendRefs.current.forEach((el, i) => {
       if (!el) return;
-      let y = 0; // each hook sits on the curve of the wire wherever it is along it
-      const sl = slotRefs.current[i];
-      if (w && w.width && sl) {
-        const r = sl.getBoundingClientRect();
-        const t = Math.min(1, Math.max(0, (r.left + r.width / 2 - w.left) / w.width));
-        y = 4 * SAG * t * (1 - t);
-      }
       const a = hang.current[i] ? hang.current[i].a : 0;
-      el.style.transform = `translateY(${y.toFixed(2)}px) rotate(${a.toFixed(3)}deg)`;
+      const t = `rotate(${a.toFixed(2)}deg)`;
+      if (lastPend.current[i] !== t) { el.style.transform = t; lastPend.current[i] = t; } // only touch what moved
     });
   };
   function tick(now) {
@@ -520,28 +488,30 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       railX.current += railV.current * dt;
     }
     // hooks lag behind the rail's speed (a pendulum), so the hoodies swing as it moves
-    const lag = REDUCED() ? 0 : Math.max(-16, Math.min(16, -railV.current * 0.02));
+    const lag = REDUCED() ? 0 : Math.max(-7, Math.min(7, -railV.current * 0.009));
     let busy = d.on || now < keepUntil.current || Math.abs(railV.current) > 0.05 || Math.abs(railX.current - railT.current) > 0.05;
     hang.current.forEach(h => {
-      h.v += (-90 * (h.a - lag) - 7 * h.v) * dt;
+      h.v += (-60 * (h.a - lag) - 10 * h.v) * dt;
       h.a += h.v * dt;
       if (Math.abs(h.a) > 0.05 || Math.abs(h.v) > 0.05) busy = true;
     });
     // hoodies twist a little on their hooks while the rail moves, and turn to face you on a
     // soft spring (slight overshoot, like fabric settling)
-    const twist = REDUCED() ? 0 : Math.max(-9, Math.min(9, railV.current * 0.012));
+    const twist = REDUCED() ? 0 : Math.max(-5, Math.min(5, railV.current * 0.006));
     turn.current.forEach((g, i) => {
       const target = g.t === 0 ? 0 : g.t + twist;
       if (REDUCED()) { g.a = target; g.v = 0; }
       else {
-        g.v += (-80 * (g.a - target) - 16 * g.v) * dt;
+        g.v += (-34 * (g.a - target) - 11 * g.v) * dt;
         g.a += g.v * dt;
       }
       if (Math.abs(g.a - target) > 0.08 || Math.abs(g.v) > 0.08) busy = true;
       // it hangs side-on and flips round its hook to show the real photo: the side view closes
       // up to a sliver, then the front opens out the other way
       const sd = sideRefs.current[i], fr = frontRefs.current[i];
-      if (sd && fr) {
+      const key = Math.round(g.a * 10);
+      if (sd && fr && g.k !== key) { // skip hoodies that haven't moved
+        g.k = key;
         const p = Math.max(-0.1, Math.min(1.04, 1 - g.a / SPIN_REST));
         const th = p * 180;
         if (th <= 90) {
@@ -551,8 +521,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
           sd.style.visibility = "hidden"; fr.style.visibility = "visible";
           fr.style.transform = `perspective(1400px) rotateY(${(th - 180).toFixed(2)}deg)`;
         }
-        const sh = 1 - 0.14 * Math.min(1, Math.abs(th <= 90 ? th : 180 - th) / 90);
-        (th <= 90 ? sd : fr).style.setProperty("--shade", sh.toFixed(3));
       }
     });
     paint();
@@ -635,7 +603,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
         }
         return f;
       });
-    }, 2600);
+    }, 5200);
     return () => clearInterval(t);
   }, []);
   const touch = () => { interacted.current = true; };
@@ -660,7 +628,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
     if (a) { try { a.commitStyles(); } catch (e) { /* ignore */ } a.cancel(); anims.current[i] = null; }
   };
 
-  const openTryOn = i => { touch(); setTryOn(Math.max(0, Math.min(ITEMS.length - 1, i || 0))); };
 
   const openFlyer = i => {
     const fly = flyRefs.current[i];
@@ -744,7 +711,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
   // Esc closes, ← → switch while a garment is out
   useEffect(() => {
-    if (active === null || tryOn !== null) return;   // the Try-On studio handles its own keys
+    if (active === null) return;
     const onKey = e => {
       if (e.key === "Escape") { e.preventDefault(); close(); }
       else if (e.key === "ArrowRight") { e.preventDefault(); select((active + 1) % ITEMS.length); }
@@ -846,9 +813,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
           )}
           <div className="rk-acts">
             <button className="rk-avail" onClick={() => onBrowse && onBrowse()}>Grab your hoodie</button>
-            <button className="rk-avail rk-try" onClick={() => openTryOn(facing === null ? 0 : facing)}>
-              <TryIcon />Try it on
-            </button>
           </div>
         </div>
       </div>
@@ -906,7 +870,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
                 ))}
               </div>
             </div>
-            <button className="rk-trybtn" onClick={() => openTryOn(active)}><TryIcon />Try it on — avatar or your photo</button>
             <div className="rk-addwrap">
               <button className={"rk-add" + (added ? " done" : "")} onClick={add} disabled={!hasPrice || !size}>
                 {!hasPrice ? "Coming soon" : added ? "Added to cart ✓" : size ? "Add to cart" : "Choose a size"}
@@ -917,11 +880,6 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
         )}
       </aside>
 
-      {tryOn !== null && (
-        <Suspense fallback={<div className="rk-tryload" role="status"><span />Opening the fitting room…</div>}>
-          <TryOn items={ITEMS} start={tryOn} onClose={() => setTryOn(null)} onAdd={onAdd} />
-        </Suspense>
-      )}
     </section>
   );
 }
