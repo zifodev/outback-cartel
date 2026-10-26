@@ -149,24 +149,27 @@ function SideHoodie({ id, tone }) {
 //  While price is 0 the card shows "Price coming soon" and the
 //  ADD TO CART button stays disabled.
 // ─────────────────────────────────────────────────────────────
+// Product-sheet views for each hoodie (public/hoodies/views/<key>-<view>.webp)
+const VIEW_LABEL = { front: "Front", back: "Back", "three-q": "3/4", side: "Side", "side-l": "Other side", closeup: "Hood" };
+const FULL_SHEET = new Set(["paris", "plain-maroon", "plain-grey", "plain-navy", "meow-lavender", "meow-mustard"]);
+const viewsOf = key => (FULL_SHEET.has(key) ? ["front", "back", "three-q", "side", "side-l", "closeup"] : ["front", "back", "side", "side-l", "closeup"])
+  .map(v => ({ src: `hoodies/views/${key}-${v}.webp`, label: VIEW_LABEL[v], photo: v === "closeup" }));
 const HOUSE_ITEMS = [
-  { side: "hoodies/views/meow-side.webp", views: ["hoodies/cut-meow.webp", "hoodies/views/meow-back.webp", "hoodies/views/meow-side.webp", "hoodies/views/meow-side-l.webp"], id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/cut-meow.webp",
-    colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/cut-meow.webp" }] },
-  { side: "hoodies/views/okay-side.webp", views: ["hoodies/cut-okay-grey.webp", "hoodies/views/okay-back.webp", "hoodies/views/okay-side.webp", "hoodies/views/okay-side-l.webp"], id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/cut-okay-grey.webp",
-    colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/cut-okay-grey.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
-  { side: "hoodies/views/tribal-side.webp", views: ["hoodies/cut-tribal.webp", "hoodies/views/tribal-back.webp", "hoodies/views/tribal-side.webp", "hoodies/views/tribal-side-l.webp"], id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/cut-tribal.webp",
-    colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/cut-tribal.webp" }] },
+  { side: "hoodies/views/meow-side.webp", views: viewsOf("meow"), id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/views/meow-front.webp",
+    colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/views/meow-front.webp" }] },
+  { side: "hoodies/views/okay-side.webp", views: viewsOf("okay"), id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/views/okay-front.webp",
+    colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/views/okay-front.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
+  { side: "hoodies/views/tribal-side.webp", views: viewsOf("tribal"), id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/views/tribal-front.webp",
+    colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/views/tribal-front.webp" }] },
 ];
 
-// The rail collection (photos cut out, in public/hoodies/rail/). Price 0 = "Price coming soon".
+// The rail collection (views in public/hoodies/views/). Price 0 = "Price coming soon".
 const R = (id, name, tone, file, colour, note) => {
-  const front = file === "paris" ? "hoodies/views/paris-front.webp" : `hoodies/rail/${file}.webp`;
-  const v = `hoodies/views/${file}`;
-  return { id, name, price: 0, old: 0, tone, note, cut: front, side: `${v}-side.webp`,
-    views: [front, `${v}-back.webp`, `${v}-side.webp`, `${v}-side-l.webp`],
+  const front = `hoodies/views/${file}-front.webp`;
+  return { id, name, price: 0, old: 0, tone, note, cut: front, side: `hoodies/views/${file}-side.webp`,
+    views: viewsOf(file),
     colors: [{ name: colour, hex: tone, img: front }] };
 };
-const VIEW_NAMES = ["Front", "Back", "Side", "Other side"];
 const RAIL_ITEMS = [
   R(201, "Moonlit Palm Hoodie", "#1D5A3A", "moon-palm", "Green", "Forest green hoodie with a golden moon and palm print."),
   R(202, "Death Note Hoodie", "#1A1A1C", "death-note", "Black", "Black hoodie with the Death Note title print."),
@@ -341,7 +344,7 @@ const CSS = `
 .rk-sw i{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.25);display:block}
 .rk-sw[aria-pressed="true"]{border-color:#1C1C1C}
 .rk-sw:active{transform:scale(.95)}
-.rk-views{display:flex;gap:8px}
+.rk-views{display:flex;gap:8px;flex-wrap:wrap}
 .rk-view{width:52px;height:52px;border-radius:10px;border:2px solid #E8E4DE;background:#fff;padding:4px;transition:border-color .2s,transform .15s}
 .rk-view img{width:100%;height:100%;object-fit:contain}
 .rk-view[aria-pressed="true"]{border-color:#1C1C1C}
@@ -820,10 +823,11 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
       <div className="rk-dim" aria-hidden="true" />
       {ITEMS.map((it, i) => {
         const v = active === i ? it.colors[variant[i]] : it.colors[0];
-        const src = active === i && view > 0 && variant[i] === 0 && it.views ? it.views[view] : v.img;
+        const vw = active === i && view > 0 && variant[i] === 0 && it.views ? it.views[view] : null;
+        const src = vw ? vw.src : v.img;
         return (
           <div key={it.id} className="rk-fly" ref={el => (flyRefs.current[i] = el)} aria-hidden="true">
-            <img src={src} alt="" className={v.photo && src === v.img ? "photo" : ""} draggable="false" />
+            <img src={src} alt="" className={(vw ? vw.photo : v.photo) ? "photo" : ""} draggable="false" />
             {!v.photo && <div className="rk-sweep" style={{ "--m": `url(${v.img})` }} />}
           </div>
         );
@@ -852,11 +856,11 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
             </div>
             {sel.views && variant[active] === 0 && (
               <div>
-                <div className="rk-lbl">View · {VIEW_NAMES[view]}</div>
+                <div className="rk-lbl">View · {sel.views[view] ? sel.views[view].label : "Front"}</div>
                 <div className="rk-views">
                   {sel.views.map((u, k) => (
-                    <button key={u} className="rk-view" aria-pressed={k === view} aria-label={`Show ${VIEW_NAMES[k]}`} onClick={() => setView(k)}>
-                      <img src={u} alt="" draggable="false" />
+                    <button key={u.src} className="rk-view" aria-pressed={k === view} aria-label={`Show ${u.label}`} title={u.label} onClick={() => setView(k)}>
+                      <img src={u.src} alt="" draggable="false" />
                     </button>
                   ))}
                 </div>
