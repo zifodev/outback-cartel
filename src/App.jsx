@@ -1158,8 +1158,16 @@ function ProductCard({ p, onAdd, onView }) {
 // ─────────────────────────────────────────────────────────────
 //  CART SIDEBAR
 // ─────────────────────────────────────────────────────────────
+// Delivery charge by zone (applies below ৳999; free above)
+const DELIVERY_ZONES = [
+  { k: "inside", label: "Inside Dhaka (1-2 days) — ৳60", fee: 60 },
+  { k: "sub", label: "Dhaka Sub Area (1-2 days) — ৳100", fee: 100 },
+  { k: "outside", label: "Outside Dhaka (2-4 days) — ৳120", fee: 120 },
+];
+const zoneFee = k => (DELIVERY_ZONES.find(z => z.k === k) || {}).fee;
+
 function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
-  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), del = sub >= 999 ? 0 : 70, total = sub + del;
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), total = sub;
   return (
     <>{open && <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 500 }} />}
       <div style={{ position: "fixed", top: 0, right: open ? 0 : -440, bottom: 0, width: "100%", maxWidth: 420, background: "#fff", zIndex: 501, display: "flex", flexDirection: "column", boxShadow: "-6px 0 30px rgba(0,0,0,.15)", transition: "right .32s cubic-bezier(.4,0,.2,1)" }}>
@@ -1187,8 +1195,8 @@ function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
         </div>
         {cart.length > 0 && <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`, background: C.bg }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}><span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmt(sub)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 10 }}><span>Delivery</span><span style={{ color: del === 0 ? C.green : "inherit", fontWeight: 600 }}>{del === 0 ? "FREE ✅" : fmt(del)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 17, fontWeight: 800, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginBottom: 14 }}><span>Total</span><span style={{ color: C.primary }}>{fmt(total)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 10 }}><span>Delivery</span><span style={{ color: sub >= 999 ? C.green : "inherit", fontWeight: 600 }}>{sub >= 999 ? "FREE ✅" : "Calculated at checkout"}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 17, fontWeight: 800, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginBottom: 14 }}><span>{sub < 999 ? "Total (before delivery)" : "Total"}</span><span style={{ color: C.primary }}>{fmt(total)}</span></div>
           <Btn onClick={onCheckout} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>Checkout →</Btn>
           {sub < 999 && <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 7 }}>Add {fmt(999 - sub)} more for free delivery!</p>}
         </div>}
@@ -1206,14 +1214,14 @@ async function initiateSSL({ form, cart, total, orderId }) {
 }
 
 function CheckoutModal({ cart, open, onClose, onSuccess, account }) {
-  const [form, setForm] = useState({ name: account?.name || "", email: account?.method === "email" ? account?.contact || "" : "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", area: "", address: "" });
+  const [form, setForm] = useState({ name: account?.name || "", email: account?.method === "email" ? account?.contact || "" : "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "" });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [demoPL, setDemoPL] = useState(null);
-  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), del = sub >= 999 ? 0 : 70, total = sub + del;
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), del = sub >= 999 ? 0 : (zoneFee(form.zone) || 0), total = sub + del;
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
-  const validate = () => { const e = {}; if (!form.name.trim()) e.name = "Required"; if (!form.phone.trim()) e.phone = "Required"; if (!form.district) e.district = "Required"; if (!form.address.trim()) e.address = "Required"; setErrors(e); return Object.keys(e).length === 0; };
+  const validate = () => { const e = {}; if (!form.name.trim()) e.name = "Required"; if (!form.phone.trim()) e.phone = "Required"; if (!form.district) e.district = "Required"; if (!form.zone) e.zone = "Required"; if (!form.address.trim()) e.address = "Required"; setErrors(e); return Object.keys(e).length === 0; };
   const pay = async () => { if (!validate()) return; setLoading(true); const id = "OC-" + Date.now().toString().slice(-8); const r = await initiateSSL({ form, cart, total, orderId: id }); setLoading(false); if (r.demo) { setDemoPL(r.payload); setDemoMode(true); } else if (r.ok) { onSuccess(id); } else { alert("Error: " + r.error); } };
   const iS = k => ({ width: "100%", border: `2px solid ${errors[k] ? C.primary : C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", color: C.dark, background: "#fff" });
   if (!open) return null;
@@ -1227,6 +1235,7 @@ function CheckoutModal({ cart, open, onClose, onSuccess, account }) {
         <div><input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Phone *" type="tel" style={iS("phone")} />{errors.phone && <span style={{ color: C.primary, fontSize: 11 }}>{errors.phone}</span>}</div>
         <div><input value={form.email} onChange={e => set("email", e.target.value)} placeholder="Email (opt)" style={iS("email")} /></div>
       </div>
+      <div style={{ marginBottom: 11 }}><select value={form.zone} onChange={e => set("zone", e.target.value)} style={{ ...iS("zone"), cursor: "pointer" }}><option value="">Delivery zone *</option>{DELIVERY_ZONES.map(z => <option key={z.k} value={z.k}>{z.label}</option>)}</select>{errors.zone && <span style={{ color: C.primary, fontSize: 11 }}>{errors.zone}</span>}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 11 }}>
         <div><select value={form.district} onChange={e => set("district", e.target.value)} style={{ ...iS("district"), cursor: "pointer" }}><option value="">District *</option>{["Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna", "Barisal", "Mymensingh", "Rangpur", "Comilla", "Gazipur", "Narayanganj", "Cox's Bazar", "Jessore", "Bogura", "Other"].map(d => <option key={d}>{d}</option>)}</select>{errors.district && <span style={{ color: C.primary, fontSize: 11 }}>{errors.district}</span>}</div>
         <div><input value={form.area} onChange={e => set("area", e.target.value)} placeholder="Area" style={iS("area")} /></div>
@@ -1234,7 +1243,7 @@ function CheckoutModal({ cart, open, onClose, onSuccess, account }) {
       <div style={{ marginBottom: 14 }}><input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Full Address *" style={iS("address")} />{errors.address && <span style={{ color: C.primary, fontSize: 11 }}>{errors.address}</span>}</div>
       <div style={{ background: C.bg, borderRadius: 10, padding: 12, marginBottom: 12, border: `1px solid ${C.border}` }}>
         {cart.map(i => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}><span>{i.icon} {i.name.substring(0, 24)}{i.name.length > 24 ? "…" : ""}×{i.qty}</span><span style={{ fontWeight: 700 }}>{fmt(i.price * i.qty)}</span></div>)}
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 7, marginTop: 7, display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted }}><span>Delivery</span><span style={{ color: del === 0 ? C.green : "inherit", fontWeight: 600 }}>{del === 0 ? "FREE" : fmt(del)}</span></div>
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 7, marginTop: 7, display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted }}><span>Delivery</span><span style={{ color: sub >= 999 ? C.green : "inherit", fontWeight: 600 }}>{sub >= 999 ? "FREE" : form.zone ? fmt(del) : "Select zone"}</span></div>
       </div>
       <div style={{ background: "#EEF4FF", border: "1px solid #C7D7F7", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 22 }}>🔒</span><div><div style={{ fontSize: 12, fontWeight: 700, color: "#003366" }}>Secured by SSLCommerz</div><div style={{ fontSize: 11, color: "#5A6A8A" }}>bKash · Nagad · Rocket · Cards · COD</div></div></div>
     </div>
@@ -1338,8 +1347,8 @@ const KB = [
 
   // Delivery
   { tags: ["delivery", "deliver", "shipping", "ship", "কতদিন", "কতদিনে", "কবে পাব", "পৌঁছাবে", "দিন"], reply: "🚚 Delivery times:\n\n• **Dhaka city**: 1–2 business days\n• **Outside Dhaka**: 3–5 business days\n• **Remote areas**: up to 7 days\n\nWe deliver to all **64 districts** of Bangladesh! 🇧🇩" },
-  { tags: ["free delivery", "free shipping", "free", "মুফত", "বিনামূল্যে", "ফ্রি ডেলিভারি"], reply: "🎉 **Free delivery** on all orders above ৳999!\n\nOrders below ৳999 have a flat ৳70 delivery charge. So add a bit more to your cart and save! 😉" },
-  { tags: ["delivery charge", "delivery cost", "shipping cost", "ডেলিভারি চার্জ", "খরচ"], reply: "📦 Delivery charge is just **৳70** for orders below ৳999.\n\nOrders above ৳999 get **FREE delivery** 🎉 across all of Bangladesh!" },
+  { tags: ["free delivery", "free shipping", "free", "মুফত", "বিনামূল্যে", "ফ্রি ডেলিভারি"], reply: "🎉 **Free delivery** on all orders above ৳999!\n\nOrders below ৳999 have a delivery charge of ৳60 (inside Dhaka), ৳100 (Dhaka sub area) or ৳120 (outside Dhaka). So add a bit more to your cart and save! 😉" },
+  { tags: ["delivery charge", "delivery cost", "shipping cost", "ডেলিভারি চার্জ", "খরচ"], reply: "📦 For orders below ৳999, delivery is **৳60** inside Dhaka, **৳100** Dhaka sub area and **৳120** outside Dhaka.\n\nOrders above ৳999 get **FREE delivery** 🎉 across all of Bangladesh!" },
 
   // Return & Refund
   { tags: ["return", "refund", "ফেরত", "রিটার্ন", "money back", "ফেরত দেওয়া"], reply: "🔄 We have a **7-day easy return policy**!\n\nEligible for return if:\n✅ Item is damaged or defective\n✅ Wrong item delivered\n✅ Missing parts\n\nJust WhatsApp us within 7 days with photos 📸\n👉 01881816245" },
