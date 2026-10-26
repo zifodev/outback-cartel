@@ -24,6 +24,7 @@
 //
 //  Visit /api/products?debug=1 on your site to check the connection.
 // ─────────────────────────────────────────────────────────────
+import { createHash } from "node:crypto";
 const API_URL = "https://mohasagor.com.bd/api/reseller/product";
 
 // allow up to 60s on the server to gather every page (Vercel function limit)
@@ -212,7 +213,8 @@ export default async function handler(req, res) {
       const raw = { apiKey: String(process.env.DROPSHIP_API_KEY || ""), secretKey: String(process.env.DROPSHIP_SECRET_KEY || "") };
       out.keyCheck = { apiKeyLength: key.length, secretKeyLength: secret.length, hadExtraSpacesOrQuotes: raw.apiKey !== key || raw.secretKey !== secret };
       const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
-      console.log(`[products] key check api=${fp(key)} secret=${fp(secret)}`);
+      const h = v => createHash("sha256").update(v).digest("hex").slice(0, 16);
+      console.log(`[products] key check api=${fp(key)} #${h(key)} secret=${fp(secret)} #${h(secret)}`);
     }
     res.setHeader("Cache-Control", req.query && req.query.debug ? "no-store" : "s-maxage=60");
     res.status(502).json(out);
