@@ -227,47 +227,49 @@ const SHADOW_REST = "drop-shadow(0px 10px 10px rgba(0,0,0,0.18))";
 const SHADOW_HERO = "drop-shadow(0px 30px 30px rgba(0,0,0,0.22))";
 
 
-// colours follow the existing site theme: dark #1C1C1C, red #C8392B, gold #E8A020, bg #F5F3EF
+// "Outback, 2160": the rack hangs in a dawn-lit chamber between the night sky above and the shop below.
+// ink #15123A, red earth #D63A26, gold #F4B740, dawn #F3EEF8 (see src/theme.css)
 const CSS = `
-.rk{position:relative;overflow:hidden;overflow:clip;background:linear-gradient(180deg,#ECE6F2 0%,#F3F0F2 48%,#E4EFE0 100%);color:#1C1C1C;border-bottom:1px solid #E8E4DE;font-family:inherit;
+.rk{position:relative;overflow:hidden;overflow:clip;background:radial-gradient(70% 45% at 50% 100%,rgba(255,150,105,.45),rgba(255,150,105,0) 70%),radial-gradient(60% 40% at 50% 0%,rgba(150,130,255,.22),rgba(150,130,255,0) 70%),linear-gradient(180deg,#E6E0F6 0%,#F3EEF8 42%,#F8EBE3 80%,#F6DCCD 100%);color:#15123A;font-family:inherit;
   --bw:245px;--bh:340px;--rest:168px;--face:252px;--hookh:40px}
 .rk *{box-sizing:border-box}
 .rk button{font-family:inherit;cursor:pointer}
-.rk button:focus-visible{outline:2px solid #1C1C1C;outline-offset:3px}
-.rk:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(28,28,28,.045) 1px,transparent 1px);background-size:18px 18px}
+.rk button:focus-visible{outline:2px solid #15123A;outline-offset:3px}
+.rk:before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(21,18,58,.05) 1px,transparent 1px);background-size:22px 22px}
+.rk:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1.5px;z-index:1;pointer-events:none;background:linear-gradient(90deg,transparent,#FFC08F 14%,#FF6B3D 50%,#FFC08F 86%,transparent);box-shadow:0 0 16px rgba(255,107,61,.7)}
 
-.rk-band{position:relative;background:#1C1C1C;color:#fff;overflow:hidden;white-space:nowrap;padding:9px 0;font-size:12px;font-weight:800;letter-spacing:.22em;text-transform:uppercase}
+.rk-band{position:relative;background:#07061A;color:#A9A5D1;overflow:hidden;white-space:nowrap;padding:10px 0;font-size:13px;font-weight:700;font-stretch:125%;letter-spacing:.08em;text-transform:uppercase;border-top:1px solid rgba(190,182,255,.14)}
 .rk-band-track{display:inline-flex;animation:rkMarquee 26s linear infinite}
 .rk-band-track span{padding:0 22px}
-.rk-band-track b{color:#E8A020}
+.rk-band-track b{color:#F4B740}
 @keyframes rkMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
 .rk-in{position:relative;max-width:1200px;margin:0 auto;padding:34px 18px 30px;min-height:620px}
 .rk-head{text-align:center}
-.rk-kicker{font-size:11px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#8A8070}
-.rk-title{margin:8px 0 0;font-size:40px;font-weight:900;letter-spacing:-.02em;line-height:1;display:inline-flex;align-items:center;gap:12px}
-.rk-badge{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;background:#C8392B;color:#fff;padding:5px 11px;border-radius:999px}
-.rk-hint{font-size:14px;color:#8A8070;margin:10px 0 0}
+.rk-kicker{font-size:15px;font-weight:600;color:#6A6494}
+.rk-title{margin:6px 0 0;font-size:clamp(32px,4.6vw,52px);font-weight:800;font-stretch:125%;letter-spacing:.005em;line-height:1;display:inline-flex;align-items:center;gap:14px;text-transform:uppercase}
+.rk-badge{font-size:13px;font-weight:700;font-stretch:100%;letter-spacing:0;text-transform:none;background:#D63A26;color:#fff;padding:5px 12px;border-radius:999px;box-shadow:0 8px 20px -10px rgba(214,58,38,.9)}
+.rk-hint{font-size:15px;color:#5F5A86;margin:12px 0 0}
 
 /* the rack spans the full width of the page, edge to edge */
 .rk-rack{position:relative;width:100vw;left:50%;margin:40px 0 0 -50vw;padding-top:0}
 /* a thin wire strung edge to edge, dipping slightly under the weight of the hangers */
 /* a polished steel rod held by two wall brackets */
-.rk-rod{position:absolute;left:0;right:0;top:-2px;height:10px;border-radius:5px;pointer-events:none;z-index:1;
-  background:linear-gradient(180deg,#fbfbf8 0%,#d6d6d1 30%,#a9a9a4 60%,#6c6c68 100%);
-  box-shadow:0 10px 16px -6px rgba(28,28,28,.3),0 2px 3px rgba(0,0,0,.14);animation:rkDraw .9s ease .1s both}
-.rk-rod i{position:absolute;top:-34px;width:16px;height:46px;border-radius:5px 5px 7px 7px;
-  background:linear-gradient(90deg,#6f6f6a,#ecece7 42%,#b4b4af 60%,#7a7a75);box-shadow:0 6px 10px rgba(28,28,28,.22)}
-.rk-rod i:before{content:"";position:absolute;left:50%;top:-6px;width:30px;height:8px;margin-left:-15px;border-radius:3px;background:linear-gradient(180deg,#e9e9e4,#8d8d88)}
+.rk-rod{position:absolute;left:0;right:0;top:0;height:6px;border-radius:3px;pointer-events:none;z-index:1;
+  background:linear-gradient(90deg,rgba(255,180,140,0),#FFB894 7%,#FF7A4D 50%,#FFB894 93%,rgba(255,180,140,0));
+  box-shadow:0 0 0 1px rgba(255,255,255,.55) inset,0 0 22px 2px rgba(255,107,61,.55),0 14px 26px -8px rgba(214,58,38,.45);animation:rkDraw .9s ease .1s both}
+.rk-rod i{position:absolute;top:-9px;width:24px;height:24px;border-radius:50%;
+  background:radial-gradient(circle,#fff 0 22%,#FFB894 30%,rgba(255,107,61,.35) 55%,rgba(255,107,61,0) 72%)}
+.rk-rod i:before{content:"";position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:1px solid rgba(214,58,38,.25)}
 .rk-rod i:first-child{left:3%}.rk-rod i:last-child{right:3%}
 @keyframes rkDraw{from{opacity:0}to{opacity:1}}
 /* little white price tag tied to each hanger's neck */
 /* a little kraft-paper price tag tied to the hanger's neck */
-.rk-tag{position:absolute;top:34px;left:calc(50% + 15px);z-index:4;pointer-events:none;background:linear-gradient(160deg,#F1E4CB,#E2CFAC);color:#3B2F22;
-  font-size:10px;font-weight:800;letter-spacing:.02em;padding:3px 7px 3px 12px;border-radius:2px 4px 4px 2px;white-space:nowrap;
-  clip-path:polygon(6px 0,100% 0,100% 100%,6px 100%,0 50%);box-shadow:0 2px 5px rgba(60,40,20,.2);transform:rotate(10deg);transform-origin:0 50%;transition:opacity .2s}
-.rk-tag:before{content:"";position:absolute;left:5px;top:50%;width:3px;height:3px;margin-top:-1.5px;border-radius:50%;background:#9C8763}
-.rk-tagstr{position:absolute;top:30px;left:calc(50% + 4px);width:13px;height:9px;z-index:3;pointer-events:none;border-top:1px solid #8E7B5A;border-right:1px solid #8E7B5A;border-radius:0 8px 0 0;transform:rotate(18deg);transform-origin:0 0;transition:opacity .2s}
+.rk-tag{position:absolute;top:34px;left:calc(50% + 15px);z-index:4;pointer-events:none;background:#15123A;color:#F1EFFF;
+  font-size:11px;font-weight:700;font-stretch:88%;font-variant-numeric:tabular-nums;padding:3px 8px 3px 13px;border-radius:2px 6px 6px 2px;white-space:nowrap;
+  clip-path:polygon(6px 0,100% 0,100% 100%,6px 100%,0 50%);box-shadow:0 4px 10px rgba(21,18,58,.25);transform:rotate(10deg);transform-origin:0 50%;transition:opacity .2s}
+.rk-tag:before{content:"";position:absolute;left:5px;top:50%;width:3px;height:3px;margin-top:-1.5px;border-radius:50%;background:#FF7A4D;box-shadow:0 0 4px #FF7A4D}
+.rk-tagstr{position:absolute;top:30px;left:calc(50% + 4px);width:13px;height:9px;z-index:3;pointer-events:none;border-top:1px solid rgba(21,18,58,.55);border-right:1px solid rgba(21,18,58,.55);border-radius:0 8px 0 0;transform:rotate(18deg);transform-origin:0 0;transition:opacity .2s}
 .rk-row{position:relative;display:flex;justify-content:flex-start;align-items:flex-start;gap:0;height:calc(var(--bh) + var(--hookh) + 44px);touch-action:pan-y;user-select:none;cursor:grab}
 .rk-row:active{cursor:grabbing}
 .rk-pend{position:relative;width:100%;height:100%;transform-origin:50% 0;will-change:transform}
@@ -289,24 +291,24 @@ const CSS = `
 .rk-side{position:absolute;top:0;left:50%;height:100%;width:auto;aspect-ratio:190/490;transform:translateX(-50%);overflow:visible}
 .rk-photo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:50% 0;pointer-events:none;transform-origin:50% 0;backface-visibility:hidden}
 /* a soft shadow on the floor under each hoodie (cheap: no filters while things move) */
-.rk-box:after{content:"";position:absolute;left:50%;bottom:-17px;width:62%;height:26px;margin-left:-31%;border-radius:50%;background:radial-gradient(closest-side,rgba(28,28,28,.2),rgba(28,28,28,0));pointer-events:none}
+.rk-box:after{content:"";position:absolute;left:50%;bottom:-17px;width:62%;height:26px;margin-left:-31%;border-radius:50%;background:radial-gradient(closest-side,rgba(120,40,60,.22),rgba(120,40,60,0));pointer-events:none}
 .rk-h-touch{display:none}
 
 .rk-info{min-height:76px;margin-top:6px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;transition:opacity .3s}
-.rk-line{font-size:14px;font-weight:600;color:#1C1C1C;animation:rkFade .35s ease both}
-.rk-line span{color:#C8392B;font-weight:800}
+.rk-line{font-size:15px;font-weight:600;color:#15123A;animation:rkFade .35s ease both}
+.rk-line span{color:#C2351F;font-weight:700;font-stretch:88%}
 .rk-thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:8px;box-shadow:0 2px 8px rgba(0,0,0,.15);background:#fff}
-.rk-line.muted{color:#8A8070;font-weight:500}
+.rk-line.muted{color:#5F5A86;font-weight:500}
 @keyframes rkFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.rk-avail{border:1.5px solid #1C1C1C;background:transparent;color:#1C1C1C;border-radius:999px;padding:8px 18px;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;transition:background .2s,color .2s,transform .15s}
-.rk-avail:hover{background:#1C1C1C;color:#fff;transform:translateY(-2px)}
-.rk-avail:disabled{opacity:.35;cursor:default;transform:none;background:transparent;color:#1C1C1C}
+.rk-avail{border:0;background:#15123A;color:#F1EFFF;border-radius:999px;padding:12px 24px;font-size:15px;font-weight:700;letter-spacing:0;transition:background .2s,color .2s,transform .15s;box-shadow:0 12px 26px -14px rgba(21,18,58,.8)}
+.rk-avail:hover{background:#D63A26;color:#fff;transform:translateY(-2px)}
+.rk-avail:disabled{opacity:.35;cursor:default;transform:none;background:#15123A;color:#F1EFFF}
 .rk[data-on="true"] .rk-info{opacity:0}
 .rk-acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 @keyframes rkSpin{to{transform:rotate(360deg)}}
 
 /* dim room + spotlight */
-.rk-dim{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .6s ease;background:radial-gradient(closest-side at var(--cx,40%) var(--cy,50%),rgba(255,255,255,.9),rgba(250,249,247,0) 80%),rgba(248,247,245,.96)}
+.rk-dim{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .6s ease;background:radial-gradient(closest-side at var(--cx,40%) var(--cy,50%),rgba(255,255,255,.92),rgba(248,244,252,0) 80%),rgba(244,239,250,.96)}
 .rk[data-on="true"] .rk-dim{opacity:1}
 .rk[data-on="true"]{cursor:zoom-out}
 .rk[data-on="true"] .rk-slot,.rk[data-on="true"] .rk-card{cursor:default}
@@ -314,7 +316,7 @@ const CSS = `
 
 /* the garment that comes off the rail */
 .rk-fly{position:absolute;z-index:20;display:none;will-change:transform,filter;transform:${TF(0, 0, 1, 0)}}
-.rk-fly:before{content:"";position:absolute;left:50%;bottom:calc(100% - 6px);width:1px;height:1200px;background:linear-gradient(rgba(60,60,60,0),#555 30%);opacity:0;transition:opacity .25s}
+.rk-fly:before{content:"";position:absolute;left:50%;bottom:calc(100% - 6px);width:1px;height:1200px;background:linear-gradient(rgba(255,107,61,0),#FF7A4D 30%);box-shadow:0 0 6px rgba(255,107,61,.6);opacity:0;transition:opacity .25s}
 .rk[data-on="true"] .rk-fly:before{opacity:1;transition:opacity .6s ease .55s}
 .rk-fly img{display:block;width:100%;height:100%;object-fit:contain;object-position:50% 0;transition:opacity .45s ease}
 .rk-fly img.photo{object-fit:cover;object-position:50% 20%;border-radius:12px}
@@ -332,43 +334,43 @@ const CSS = `
 .rk-reveal>*:nth-child(4){animation-delay:.51s}.rk-reveal>*:nth-child(5){animation-delay:.58s}.rk-reveal>*:nth-child(6){animation-delay:.65s}
 .rk-reveal>*:nth-child(7){animation-delay:.72s}
 @keyframes rkUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-.rk-back{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;background:#F5F3EF;border:1px solid #E8E4DE;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;color:#1C1C1C;transition:transform .15s,background .2s,color .2s}
-.rk-back:hover{background:#1C1C1C;color:#fff;transform:translateX(-2px)}
-.rk-eyebrow{font-size:11px;letter-spacing:.2em;color:#8A8070;font-weight:700;font-variant-numeric:tabular-nums}
-.rk-name{font-weight:800;font-size:26px;line-height:1.1;margin-top:6px;letter-spacing:-.01em}
-.rk-price{font-size:20px;font-weight:800;color:#C8392B}
-.rk-note{font-size:13px;color:#8A8070;line-height:1.5}
-.rk-lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.rk-back{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid rgba(21,18,58,.14);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;color:#15123A;transition:transform .15s,background .2s,color .2s}
+.rk-back:hover{background:#15123A;color:#fff;transform:translateX(-2px)}
+.rk-eyebrow{font-size:13px;color:#5F5A86;font-weight:600;font-stretch:88%;font-variant-numeric:tabular-nums}
+.rk-name{font-weight:800;font-stretch:112%;font-size:28px;line-height:1.05;margin-top:6px;letter-spacing:0}
+.rk-price{font-size:24px;font-weight:700;font-stretch:88%;font-variant-numeric:tabular-nums;color:#C2351F}
+.rk-note{font-size:14px;color:#5F5A86;line-height:1.5}
+.rk-lbl{font-size:14px;font-weight:600;margin-bottom:8px;color:#15123A}
 .rk-sws{display:flex;gap:10px;flex-wrap:wrap}
-.rk-sw{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;border:2px solid #E8E4DE;background:#fff;font-size:12px;font-weight:700;color:#1C1C1C;transition:border-color .2s,transform .15s}
+.rk-sw{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;border:1.5px solid rgba(21,18,58,.14);background:#fff;font-size:13px;font-weight:600;color:#15123A;transition:border-color .2s,transform .15s}
 .rk-sw i{width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.25);display:block}
-.rk-sw[aria-pressed="true"]{border-color:#1C1C1C}
+.rk-sw[aria-pressed="true"]{border-color:#15123A;box-shadow:0 0 0 1px #15123A}
 .rk-sw:active{transform:scale(.95)}
 .rk-views{display:flex;gap:8px;flex-wrap:wrap}
-.rk-view{width:52px;height:52px;border-radius:10px;border:2px solid #E8E4DE;background:#fff;padding:4px;transition:border-color .2s,transform .15s}
+.rk-view{width:52px;height:52px;border-radius:12px;border:1.5px solid rgba(21,18,58,.14);background:#fff;padding:4px;transition:border-color .2s,transform .15s}
 .rk-view img{width:100%;height:100%;object-fit:contain}
-.rk-view[aria-pressed="true"]{border-color:#1C1C1C}
+.rk-view[aria-pressed="true"]{border-color:#15123A;box-shadow:0 0 0 1px #15123A}
 .rk-view:hover{transform:translateY(-2px)}
 .rk-sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.rk-size{height:44px;border-radius:999px;font-size:13px;font-weight:700;background:#fff;color:#1C1C1C;border:2px solid #E8E4DE;transition:transform .15s,background .2s,color .2s,border-color .2s}
-.rk-size:hover{transform:translateY(-2px);border-color:#1C1C1C}
+.rk-size{height:44px;border-radius:999px;font-size:14px;font-weight:600;background:#fff;color:#15123A;border:1.5px solid rgba(21,18,58,.14);transition:transform .15s,background .2s,color .2s,border-color .2s}
+.rk-size:hover{transform:translateY(-2px);border-color:#15123A}
 .rk-size:active{transform:scale(.94)}
-.rk-size[aria-pressed="true"]{background:#1C1C1C;color:#fff;border-color:#1C1C1C}
+.rk-size[aria-pressed="true"]{background:#15123A;color:#fff;border-color:#15123A}
 .rk-addwrap{position:relative}
-.rk-add{width:100%;height:50px;border:0;border-radius:12px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:#C8392B;color:#fff;transition:transform .15s,background .25s}
+.rk-add{width:100%;height:52px;border:0;border-radius:14px;font-size:16px;font-weight:700;letter-spacing:0;background:#D63A26;color:#fff;transition:transform .15s,background .25s;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 14px 30px -14px rgba(214,58,38,.9)}
 .rk-add:not(:disabled):hover{transform:translateY(-2px)}
 .rk-add:not(:disabled):active{transform:scale(.96)}
-.rk-add:disabled{background:#E8E4DE;color:#6b6358;cursor:not-allowed}
-.rk-add.done{background:#2E7D52}
+.rk-add:disabled{background:#E4DEEF;color:#5F5A86;cursor:not-allowed;box-shadow:none}
+.rk-add.done{background:#178F61}
 .rk-fx{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;pointer-events:none;animation:rkBurst .8s ease-out forwards}
 @keyframes rkBurst{from{opacity:1;transform:translate(-50%,-50%) rotate(var(--a)) translateX(0)}to{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateX(70px)}}
 
 @media (max-width:700px){
   .rk{--bw:196px;--bh:270px;--rest:34px;--face:186px}
   .rk-in{padding:26px 12px 20px;min-height:760px}
-  .rk-title{font-size:30px}
+  .rk-title{font-size:30px;gap:10px}
   .rk-rack{margin-top:30px}
-  .rk-card{top:auto;bottom:12px;left:12px;right:12px;width:auto;padding:18px;transform:translateY(34px);background:#fff;box-shadow:0 14px 40px rgba(0,0,0,.16)}
+  .rk-card{top:auto;bottom:12px;left:12px;right:12px;width:auto;padding:18px;transform:translateY(34px);background:#fff;border-radius:20px;box-shadow:0 18px 50px -12px rgba(21,18,58,.35)}
   .rk[data-on="true"] .rk-card{transform:translateY(0)}
   .rk-sizes{grid-template-columns:repeat(6,minmax(0,1fr))}
   .rk-size{height:40px}
@@ -385,7 +387,7 @@ const CSS = `
 }
 `;
 
-const BURST = ["#C8392B", "#E8A020", "#2E7D52", "#1F3A8A", "#DB2777", "#1C1C1C", "#E8A020", "#C8392B"];
+const BURST = ["#D63A26", "#F4B740", "#178F61", "#7A8CFF", "#FF92CB", "#15123A", "#F4B740", "#FF6B3D"];
 
 export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
   const ITEMS = [...HOUSE_ITEMS, ...RAIL_ITEMS, ...uniqueHoodies(extra).map(toItem)].slice(0, RAIL_MAX);
@@ -760,7 +762,7 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
       <div className="rk-in">
         <div className="rk-head">
-          <div className="rk-kicker">Outback Cartel · The Rack</div>
+          <div className="rk-kicker">The rack</div>
           <h2 className="rk-title">Hoodies <span className="rk-badge">New</span></h2>
           <p className="rk-hint"><span className="rk-h-web">Hover a hoodie to turn it. Drag the rail for more, click to take one off.</span><span className="rk-h-touch">Swipe along the rail. Tap a hoodie to turn it, tap again to take it off.</span></p>
         </div>
