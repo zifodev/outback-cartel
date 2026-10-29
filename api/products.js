@@ -114,7 +114,7 @@ export default async function handler(req, res) {
 
   const fetchPage = async pg => {
     const r = await fetch(`${API_URL}?page=${pg}`, {
-      headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
+      headers: { "api-key": key, "secret-key": secret, Authorization: `Bearer ${key}`, Accept: "application/json" },
     });
     if (!r.ok) {
       // keep the supplier's own message (shown only with ?debug=1) so a rejected key is easy to diagnose
