@@ -152,8 +152,9 @@ const clean = v => String(v || "").trim().replace(/^["']+|["']+$/g, "").trim();
 // To approve a product: add its id on a new line. To hide one again: delete its line.
 // This list is temporary; the planned database replaces it with an approve button in the admin area.
 const HOLD_RULES = [
-  { reason: "nicotine product", pattern: /nicotine|\bnic\b|\bvapes?\b|vaping|e-?cig|e-?liquid|\d[\d,]*\s*puffs?\b|tobacco|cigarette|hookah|shisha/i },
-  { reason: "self-defence product", pattern: /self[\s-]*defen[cs]e|stun\s*gun|taser|pepper\s*spray|brass\s*knuckles?|knuckle\s*dusters?|tactical\s*baton|expandable\s*baton/i },
+  { reason: "nicotine or tobacco product", pattern: /nicotine|\bnic\b|\bvapes?\b|vaping|e-?cig|e-?liquid|\d[\d,]*\s*puffs?\b|tobacco|cigarette|hookah|shisha/i },
+  { reason: "weapon or self-defence product", pattern: /self[\s-]*defen[cs]e|stun\s*gun|taser|pepper\s*spray|brass\s*knuckles?|knuckle\s*dusters?|tactical\s*baton|expandable\s*baton|firearm|\bgun\b|ammunition|\bbullet\b|crossbow|\bsword\b|machete|switchblade|combat\s*knife/i },
+  { reason: "alcohol or recreational drug product", pattern: /\b(alcohol|beer|wine|vodka|whisky|whiskey|rum|gin|tequila)\b|\bcannabis\b|\bmarijuana\b|\bthc\b|\bcbd\b|magic\s*mushroom/i },
   { reason: "possibly counterfeit branded goods", pattern: /master\s*copy|replica|first\s*copy|mirror\s*copy|super\s*copy|\b1:1\b|\bclone\b/i },
 ];
 const holdReason = name => HOLD_RULES.find(r => r.pattern.test(String(name || "")))?.reason || null;
