@@ -48,3 +48,25 @@ test("rejects unapproved, inactive and unavailable variants", () => {
   assert.equal(priceValidatedOrder(validated, new Map([["hoodie-1", { ...catalogue.get("hoodie-1"), approved: false }]])).ok, false);
   assert.equal(priceValidatedOrder(validated, new Map([["hoodie-1", { ...catalogue.get("hoodie-1"), variants: [{ id: "large-black", available: false }] }]])).ok, false);
 });
+
+test("combines repeated cart lines for the same product variant", () => {
+  const result = validateOrderPayload(payload({
+    items: [
+      { productId: "hoodie-1", variantId: "large-black", quantity: 2 },
+      { productId: "hoodie-1", variantId: "large-black", quantity: 3 },
+    ],
+  }));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.items, [
+    { productId: "hoodie-1", variantId: "large-black", quantity: 5 },
+  ]);
+});
+test("rejects combined repeated-line quantities above the limit", () => {
+  const result = validateOrderPayload(payload({
+    items: [
+      { productId: "hoodie-1", variantId: "large-black", quantity: 60 },
+      { productId: "hoodie-1", variantId: "large-black", quantity: 40 },
+    ],
+  }));
+  assert.equal(result.ok, false);
+});
