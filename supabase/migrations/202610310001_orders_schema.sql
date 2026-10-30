@@ -29,9 +29,229 @@ create table if not exists public.oc_product_variants (
 
 create table if not exists public.oc_orders (
   id uuid primary key default gen_random_uuid(),
-  public_reference text not null unique,
-  idempotency_key text not null unique,
-  lookup_token_hash text not null check (length(lookup_token_hash) >= 32),
+  public_reference text not null unique check (length(public_reference) between 8 and 64),
+  idempotency_key text not null unique check (length(idempotency_key) between 16 and 200),
+  lookup_token_hash text not null check (lookup_token_hash ~ '^[0-9a-f]{64}
+  status text not null default 'pending_review'
+    check (status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  customer_name text not null check (length(btrim(customer_name)) between 2 and 100),
+  phone text not null check (phone ~ '^\\+?[0-9][0-9 ()-]{7,30}
+  district text not null check (length(btrim(district)) between 1 and 80),
+  area text check (area is null or length(btrim(area)) <= 100),
+  address text not null check (length(btrim(address)) between 5 and 300),
+  delivery_zone text not null check (delivery_zone in ('inside', 'sub', 'outside')),
+  subtotal_bdt bigint not null check (subtotal_bdt >= 0),
+  delivery_bdt bigint not null check (delivery_bdt >= 0),
+  total_bdt bigint not null check (total_bdt = subtotal_bdt + delivery_bdt),
+  constraint oc_orders_delivery_fee_matches_zone check (
+    (subtotal_bdt >= 999 and delivery_bdt = 0) or
+    (subtotal_bdt < 999 and delivery_bdt = case delivery_zone
+      when 'inside' then 60 when 'sub' then 100 when 'outside' then 120 end)
+  ),
+  payment_method text not null default 'cod' check (payment_method = 'cod'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.oc_order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  product_id text not null references public.oc_products(id),
+  variant_id uuid,
+  product_title_snapshot text not null,
+  variant_snapshot jsonb not null default '{}'::jsonb,
+  unit_price_bdt integer not null check (unit_price_bdt > 0),
+  quantity integer not null check (quantity between 1 and 99),
+  line_total_bdt bigint not null check (line_total_bdt = unit_price_bdt::bigint * quantity),
+  constraint oc_order_items_variant_product_fk
+    foreign key (variant_id, product_id)
+    references public.oc_product_variants(id, product_id)
+);
+
+create table if not exists public.oc_order_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  actor_id text not null,
+  from_status text check (from_status is null or from_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  to_status text not null check (to_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists oc_orders_created_at_idx on public.oc_orders (created_at desc);
+create index if not exists oc_orders_status_idx on public.oc_orders (status);
+create index if not exists oc_order_items_order_idx on public.oc_order_items (order_id);
+create index if not exists oc_order_events_order_idx on public.oc_order_events (order_id, created_at);
+
+-- Deny browser/API roles access to customer and order records by default.
+-- The trusted server must use a server-only Supabase service-role credential.
+-- RLS remains enabled as defence in depth if grants are changed later.
+alter table public.oc_products enable row level security;
+alter table public.oc_product_variants enable row level security;
+alter table public.oc_orders enable row level security;
+alter table public.oc_order_items enable row level security;
+alter table public.oc_order_events enable row level security;
+
+revoke all on table public.oc_products from public, anon, authenticated;
+revoke all on table public.oc_product_variants from public, anon, authenticated;
+revoke all on table public.oc_orders from public, anon, authenticated;
+revoke all on table public.oc_order_items from public, anon, authenticated;
+revoke all on table public.oc_order_events from public, anon, authenticated;
+
+-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
+-- 1. Confirm RLS and browser-role revocations above remain in place.
+-- 2. Do not expose service-role credentials in the browser.
+-- 3. Only server code with verified admin/customer authorization may access PII.
+-- 4. Create orders in one transaction after reloading approved prices and
+--    availability; recompute delivery and totals server-side.
+-- 5. Generate high-entropy public references and tracking tokens; store only
+--    a one-way hash of the tracking token.
+-- 6. Enforce the idempotency_key on POST /api/orders to prevent duplicate orders.
+-- 7. Add rate limiting, CSRF protection for cookie sessions, retention/deletion
+--    controls and audited admin status transitions before applying this draft.
+),
+  status text not null default 'pending_review'
+    check (status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  customer_name text not null,
+  phone text not null,
+  district text not null,
+  area text,
+  address text not null,
+  delivery_zone text not null check (delivery_zone in ('inside', 'sub', 'outside')),
+  subtotal_bdt bigint not null check (subtotal_bdt >= 0),
+  delivery_bdt bigint not null check (delivery_bdt >= 0),
+  total_bdt bigint not null check (total_bdt = subtotal_bdt + delivery_bdt),
+  payment_method text not null default 'cod' check (payment_method = 'cod'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.oc_order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  product_id text not null references public.oc_products(id),
+  variant_id uuid,
+  product_title_snapshot text not null,
+  variant_snapshot jsonb not null default '{}'::jsonb,
+  unit_price_bdt integer not null check (unit_price_bdt > 0),
+  quantity integer not null check (quantity between 1 and 99),
+  line_total_bdt bigint not null check (line_total_bdt = unit_price_bdt::bigint * quantity),
+  constraint oc_order_items_variant_product_fk
+    foreign key (variant_id, product_id)
+    references public.oc_product_variants(id, product_id)
+);
+
+create table if not exists public.oc_order_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  actor_id text not null,
+  from_status text check (from_status is null or from_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  to_status text not null check (to_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists oc_orders_created_at_idx on public.oc_orders (created_at desc);
+create index if not exists oc_orders_status_idx on public.oc_orders (status);
+create index if not exists oc_order_items_order_idx on public.oc_order_items (order_id);
+create index if not exists oc_order_events_order_idx on public.oc_order_events (order_id, created_at);
+
+-- Deny browser/API roles access to customer and order records by default.
+-- The trusted server must use a server-only Supabase service-role credential.
+-- RLS remains enabled as defence in depth if grants are changed later.
+alter table public.oc_products enable row level security;
+alter table public.oc_product_variants enable row level security;
+alter table public.oc_orders enable row level security;
+alter table public.oc_order_items enable row level security;
+alter table public.oc_order_events enable row level security;
+
+revoke all on table public.oc_products from public, anon, authenticated;
+revoke all on table public.oc_product_variants from public, anon, authenticated;
+revoke all on table public.oc_orders from public, anon, authenticated;
+revoke all on table public.oc_order_items from public, anon, authenticated;
+revoke all on table public.oc_order_events from public, anon, authenticated;
+
+-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
+-- 1. Confirm RLS and browser-role revocations above remain in place.
+-- 2. Do not expose service-role credentials in the browser.
+-- 3. Only server code with verified admin/customer authorization may access PII.
+-- 4. Create orders in one transaction after reloading approved prices and
+--    availability; recompute delivery and totals server-side.
+-- 5. Generate high-entropy public references and tracking tokens; store only
+--    a one-way hash of the tracking token.
+-- 6. Enforce the idempotency_key on POST /api/orders to prevent duplicate orders.
+-- 7. Add rate limiting, CSRF protection for cookie sessions, retention/deletion
+--    controls and audited admin status transitions before applying this draft.
+),
+  district text not null,
+  area text,
+  address text not null,
+  delivery_zone text not null check (delivery_zone in ('inside', 'sub', 'outside')),
+  subtotal_bdt bigint not null check (subtotal_bdt >= 0),
+  delivery_bdt bigint not null check (delivery_bdt >= 0),
+  total_bdt bigint not null check (total_bdt = subtotal_bdt + delivery_bdt),
+  payment_method text not null default 'cod' check (payment_method = 'cod'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.oc_order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  product_id text not null references public.oc_products(id),
+  variant_id uuid,
+  product_title_snapshot text not null,
+  variant_snapshot jsonb not null default '{}'::jsonb,
+  unit_price_bdt integer not null check (unit_price_bdt > 0),
+  quantity integer not null check (quantity between 1 and 99),
+  line_total_bdt bigint not null check (line_total_bdt = unit_price_bdt::bigint * quantity),
+  constraint oc_order_items_variant_product_fk
+    foreign key (variant_id, product_id)
+    references public.oc_product_variants(id, product_id)
+);
+
+create table if not exists public.oc_order_events (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.oc_orders(id) on delete cascade,
+  actor_id text not null,
+  from_status text check (from_status is null or from_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  to_status text not null check (to_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists oc_orders_created_at_idx on public.oc_orders (created_at desc);
+create index if not exists oc_orders_status_idx on public.oc_orders (status);
+create index if not exists oc_order_items_order_idx on public.oc_order_items (order_id);
+create index if not exists oc_order_events_order_idx on public.oc_order_events (order_id, created_at);
+
+-- Deny browser/API roles access to customer and order records by default.
+-- The trusted server must use a server-only Supabase service-role credential.
+-- RLS remains enabled as defence in depth if grants are changed later.
+alter table public.oc_products enable row level security;
+alter table public.oc_product_variants enable row level security;
+alter table public.oc_orders enable row level security;
+alter table public.oc_order_items enable row level security;
+alter table public.oc_order_events enable row level security;
+
+revoke all on table public.oc_products from public, anon, authenticated;
+revoke all on table public.oc_product_variants from public, anon, authenticated;
+revoke all on table public.oc_orders from public, anon, authenticated;
+revoke all on table public.oc_order_items from public, anon, authenticated;
+revoke all on table public.oc_order_events from public, anon, authenticated;
+
+-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
+-- 1. Confirm RLS and browser-role revocations above remain in place.
+-- 2. Do not expose service-role credentials in the browser.
+-- 3. Only server code with verified admin/customer authorization may access PII.
+-- 4. Create orders in one transaction after reloading approved prices and
+--    availability; recompute delivery and totals server-side.
+-- 5. Generate high-entropy public references and tracking tokens; store only
+--    a one-way hash of the tracking token.
+-- 6. Enforce the idempotency_key on POST /api/orders to prevent duplicate orders.
+-- 7. Add rate limiting, CSRF protection for cookie sessions, retention/deletion
+--    controls and audited admin status transitions before applying this draft.
+),
   status text not null default 'pending_review'
     check (status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
   customer_name text not null,
