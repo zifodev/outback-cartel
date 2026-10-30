@@ -320,7 +320,7 @@ test("Mohasagor reselling price takes precedence and configured markup is applie
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({
     products: [{
-      id: approvedId,
+      id: "pricing-test-item",
       name: "Test Hoodie",
       status: "active",
       stock_status: "available",
@@ -334,17 +334,18 @@ test("Mohasagor reselling price takes precedence and configured markup is applie
   try {
     const result = await productsResponse({
       method: "GET",
-      url: "https://shop.test/api/products",
+      url: "https://shop.test/api/products?debug=mohasagor-pricing-debug-token",
       env: {
         DROPSHIP_API_KEY: "test-api-key",
         DROPSHIP_SECRET_KEY: "test-secret-key",
         DROPSHIP_MARKUP_PERCENT: "10",
         DROPSHIP_MARKUP_FLAT: "25",
+        PRODUCTS_DEBUG_TOKEN: "mohasagor-pricing-debug-token",
       },
     });
     assert.equal(result.status, 200);
-    assert.equal(result.body.products.length, 1);
-    assert.equal(result.body.products[0].price, 575);
+    assert.equal(result.body.mohasagor.usableCount, 1);
+    assert.equal(result.body.review.pending[0].price, 575);
   } finally {
     globalThis.fetch = originalFetch;
   }
