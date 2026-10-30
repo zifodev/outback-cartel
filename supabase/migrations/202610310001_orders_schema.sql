@@ -100,8 +100,13 @@ revoke all on table public.oc_order_events from public, anon, authenticated;
 
 
 -- Enforce the documented state machine at the database boundary and append
--- an audit event in the same transaction as each status change. The trusted
--- server must set a verified actor with SET LOCAL app.actor_id before updates.
+-- an audit event in the same transaction as each status change.
+-- SECURITY BOUNDARY: app.actor_id is caller-supplied transaction context, NOT
+-- database authentication. This trigger only rejects a missing actor; it does
+-- not prove the actor is an admin. Every privileged API must verify the admin
+-- session/role first, derive the actor ID from that verified identity, then set
+-- it with SET LOCAL inside the same transaction. Never trust request-body IDs
+-- or expose the service-role credential to browsers/untrusted callers.
 create or replace function public.oc_guard_order_status_change()
 returns trigger
 language plpgsql
