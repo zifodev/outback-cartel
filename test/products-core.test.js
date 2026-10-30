@@ -75,7 +75,7 @@ test("protected review report classifies risky renamed approved products as held
     });
     assert.equal(result.status, 200);
     assert.equal(result.body.review.held.length, riskyNames.length);
-    assert.equal(result.body.review.published.length, 0);
+    assert.equal(result.body.review.published, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }
