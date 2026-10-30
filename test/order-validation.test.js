@@ -131,6 +131,9 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
   assert.ok(sql.includes("Invalid order status transition"));
   assert.ok(sql.includes("insert into public.oc_order_events"));
   assert.ok(sql.includes("before update of status on public.oc_orders"));
+  assert.ok(sql.includes("create or replace function public.oc_record_order_creation()"));
+  assert.ok(sql.includes("values (new.id, 'system', null, new.status, 'Order created')"));
+  assert.ok(sql.includes("after insert on public.oc_orders"));
   assert.match(sql, /subtotal_bdt bigint not null/);
   assert.match(sql, /total_bdt bigint not null/);
   assert.match(sql, /line_total_bdt bigint not null/);
