@@ -269,6 +269,8 @@ async function fetchMohasagor(debug, budget, env) {
   const url = path => {
     if (!path) return "";
     if (/^https?:\/\//i.test(path)) return path;
+    // Do not reinterpret javascript:, data:, or other explicit schemes as relative image paths.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(String(path))) return "";
     return imageBase + String(path).replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
   };
 
