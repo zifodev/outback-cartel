@@ -1739,7 +1739,23 @@ export default function OutbackCartel() {
   const [page, setPage] = useState("shop");
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    const saved = ls.get("oc_cart");
+    if (!Array.isArray(saved)) return [];
+    return saved.filter(item =>
+      item && typeof item === "object" &&
+      (typeof item.id === "string" || typeof item.id === "number") &&
+      typeof item.name === "string" &&
+      Number.isFinite(Number(item.price)) && Number(item.price) >= 0
+    ).slice(0, 100).map((item, index) => ({
+      ...item,
+      cartKey: typeof item.cartKey === "string" && item.cartKey
+        ? item.cartKey
+        : `restored-${String(item.id)}-${index}`,
+      qty: Math.max(1, Math.min(99, Math.floor(Number(item.qty) || 1))),
+      price: Number(item.price),
+    }));
+  });
   const [cartOpen, setCartOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -1752,6 +1768,11 @@ export default function OutbackCartel() {
 
   // Supplier products (dropshipping.com.bd) loaded through our own server function /api/products,
   // so the API key and secret key never reach the browser.
+  useEffect(() => {
+    // Browser persistence improves convenience; it is never an authority for price or stock.
+    ls.set("oc_cart", cart);
+  }, [cart]);
+
   useEffect(() => {
     let alive = true;
     fetch("/api/products")
