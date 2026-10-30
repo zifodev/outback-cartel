@@ -16,6 +16,8 @@ Use a server-side API backed by a managed database and a managed identity provid
 - `GET /api/orders/:reference`: never disclose personal data based on reference alone. Require a signed, expiring customer access token or verified customer identity. Return only allowed status fields.
 - `PATCH /api/admin/orders/:id`: require a server-verified admin session and role check. In the same database transaction, set transaction-local `app.actor_id` to the verified identity before updating status; the database trigger rejects missing actors and invalid transitions and appends the audit event atomically. Never accept the actor ID from the request body.
 
+**Important trust boundary:** `app.actor_id` is only transaction context supplied by the caller; PostgreSQL does not authenticate that value. The trigger's non-empty check prevents accidental unattributed updates, but it does not prove that the actor is an admin. The API must verify the session/token and active admin role on every request before opening the privileged database operation, derive the actor ID from that verified identity, and set it with `SET LOCAL` inside the same transaction. Never expose the database service-role key, allow browser clients to connect with a privileged role, or copy an actor ID from request input. If any other service can use the privileged database credential, it must enforce the same authorization contract.
+
 ### Suggested tables
 - `products`: stable internal ID, supplier ID, name, category, approved state, price in BDT minor units, image, last_sync_at.
 - `variants`: product ID, SKU, size, colour, availability state, last_verified_at.
