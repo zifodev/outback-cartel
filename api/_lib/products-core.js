@@ -65,13 +65,12 @@ const MOHASAGOR_URL = "https://mohasagor.com.bd/api/reseller/product";
 const BUSINESSKORO_URL = "https://api.businesskoro.com/api/v1/storefront/products";
 // MOHASAGOR_API_URL / BUSINESSKORO_API_URL (optional settings) point the feed at a local stand-in
 // supplier for automated tests. Leave them unset everywhere else.
-const mohasagorUrl = () => clean(ENV.MOHASAGOR_API_URL) || MOHASAGOR_URL;
-const businessKoroUrl = () => clean(ENV.BUSINESSKORO_API_URL) || BUSINESSKORO_URL;
+const mohasagorUrl = env => clean(env.MOHASAGOR_API_URL) || MOHASAGOR_URL;
+const businessKoroUrl = env => clean(env.BUSINESSKORO_API_URL) || BUSINESSKORO_URL;
 
 const BATCH = 3; // pages fetched in parallel per batch (the supplier limits how fast we can ask)
 
-// settings and secrets for the current request (environment variables on Vercel, env on Cloudflare)
-let ENV = {};
+// Request settings are passed explicitly; never store per-request secrets in module-global state.
 
 const num = v => {
   const n = Number(v);
@@ -232,8 +231,8 @@ function reviewProducts(list) {
 
 // The debug report is only for whoever holds PRODUCTS_DEBUG_TOKEN. Both values are hashed and
 // compared in constant time, so the check itself gives nothing away about the token.
-const debugAllowed = given => {
-  const token = clean(ENV.PRODUCTS_DEBUG_TOKEN);
+const debugAllowed = (given, env) => {
+  const token = clean(env.PRODUCTS_DEBUG_TOKEN);
   if (token.length < 16 || !given) return false; // not set, or too short to be safe: debug stays off
   const a = createHash("sha256").update(token).digest();
   const b = createHash("sha256").update(String(given)).digest();
@@ -243,17 +242,17 @@ const debugAllowed = given => {
 // ─────────────────────────────────────────────────────────────
 //  Mohasagor
 // ─────────────────────────────────────────────────────────────
-async function fetchMohasagor(debug, budget) {
-  const key = clean(ENV.DROPSHIP_API_KEY);
-  const secret = clean(ENV.DROPSHIP_SECRET_KEY);
+async function fetchMohasagor(debug, budget, env) {
+  const key = clean(config.DROPSHIP_API_KEY);
+  const secret = clean(config.DROPSHIP_SECRET_KEY);
   if (!key || !secret) return { configured: false, products: [], raw: [], error: null };
 
-  const imageBase = (ENV.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
-  const markupPct = num(ENV.DROPSHIP_MARKUP_PERCENT);
-  const markupFlat = num(ENV.DROPSHIP_MARKUP_FLAT);
-  const maxPages = Math.max(1, num(ENV.DROPSHIP_MAX_PAGES) || 100);
+  const imageBase = (config.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
+  const markupPct = num(config.DROPSHIP_MARKUP_PERCENT);
+  const markupFlat = num(config.DROPSHIP_MARKUP_FLAT);
+  const maxPages = Math.max(1, num(config.DROPSHIP_MAX_PAGES) || 100);
   let catMap = {};
-  try { catMap = JSON.parse(ENV.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
+  try { catMap = JSON.parse(config.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
 
   const url = path => {
     if (!path) return "";
@@ -263,7 +262,7 @@ async function fetchMohasagor(debug, budget) {
 
   const fetchPage = async pg => {
     if (!budget.take()) throw outOfCalls();
-    const r = await fetch(`${mohasagorUrl()}?page=${pg}`, {
+    const r = await fetch(`${mohasagorUrl(env)}?page=${pg}`, {
       headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
     });
     if (!r.ok) {
@@ -294,7 +293,7 @@ async function fetchMohasagor(debug, budget) {
     // Show everything except products explicitly marked inactive or out of stock.
     // Most of this supplier's catalog has a blank stock_status, which we treat as sellable.
     // Set DROPSHIP_IN_STOCK_ONLY=1 to list ONLY items explicitly marked "available".
-    const inStockOnly = /^(1|true|yes)$/i.test(String(ENV.DROPSHIP_IN_STOCK_ONLY || ""));
+    const inStockOnly = /^(1|true|yes)$/i.test(String(config.DROPSHIP_IN_STOCK_ONLY || ""));
     const INACTIVE = new Set(["0", "inactive", "draft", "disabled", "unpublished", "pending", "false"]);
     const OUT = new Set(["stock_out", "out_of_stock", "out of stock", "unavailable", "sold_out", "sold out", "0", "no"]);
     const products = raw
@@ -306,7 +305,7 @@ async function fetchMohasagor(debug, budget) {
         // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
         // supplier's regular price, the higher number) or "sale_price" (their discounted price).
         // reselling_price, when the API sends it, is always preferred.
-        const field = (ENV.DROPSHIP_PRICE_FIELD || "price").trim();
+        const field = (config.DROPSHIP_PRICE_FIELD || "price").trim();
         const base = num(p.reselling_price) || num(p[field]) || num(p.price) || num(p.sale_price);
         const price = Math.round(base * (1 + markupPct / 100) + markupFlat);
         const regular = field === "sale_price" && num(p.price) > price ? num(p.price) : null;
@@ -344,7 +343,7 @@ async function fetchMohasagor(debug, budget) {
     const error = { message: String(err && err.message || err) };
     if (debug && err && err.body) error.supplierSays = err.body;
     if (debug) {
-      const rawVals = { apiKey: String(ENV.DROPSHIP_API_KEY || ""), secretKey: String(ENV.DROPSHIP_SECRET_KEY || "") };
+      const rawVals = { apiKey: String(config.DROPSHIP_API_KEY || ""), secretKey: String(config.DROPSHIP_SECRET_KEY || "") };
       error.keyCheck = { apiKeyLength: key.length, secretKeyLength: secret.length, hadExtraSpacesOrQuotes: rawVals.apiKey !== key || rawVals.secretKey !== secret };
       const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
       const h = v => createHash("sha256").update(v).digest("hex").slice(0, 16);
@@ -357,13 +356,13 @@ async function fetchMohasagor(debug, budget) {
 // ─────────────────────────────────────────────────────────────
 //  Business Koro
 // ─────────────────────────────────────────────────────────────
-async function fetchBusinessKoro(debug, budget) {
-  const apiKey = clean(ENV.BUSINESSKORO_API_KEY);
+async function fetchBusinessKoro(debug, budget, env) {
+  const apiKey = clean(config.BUSINESSKORO_API_KEY);
   if (!apiKey) return { configured: false, products: [], raw: [], error: null };
 
-  const domain = clean(ENV.BUSINESSKORO_DOMAIN);
-  const markupPct = num(ENV.BUSINESSKORO_MARKUP_PERCENT);
-  const markupFlat = num(ENV.BUSINESSKORO_MARKUP_FLAT);
+  const domain = clean(config.BUSINESSKORO_DOMAIN);
+  const markupPct = num(config.BUSINESSKORO_MARKUP_PERCENT);
+  const markupFlat = num(config.BUSINESSKORO_MARKUP_FLAT);
 
   const headers = { "x-api-key": apiKey, "Content-Type": "application/json", Accept: "application/json" };
   if (domain) headers["x-domain"] = domain;
@@ -372,7 +371,7 @@ async function fetchBusinessKoro(debug, budget) {
   // but we follow a Laravel-style meta.last_page / links.next if present, just in case, capped for safety
   const fetchPage = async pg => {
     if (!budget.take()) throw outOfCalls();
-    const base = businessKoroUrl();
+    const base = businessKoroUrl(env);
     const sep = base.includes("?") ? "&" : "?";
     const r = await fetch(pg > 1 ? `${base}${sep}page=${pg}` : base, { headers });
     if (!r.ok) {
@@ -445,7 +444,7 @@ async function fetchBusinessKoro(debug, budget) {
 const reply = (status, headers, body) => ({ status, headers, body });
 
 export async function productsResponse({ method, url, env }) {
-  ENV = env || {};
+  const config = env || {};
   if (method !== "GET" && method !== "HEAD") {
     return reply(405, { Allow: "GET, HEAD" }, { error: "Method not allowed" });
   }
@@ -455,18 +454,18 @@ export async function productsResponse({ method, url, env }) {
   // address, so the query string can't be used to skip the cache and make us call the suppliers
   // over and over. Vercel's own _vercel... parameters are left alone.
   const params = [...requestUrl.searchParams.keys()].filter(k => !k.startsWith("_vercel"));
-  const debug = params.length > 0 && params.every(k => k === "debug") && debugAllowed(requestUrl.searchParams.get("debug"));
+  const debug = params.length > 0 && params.every(k => k === "debug") && debugAllowed(requestUrl.searchParams.get("debug"), config);
   if (params.length > 0 && !debug) {
     return reply(308, { "Cache-Control": "public, max-age=0, s-maxage=86400", Location: "/api/products" }, null);
   }
 
   // one shared allowance of supplier calls for this request. Both suppliers ask for their first
   // page straight away; extra pages then use whatever is left, so the total can't pass the limit.
-  const limit = num(ENV.SUPPLIER_CALL_LIMIT) > 0 ? Math.floor(num(ENV.SUPPLIER_CALL_LIMIT)) : Infinity;
+  const limit = num(config.SUPPLIER_CALL_LIMIT) > 0 ? Math.floor(num(config.SUPPLIER_CALL_LIMIT)) : Infinity;
   const calls = makeBudget(limit);
   const [mohasagor, businessKoro] = await Promise.all([
-    fetchMohasagor(debug, calls),
-    fetchBusinessKoro(debug, calls),
+    fetchMohasagor(debug, calls, config),
+    fetchBusinessKoro(debug, calls, config),
   ]);
 
   if (!mohasagor.configured && !businessKoro.configured) {
@@ -521,7 +520,7 @@ export async function productsResponse({ method, url, env }) {
   // Show all products by default, fashion (men/women/winter/kids) listed first.
   // Set DROPSHIP_MAX_PRODUCTS to a number to cap the combined total (fashion is
   // always kept in full, then other categories fill the rest up to that number).
-  const maxEnv = num(ENV.DROPSHIP_MAX_PRODUCTS);
+  const maxEnv = num(config.DROPSHIP_MAX_PRODUCTS);
   const maxProducts = maxEnv > 0 ? maxEnv : Infinity;
   const FASHION = new Set(["hoodies", "mens", "womens", "winter", "kids"]);
   const fashion = all.filter(p => FASHION.has(p.cat));
