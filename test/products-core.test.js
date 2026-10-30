@@ -266,3 +266,52 @@ test("supplier product images must use absolute HTTPS URLs", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Mohasagor image paths are normalized and unsafe protocols are not published", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    products: [
+      {
+        id: "safe-relative-image",
+        name: "Test Hoodie",
+        status: "active",
+        stock_status: "available",
+        reselling_price: 500,
+        thumbnail_img: "uploads/hoodie.jpg",
+      },
+      {
+        id: "unsafe-image",
+        name: "Test Shirt",
+        status: "active",
+        stock_status: "available",
+        reselling_price: 400,
+        thumbnail_img: "javascript:alert(1)",
+      },
+      {
+        id: "http-image",
+        name: "Test Cap",
+        status: "active",
+        stock_status: "available",
+        reselling_price: 300,
+        thumbnail_img: "http://cdn.example.test/cap.jpg",
+      },
+    ],
+    last_page: 1,
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const token = "mohasagor-image-debug-token-123";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: {
+        DROPSHIP_API_KEY: "test-api-key",
+        DROPSHIP_SECRET_KEY: "test-secret-key",
+        PRODUCTS_DEBUG_TOKEN: token,
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.mohasagor.usableCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
