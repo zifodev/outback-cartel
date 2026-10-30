@@ -120,4 +120,5 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security;`));
     assert.match(sql, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated;`));
   }
+  assert.match(sql, /foreign key \\(variant_id, product_id\\)\\s+references public\\.oc_product_variants\\(id, product_id\\)/);
 });
