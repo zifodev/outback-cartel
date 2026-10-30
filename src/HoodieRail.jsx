@@ -155,35 +155,35 @@ const FULL_SHEET = new Set(["paris", "plain-maroon", "plain-grey", "plain-navy",
 const viewsOf = key => (FULL_SHEET.has(key) ? ["front", "back", "three-q", "side", "side-l", "closeup"] : ["front", "back", "side", "side-l", "closeup"])
   .map(v => ({ src: `hoodies/views/${key}-${v}.webp`, label: VIEW_LABEL[v], photo: v === "closeup" }));
 const HOUSE_ITEMS = [
-  { side: "hoodies/views/meow-side.webp", views: viewsOf("meow"), id: 102, name: "Meow Cat Hoodie", price: 990, old: 1290, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/views/meow-front.webp",
+  { side: "hoodies/views/meow-side.webp", views: viewsOf("meow"), id: 102, name: "Meow Cat Hoodie", price: 1199, old: 0, tone: "#E2A9B6", asp: 591 / 700, note: "Pink fleece hoodie with a peeking cat print.", cut: "hoodies/views/meow-front.webp",
     colors: [{ name: "Pink", hex: "#F2B7C9", img: "hoodies/views/meow-front.webp" }] },
-  { side: "hoodies/views/okay-side.webp", views: viewsOf("okay"), id: 103, name: "I'm OK Hoodie", price: 1090, old: 1390, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/views/okay-front.webp",
+  { side: "hoodies/views/okay-side.webp", views: viewsOf("okay"), id: 103, name: "I'm OK Hoodie", price: 1199, old: 0, tone: "#A3A69F", asp: 233 / 252, note: "Cartoon print hoodie, soft fleece inside.", cut: "hoodies/views/okay-front.webp",
     colors: [{ name: "Grey", hex: "#C3C6C4", img: "hoodies/views/okay-front.webp" }, { name: "Pink", hex: "#F0B8B0", img: "hoodies/okay-pink.png", photo: true }] },
-  { side: "hoodies/views/tribal-side.webp", views: viewsOf("tribal"), id: 105, name: "Tribal Mark Hoodie", price: 1090, old: 1390, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/views/tribal-front.webp",
+  { side: "hoodies/views/tribal-side.webp", views: viewsOf("tribal"), id: 105, name: "Tribal Mark Hoodie", price: 1199, old: 0, tone: "#1C1C1E", asp: 216 / 223, note: "Black hoodie with a white tribal-style graphic.", cut: "hoodies/views/tribal-front.webp",
     colors: [{ name: "Black", hex: "#1C1C1C", img: "hoodies/views/tribal-front.webp" }] },
 ];
 
-// The rail collection (views in public/hoodies/views/). Price 0 = "Price coming soon".
-const R = (id, name, tone, file, colour, note) => {
+// The rail collection (views in public/hoodies/views/). Last value = price in ৳ (0 = "Price coming soon").
+const R = (id, name, tone, file, colour, note, price = 0) => {
   const front = `hoodies/views/${file}-front.webp`;
-  return { id, name, price: 0, old: 0, tone, note, cut: front, side: `hoodies/views/${file}-side.webp`,
+  return { id, name, price, old: 0, tone, note, cut: front, side: `hoodies/views/${file}-side.webp`,
     views: viewsOf(file),
     colors: [{ name: colour, hex: tone, img: front }] };
 };
 const RAIL_ITEMS = [
-  R(201, "Moonlit Palm Hoodie", "#1D5A3A", "moon-palm", "Green", "Forest green hoodie with a golden moon and palm print."),
-  R(202, "Death Note Hoodie", "#1A1A1C", "death-note", "Black", "Black hoodie with the Death Note title print."),
-  R(203, "Let's Move Forward Hoodie", "#DCC3BC", "move-forward", "Blush", "Soft blush hoodie with a colourful \"Let's Move Forward\" badge."),
-  R(204, "Musafir Hoodie", "#8E1C22", "musafir", "Red", "Deep red hoodie with a \"Musafir — a little passenger\" print."),
-  R(205, "Smile Is Sunnah Hoodie", "#1E2450", "sunnah", "Navy", "Navy hoodie with a gold and white \"Smile is Sunnah\" print."),
-  R(206, "Butterfly Bloom Hoodie", "#E3A6BE", "butterfly", "Pink", "Pink hoodie with a half-flower butterfly print."),
-  R(207, "Kitty Heart Hoodie", "#F0E4C2", "kitty", "Cream", "Cream hoodie with a kitty and heart print."),
-  R(208, "Paris Stripe Hoodie", "#ECEDF0", "paris", "White", "White hoodie with a navy and red Paris stripe print."),
-  R(209, "Meow Hoodie · Mustard", "#EDB12F", "meow-mustard", "Mustard", "Women's premium mustard hoodie with a meow cat face."),
-  R(210, "Meow Hoodie · Lavender", "#BDB9E6", "meow-lavender", "Lavender", "Women's premium lavender hoodie with a meow cat face."),
-  R(211, "Premium Plain Hoodie · Navy", "#1F2650", "plain-navy", "Navy", "Premium edition plain navy hoodie."),
-  R(212, "Premium Plain Hoodie · Grey", "#BDBDBD", "plain-grey", "Grey melange", "Premium edition plain grey melange hoodie."),
-  R(213, "Premium Plain Hoodie · Maroon", "#6A2230", "plain-maroon", "Maroon", "Premium edition plain maroon hoodie."),
+  R(201, "Moonlit Palm Hoodie", "#1D5A3A", "moon-palm", "Green", "Forest green hoodie with a golden moon and palm print.", 1199),
+  R(202, "Death Note Hoodie", "#1A1A1C", "death-note", "Black", "Black hoodie with the Death Note title print.", 1199),
+  R(203, "Let's Move Forward Hoodie", "#DCC3BC", "move-forward", "Blush", "Soft blush hoodie with a colourful \"Let's Move Forward\" badge.", 1199),
+  R(204, "Musafir Hoodie", "#8E1C22", "musafir", "Red", "Deep red hoodie with a \"Musafir — a little passenger\" print.", 1199),
+  R(205, "Smile Is Sunnah Hoodie", "#1E2450", "sunnah", "Navy", "Navy hoodie with a gold and white \"Smile is Sunnah\" print.", 1199),
+  R(206, "Butterfly Bloom Hoodie", "#E3A6BE", "butterfly", "Pink", "Pink hoodie with a half-flower butterfly print.", 1199),
+  R(207, "Kitty Heart Hoodie", "#F0E4C2", "kitty", "Cream", "Cream hoodie with a kitty and heart print.", 1199),
+  R(208, "Paris Stripe Hoodie", "#ECEDF0", "paris", "White", "White hoodie with a navy and red Paris stripe print.", 1199),
+  R(209, "Meow Hoodie · Mustard", "#EDB12F", "meow-mustard", "Mustard", "Women's premium mustard hoodie with a meow cat face.", 1299),
+  R(210, "Meow Hoodie · Lavender", "#BDB9E6", "meow-lavender", "Lavender", "Women's premium lavender hoodie with a meow cat face.", 1299),
+  R(211, "Premium Plain Hoodie · Navy", "#1F2650", "plain-navy", "Navy", "Premium edition plain navy hoodie.", 1099),
+  R(212, "Premium Plain Hoodie · Grey", "#BDBDBD", "plain-grey", "Grey melange", "Premium edition plain grey melange hoodie.", 1099),
+  R(213, "Premium Plain Hoodie · Maroon", "#6A2230", "plain-maroon", "Maroon", "Premium edition plain maroon hoodie.", 1099),
 ];
 
 // hoodies from the shop (supplier range) hung on the rail after our own ones
