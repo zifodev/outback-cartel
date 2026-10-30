@@ -72,6 +72,21 @@ create index if not exists oc_orders_status_idx on public.oc_orders (status);
 create index if not exists oc_order_items_order_idx on public.oc_order_items (order_id);
 create index if not exists oc_order_events_order_idx on public.oc_order_events (order_id, created_at);
 
+-- Deny browser/API roles access to customer and order records by default.
+-- The trusted server must use a server-only Supabase service-role credential.
+-- RLS remains enabled as defence in depth if grants are changed later.
+alter table public.oc_products enable row level security;
+alter table public.oc_product_variants enable row level security;
+alter table public.oc_orders enable row level security;
+alter table public.oc_order_items enable row level security;
+alter table public.oc_order_events enable row level security;
+
+revoke all on table public.oc_products from public, anon, authenticated;
+revoke all on table public.oc_product_variants from public, anon, authenticated;
+revoke all on table public.oc_orders from public, anon, authenticated;
+revoke all on table public.oc_order_items from public, anon, authenticated;
+revoke all on table public.oc_order_events from public, anon, authenticated;
+
 -- IMPORTANT SECURITY CHECKLIST BEFORE USE:
 -- 1. Enable RLS on every table.
 -- 2. Deny anonymous SELECT/INSERT/UPDATE/DELETE by default.
