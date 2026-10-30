@@ -1191,6 +1191,13 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const waHref = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(message)}`;
   const validate = () => {
     const e = {};
+    if (!cart.length) e.cart = "Your cart is empty. Add a product before checkout.";
+    cart.forEach(i => {
+      if (!Number.isSafeInteger(Number(i.qty)) || Number(i.qty) < 1 || Number(i.qty) > 99 ||
+          !Number.isFinite(Number(i.price)) || Number(i.price) < 0 || !String(i.name || "").trim()) {
+        e.cart = "A cart item needs refreshing. Please remove it and add it again.";
+      }
+    });
     if (!form.zone) e.zone = "Choose your delivery area";
     cart.forEach(i => {
       const lineKey = i.cartKey || i.id;
@@ -1244,6 +1251,7 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, paddingTop: 4 }}><span>Delivery</span><span style={{ color: free ? C.okText : "inherit", fontWeight: 600 }}>{free || zone ? delText : "Choose your area below"}</span></div>
       </div>
 
+      {err("cart")}
       <div style={label}>🚚 Delivery area</div>
       <div style={{ marginBottom: 16 }}><select value={form.zone} onChange={e => set("zone", e.target.value)} aria-label="Delivery area" style={{ ...iS("zone"), cursor: "pointer" }}><option value="">Choose your delivery area *</option>{DELIVERY_ZONES.map(z => <option key={z.k} value={z.k}>{zoneLabel(z)}</option>)}</select>{err("zone")}{free && <div style={{ fontSize: 11, color: C.okText, marginTop: 4 }}>Free delivery: your order is {fmt(FREE_DELIVERY_FROM)} or more.</div>}</div>
 
