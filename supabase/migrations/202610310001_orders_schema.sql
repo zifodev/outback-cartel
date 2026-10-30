@@ -106,7 +106,7 @@ create or replace function public.oc_guard_order_status_change()
 returns trigger
 language plpgsql
 set search_path = pg_catalog, public
-as $
+as $oc_guard$
 declare
   verified_actor text;
   allowed_transition boolean := false;
@@ -139,14 +139,16 @@ begin
 
   return new;
 end;
-$;
+$oc_guard$;
 
 drop trigger if exists oc_orders_status_guard on public.oc_orders;
 create trigger oc_orders_status_guard
 before update of status on public.oc_orders
 for each row
 execute function public.oc_guard_order_status_change();
-\n-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
+
+
+-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
 -- 1. Confirm RLS and browser-role revocations above remain in place.
 -- 2. Do not expose service-role credentials in the browser.
 -- 3. Only server code with verified admin/customer authorization may access PII.
