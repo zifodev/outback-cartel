@@ -39,9 +39,15 @@
 //                                        suppliers, default = all
 //                                        (clothing/winter listed first)
 //
-//  Visit /api/products?debug=1 on your site to check both connections.
+//  ── Protected debug report ──
+//    PRODUCTS_DEBUG_TOKEN    (optional)  a long random value you choose (16+ characters).
+//                                        Then /api/products?debug=<that value> shows each
+//                                        supplier's status and the product review list.
+//                                        Not set = the debug report is switched off.
+//
+//  Supplier products are published only after review: see APPROVED_SUPPLIER_PRODUCTS below.
 // ─────────────────────────────────────────────────────────────
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const MOHASAGOR_URL = "https://mohasagor.com.bd/api/reseller/product";
 const BUSINESSKORO_URL = "https://api.businesskoro.com/api/v1/storefront/products";
@@ -114,6 +120,105 @@ const detailLines = html => String(html || "")
 const clean = v => String(v || "").trim().replace(/^["']+|["']+$/g, "").trim();
 
 // ─────────────────────────────────────────────────────────────
+//  Supplier product review
+// ─────────────────────────────────────────────────────────────
+// Supplier products are NOT published automatically. One appears in the shop only when
+//   1. its id is in APPROVED_SUPPLIER_PRODUCTS below, and
+//   2. its name matches none of the HOLD_RULES. These always win, so a risky item stays hidden
+//      even if its id is on the list.
+// Anything new from a supplier waits as "pending" until its id is added here. The protected debug
+// report (PRODUCTS_DEBUG_TOKEN, above) lists the pending and held items with their ids.
+// To approve a product: add its id on a new line. To hide one again: delete its line.
+// This list is temporary; the planned database replaces it with an approve button in the admin area.
+const HOLD_RULES = [
+  { reason: "nicotine product", pattern: /nicotine|\bnic\b|\bvapes?\b|vaping|e-?cig|e-?liquid|\d[\d,]*\s*puffs?\b|tobacco|cigarette|hookah|shisha/i },
+  { reason: "self-defence product", pattern: /self[\s-]*defen[cs]e|stun\s*gun|taser|pepper\s*spray|brass\s*knuckles?|knuckle\s*dusters?|tactical\s*baton|expandable\s*baton/i },
+  { reason: "possibly counterfeit branded goods", pattern: /master\s*copy|replica|first\s*copy|mirror\s*copy|super\s*copy|\b1:1\b|\bclone\b/i },
+];
+const holdReason = name => HOLD_RULES.find(r => r.pattern.test(String(name || "")))?.reason || null;
+
+// Reviewed on 30 Oct 2026: the Business Koro products that were live then, minus the five held below.
+const APPROVED_SUPPLIER_PRODUCTS = new Set([
+  "bk-22fb3fe4-4c41-470f-b0e0-79c3e1bb95f8", // Black Paisley Hoodie & Dropsoulder Combo
+  "bk-869a8aa2-d9ad-4c40-a8aa-7f2c21c407ba", // Premium Solid Color Pullover Hoodie for Men Without Print Solid Colour
+  "bk-2e355a6b-de46-4d95-bd9d-a7ff35be928f", // Shoe Cleaner Foam White Shoe Cleaning Kit with Brush & Towel
+  "bk-5d0cba61-8242-4058-bc3e-aeca594d6a0a", // vintage glasses men & Women
+  "bk-b0b6e6cc-1a32-467d-af62-6b52d260eb67", // Polygonal Men & Women Sunglasses
+  "bk-c199c491-52f3-4e8c-876e-0ed1957b73f6", // VEN-DENS VD-PB030 10000mAh Wireless Power Bank with Magsafe
+  "bk-07c50511-6196-4a34-98e0-7a6df1ad0d9e", // X9 Handhole Game Console black hawk
+  "bk-12a7bcab-f705-424d-9004-e4906359d005", // Hoco GA6 Glacier AI Semiconductor Mobile Cooler
+  "bk-5a905a1e-1cdb-4d5e-974e-4236ae6bcd54", // BOYA BY-MW6 Wireless Lavalier Microphone – Dual Transmitter (original…
+  "bk-1653fa52-7d49-4dca-a141-7deb1b4ab937", // Hoco M105 Sharp, wired gaming earphones with mic Original Base
+  "bk-ef573f8b-e0dd-409b-97a7-29e89a8a4d75", // J36 Ultra Retro Handheld Game Console (100% Original)
+  "bk-f6e03e61-20e1-4f95-af45-4c23065e72e9", // P6 Retro Game Console with 620 Classic Games & TV Support
+  "bk-bafe6fe1-8e31-4eac-86b3-a26d77c64dce", // 10M ARGB Neon Rope Light – App & Remote Control(original)
+  "bk-6a765b75-17bf-4536-ba64-5c111d376fa1", // K8 Wireless Earbuds
+  "bk-4384f9fc-d380-4928-8272-03016151fc06", // Ven-Dens 50000mAh VD-PB063 22.5W Fast Charging Power Bank with Digita…
+  "bk-e4f101cf-f9bb-426a-ac0c-db6c3f5a9ba3", // High Power Super Bright Flashlight 3.7V 30000mAh Sanford
+  "bk-b06f5dc6-9a94-43e8-8112-5ca9ca14f641", // M88 LED Video Light
+  "bk-d360e22c-8bd7-4ce2-ad14-f05694e4cfa8", // A59 Plus Watch Combo
+  "bk-f1239262-5b37-43fb-93d2-21e563ad6232", // Ven-Dens VD-PB062 Power Bank – 30000mAh
+  "bk-4b2a1773-5ad6-4fb7-9691-c96dda205d92", // VEN-DENS 20000mAh Power Bank
+  "bk-6ebfa545-0faf-443a-897d-c599f38c38e7", // VEN-DENS 10000mAh Power Bank
+  "bk-13a3d6a5-2a8a-4f8b-b655-9a84188682de", // OLAX M100 Power Bank WiFi Router
+  "bk-e3db0798-61a4-4c77-86fb-7198b079c0ba", // 4G Pocket Router OLAX MF982
+  "bk-12bb2a8f-b8d3-4697-bf5f-c8d04230661c", // Unique Design Strong quality Camping lamp light
+  "bk-5bf0a59e-b77a-4ff1-a261-9201fa74a7e5", // Solar Interaction Wall Lamp
+  "bk-dbac2722-5719-4162-aaf5-d7ea4ee935c5", // Portable Electric Kettle
+  "bk-869e2a7b-1de1-4c2e-a892-6be9998e5ab6", // Plextone RX3 PLUS Wired Gaming Earphone
+  "bk-30bfea0a-b349-429b-a091-9923621a4a81", // Siren Alarm Lock For Security
+  "bk-f5ec0305-9aa9-4753-92c4-e54fe5980cc5", // Kemei Kemei KM-026
+  "bk-e7e9c405-ff15-4dba-b3e9-23bae8f180e1", // Chest Strap Mount
+  "bk-675007e7-97b4-4a4f-ad55-eae0e6855432", // MiLi MiTag Android and iphone Device – Compatible with Google’s Find …
+  "bk-7dcf40fd-d7ff-4c0b-adab-e91e295c0b00", // 3D LED Digital Clock
+  "bk-4e909f96-96cb-4791-858e-3644c9d8d732", // 5M Waterproof Outdoor USB 5V ARGB Neon Rope Light
+  "bk-a79d3d6c-bdcd-4a6a-af14-c9a6457c0962", // JIO 4G LTE Mobile WiFi Hotspot Portable Router
+  "bk-781d0a29-1ee6-41a2-b4e2-50d0cb582e00", // M25 Two-In-One Split Wireless DJ Speaker
+  "bk-b029b246-f29b-4579-97fb-3da22acb4338", // R36s All-in-One Handheld Gaming Console
+  "bk-70795826-a1d3-434f-8c86-f345595d8f18", // Android Smart Projector HY300 4K (ORIGINAL)
+  "bk-5ff68125-f0d3-4b59-9522-2ff283e09fcc", // Mobile Phone Waterproof Box Bathroom Shower Phone Placement Box
+  "bk-ab4f6153-46f3-4823-a07f-b7afc2543992", // EQ34 Plus Rima ANC+ENC TWS Earbud (App Supported) | Long 7-Hour Playt…
+  "bk-68651b37-8f20-422c-b93d-e39a87156be2", // wgp Mini UPS 5/9/12V upgraded Original(10,400mAh)
+  "bk-c9d7e032-5e9f-4e20-b0b4-7f4cce95861d", // FRB N27 [ 400 ঘন্টা ] Standby Time Wireless Neckband Bluetooth 5.3 Ea…
+  "bk-ebd20ecb-7135-4f0a-9b59-95c7de8033fa", // 140W স্মার্ট ফুল চার্জ সেপারেটর
+  "bk-caffd051-2609-4b4d-8b92-07201e981e0a", // Portable Smart Electric Grape Peeler Machine
+  "bk-c2a8c5d6-073e-4562-8970-d8d72c0ad5ac", // Ultra S9 Android Smart Watch
+  "bk-0dad4207-f4a3-408b-bfe5-38c69465af47", // Cordless Electric Screwdriver Tool Kit
+  "bk-dcb9792b-a609-4377-af0a-c613fab8d847", // Memo CX07 Magnetic Phone Cooler Fan
+  "bk-520d3230-558d-48b4-9ae3-91bb9c384b50", // MEMO CX12 Magnetic Phone Cooler Fan
+  "bk-be24fb37-1c47-476f-8979-4377f5b757d4", // Mini Body Massage Gun SL-720 (original Version)
+  "bk-cc90fd6a-3773-47fd-884c-7650692adebe", // F11-2 Dual Wireless Microphone Set
+]);
+// Held for review on 30 Oct 2026, so NOT in the list above:
+//   bk-af958544-b780-4d5d-95eb-75845fc361ad  Zepter Kitchen Knife Set 6 Pcs (original)  — famous brand at a very low price; check it is genuine
+//   bk-19f19e13-b6de-4b47-8384-47c00db29ce4  26 Inch Self Defense Stick  — self-defence product; a hold rule blocks it
+//   bk-ecd85dc4-10a4-4c1a-9e93-0a5a46c41532  Yuoto Explorer 16000 Puffs | 50mg Nic Disposable | Type C Rechargeable  — nicotine product; a hold rule blocks it
+//   bk-55b2a4b4-30f3-451b-b00a-64692c55c904  Apple Airpods Black Colour Special Edition MasterCopy  — possibly counterfeit branded goods; a hold rule blocks it
+//   bk-2abd3e46-5020-4a5a-ba59-35f47da4ea1e  Apple Airpods pro 2nd generation MasterCopy  — possibly counterfeit branded goods; a hold rule blocks it
+
+// split supplier products into what the shop may show, what waits for review, and what is held back
+function reviewProducts(list) {
+  const published = [], pending = [], held = [];
+  for (const p of list) {
+    const reason = holdReason(p.name);
+    if (reason) held.push({ id: p.id, name: p.name, supplier: p.supplier, reason });
+    else if (APPROVED_SUPPLIER_PRODUCTS.has(p.id)) published.push(p);
+    else pending.push({ id: p.id, name: p.name, supplier: p.supplier, price: p.price });
+  }
+  return { published, pending, held };
+}
+
+// The debug report is only for whoever holds PRODUCTS_DEBUG_TOKEN. Both values are hashed and
+// compared in constant time, so the check itself gives nothing away about the token.
+const debugAllowed = given => {
+  const token = clean(process.env.PRODUCTS_DEBUG_TOKEN);
+  if (token.length < 16 || !given) return false; // not set, or too short to be safe: debug stays off
+  const a = createHash("sha256").update(token).digest();
+  const b = createHash("sha256").update(String(given)).digest();
+  return timingSafeEqual(a, b);
+};
+
+// ─────────────────────────────────────────────────────────────
 //  Mohasagor
 // ─────────────────────────────────────────────────────────────
 async function fetchMohasagor(debug) {
@@ -139,7 +244,7 @@ async function fetchMohasagor(debug) {
       headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
     });
     if (!r.ok) {
-      // keep the supplier's own message (shown only with ?debug=1) so a rejected key is easy to diagnose
+      // keep the supplier's own message (shown only in the protected debug report) so a rejected key is easy to diagnose
       const e = new Error(`Mohasagor API answered ${r.status}`);
       try { e.body = (await r.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400); } catch { /* ignore */ }
       throw e;
@@ -305,11 +410,27 @@ async function fetchBusinessKoro(debug) {
 }
 
 export default async function handler(req, res) {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.setHeader("Allow", "GET, HEAD");
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
   // Parse the request URL ourselves with the WHATWG URL API instead of touching req.query —
   // reading req.query triggers Vercel's Node runtime to fall back to the legacy, deprecated
   // url.parse() (Node's DEP0169 warning) the first time that getter is accessed.
   const requestUrl = new URL(req.url, "http://localhost");
-  const debug = requestUrl.searchParams.has("debug");
+  // Only two addresses are served: the plain feed, and ?debug=<token> for whoever holds the token.
+  // Anything else (?debug without the right token, or a made-up ?x=1) is sent to the plain, cached
+  // address, so the query string can't be used to skip the cache and make us call the suppliers
+  // over and over. Vercel's own _vercel... parameters are left alone.
+  const params = [...requestUrl.searchParams.keys()].filter(k => !k.startsWith("_vercel"));
+  const debug = params.length > 0 && params.every(k => k === "debug") && debugAllowed(requestUrl.searchParams.get("debug"));
+  if (params.length > 0 && !debug) {
+    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=86400");
+    res.setHeader("Location", "/api/products");
+    res.status(308).end();
+    return;
+  }
 
   const [mohasagor, businessKoro] = await Promise.all([
     fetchMohasagor(debug),
@@ -337,11 +458,19 @@ export default async function handler(req, res) {
         categories: label === "mohasagor" ? categories : undefined,
       };
     };
+    const review = reviewProducts([...mohasagor.products, ...businessKoro.products]);
     res.status(200).json({
       ok: true,
       mohasagor: summarize("mohasagor", mohasagor),
       businessKoro: summarize("businesskoro", businessKoro),
       combinedUsableCount: mohasagor.products.length + businessKoro.products.length,
+      review: {
+        published: review.published.length,
+        pendingCount: review.pending.length,
+        heldCount: review.held.length,
+        pending: review.pending.slice(0, 300), // the first 300; approve them by id in this file
+        held: review.held,
+      },
     });
     return;
   }
@@ -357,7 +486,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  const all = [...mohasagor.products, ...businessKoro.products];
+  // only reviewed supplier products reach the shop (see APPROVED_SUPPLIER_PRODUCTS)
+  const all = reviewProducts([...mohasagor.products, ...businessKoro.products]).published;
 
   // Show all products by default, fashion (men/women/winter/kids) listed first.
   // Set DROPSHIP_MAX_PRODUCTS to a number to cap the combined total (fashion is
