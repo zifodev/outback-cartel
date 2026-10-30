@@ -854,7 +854,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, border: `2px solid ${C.border}`, borderRadius: 10, padding: "4px 10px" }}>
                   <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                   <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>
-                  <button onClick={() => setQty(q => q + 1)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                  <button onClick={() => setQty(q => Math.min(99, q + 1))} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                 </div>
                 {priced && <span style={{ fontSize: 12, color: C.muted }}>Total: <strong style={{ color: C.hot }}>{fmt(product.price * qty)}</strong></span>}
               </div>
@@ -864,7 +864,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                   style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "var(--gum)" : "transparent", color: addedMsg ? "#fff" : C.dark, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
                   {addedMsg ? "✅ Added!" : "🛒 Add to Cart"}
                 </button>
-                <button onClick={() => { onAdd(product); onBuyNow(); }} disabled={!priced}
+                <button onClick={() => { onAdd(product, qty); onBuyNow(); }} disabled={!priced}
                   style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
                   ⚡ Buy Now
                 </button>
