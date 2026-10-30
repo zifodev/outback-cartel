@@ -14,7 +14,7 @@ Use a server-side API backed by a managed database and a managed identity provid
 ### Orders API
 - `POST /api/orders`: validate request schema, quantity (1–99), product IDs, variant selections, contact fields and consent. Apply request-size limits and rate limiting. Resolve prices and availability server-side from an approved, cached catalogue; never trust the browser total or shipping charge. Save a pending order with a random, non-sequential public reference. Return only reference and safe status.
 - `GET /api/orders/:reference`: never disclose personal data based on reference alone. Require a signed, expiring customer access token or verified customer identity. Return only allowed status fields.
-- `PATCH /api/admin/orders/:id`: require a server-verified admin session and role check. Enforce allowed state transitions and write an audit entry.
+- `PATCH /api/admin/orders/:id`: require a server-verified admin session and role check. In the same database transaction, set transaction-local `app.actor_id` to the verified identity before updating status; the database trigger rejects missing actors and invalid transitions and appends the audit event atomically. Never accept the actor ID from the request body.
 
 ### Suggested tables
 - `products`: stable internal ID, supplier ID, name, category, approved state, price in BDT minor units, image, last_sync_at.
