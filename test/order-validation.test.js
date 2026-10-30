@@ -98,7 +98,9 @@ test("rejects malformed customer and cart item objects", () => {
   assert.equal(validateOrderPayload(payload({ customer: [] })).ok, false);
   assert.equal(validateOrderPayload(payload({ items: [null] })).ok, false);
   assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1.5 }] })).ok, false);
-  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1, variantId: " " }] })).ok, true);
+  const blankVariant = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1, variantId: " " }] }));
+  assert.equal(blankVariant.ok, true);
+  assert.equal(blankVariant.value.items[0].variantId, null);
 });
 
 test("rejects unsafe integer totals from the trusted catalogue", () => {
