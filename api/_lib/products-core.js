@@ -460,6 +460,13 @@ export async function productsResponse({ method, url, env }) {
     return reply(308, { "Cache-Control": "public, max-age=0, s-maxage=86400", Location: "/api/products" }, null);
   }
 
+  // HEAD requests need headers only; never spend supplier API calls building a body that is discarded.
+  if (method === "HEAD") {
+    return reply(200, {
+      "Cache-Control": debug ? "no-store" : "s-maxage=3600, stale-while-revalidate=86400",
+    }, null);
+  }
+
   // one shared allowance of supplier calls for this request. Both suppliers ask for their first
   // page straight away; extra pages then use whatever is left, so the total can't pass the limit.
   const limit = num(config.SUPPLIER_CALL_LIMIT) > 0 ? Math.floor(num(config.SUPPLIER_CALL_LIMIT)) : Infinity;
