@@ -38,6 +38,10 @@ test("charges the configured delivery fee below free-delivery threshold", () => 
   assert.equal(priced.value.deliveryBdt, 60);
   assert.equal(priced.value.totalBdt, 560);
 });
+test("requires a variant when the trusted product has variants", () => {
+  const noVariant = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1 }] }));
+  assert.equal(priceValidatedOrder(noVariant, catalogue).ok, false);
+});
 test("rejects unapproved, inactive and unavailable variants", () => {
   const validated = validateOrderPayload(payload());
   assert.equal(priceValidatedOrder(validated, new Map()).ok, false);
