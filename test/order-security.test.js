@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOrderIdentifiers, hashLookupToken, hashOrderRequest, isValidIdempotencyKey, readIdempotencyKey } from "../api/_lib/order-security.js";
+import { createOrderIdentifiers, hashLookupToken, hashOrderRequest, hashIdempotencyScope, isValidIdempotencyKey, readIdempotencyKey } from "../api/_lib/order-security.js";
 
 test("creates opaque order identifiers with a high-entropy lookup token", () => {
   const ids = createOrderIdentifiers();
@@ -61,4 +61,20 @@ test("rejects non-JSON and circular order fingerprint input", () => {
   const circular = {};
   circular.self = circular;
   assert.throws(() => hashOrderRequest(circular), TypeError);
+});
+
+
+test("hashes verified checkout scope identifiers without storing the raw identifier", () => {
+  const scope = "server-verified-guest-session-123";
+  const hash = hashIdempotencyScope(scope);
+  assert.match(hash, /^[0-9a-f]{64}$/);
+  assert.equal(hash, hashIdempotencyScope(scope));
+  assert.notEqual(hash, scope);
+  assert.notEqual(hash, hashIdempotencyScope("server-verified-guest-session-456"));
+});
+
+test("rejects missing, short, oversized and padded checkout scope identifiers", () => {
+  for (const value of [null, "", "short", "x".repeat(513), " padded-session-identifier "]) {
+    assert.throws(() => hashIdempotencyScope(value), TypeError);
+  }
 });
