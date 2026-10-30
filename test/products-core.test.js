@@ -194,3 +194,48 @@ test("shared supplier call budget is never exceeded", async () => {
   }
 });
 
+test("Business Koro pricing never falls below its customer-pays-delivery minimum", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: [{
+      ...product,
+      minimumSellingPrice: { customerPaysDelivery: 1500 },
+    }],
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products",
+      env: { BUSINESSKORO_API_KEY: "test-key" },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.products.length, 1);
+    assert.equal(result.body.products[0].price, 1500);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("debug reports stay disabled without a sufficiently long matching token", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    throw new Error("A rejected debug request must not call suppliers");
+  };
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products?debug=guess",
+      env: {
+        BUSINESSKORO_API_KEY: "test-key",
+        PRODUCTS_DEBUG_TOKEN: "guess",
+      },
+    });
+    assert.equal(result.status, 308);
+    assert.equal(result.headers.Location, "/api/products");
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
