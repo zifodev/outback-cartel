@@ -31,11 +31,11 @@ create table if not exists public.oc_orders (
   id uuid primary key default gen_random_uuid(),
   public_reference text not null unique check (length(public_reference) between 8 and 64),
   idempotency_key text not null unique check (length(idempotency_key) between 16 and 200),
-  lookup_token_hash text not null check (lookup_token_hash ~ '^[0-9a-f]{64}
+  lookup_token_hash text not null check (lookup_token_hash ~ '^[0-9a-f]{64}$'),
   status text not null default 'pending_review'
     check (status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
   customer_name text not null check (length(btrim(customer_name)) between 2 and 100),
-  phone text not null check (phone ~ '^\\+?[0-9][0-9 ()-]{7,30}
+  phone text not null check (phone ~ '^\+?[0-9][0-9 ()-]{7,30}$'),
   district text not null check (length(btrim(district)) between 1 and 80),
   area text check (area is null or length(btrim(area)) <= 100),
   address text not null check (length(btrim(address)) between 5 and 300),
