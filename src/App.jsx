@@ -1126,7 +1126,7 @@ function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6 }}>
                     <button onClick={() => onQty(item.cartKey || item.id, -1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                     <span style={{ fontSize: 13, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{item.qty}</span>
-                    <button onClick={() => onQty(item.id, 1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                    <button onClick={() => onQty(item.cartKey || item.id, 1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                   </div>
                 </div>
                 <button onClick={() => onRemove(item.cartKey || item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, alignSelf: "flex-start", padding: 4 }}>🗑</button>
@@ -1235,8 +1235,8 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
           <div key={i.cartKey || i.id} style={{ padding: "8px 0", borderBottom: `1px dashed ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5 }}><span>{i.icon} {i.name} × {i.qty}</span><span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(i.price * i.qty)}</span></div>
             {(sizes.length > 0 || colours.length > 1) && <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-              {sizes.length > 0 && <select aria-label={`Size for ${i.name}`} value={picks[i.cartKey || i.id]?.size || ""} onChange={e => pick(i.cartKey || i.id, "size", e.target.value)} style={{ ...iS(`size-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Size *</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>}
-              {colours.length > 1 && <select aria-label={`Colour for ${i.name}`} value={picks[i.cartKey || i.id]?.color || ""} onChange={e => pick(i.cartKey || i.id, "color", e.target.value)} style={{ ...iS(`color-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Colour *</option>{colours.map(c => <option key={c} value={c}>{c}</option>)}</select>}
+              {sizes.length > 0 && <select aria-label={`Size for ${i.name}`} value={picks[i.cartKey || i.id]?.size || ""} onChange={e => pick(i.cartKey || i.id, "size", e.target.value)} style={{ ...iS(`size-${i.cartKey || i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Size *</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>}
+              {colours.length > 1 && <select aria-label={`Colour for ${i.name}`} value={picks[i.cartKey || i.id]?.color || ""} onChange={e => pick(i.cartKey || i.id, "color", e.target.value)} style={{ ...iS(`color-${i.cartKey || i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Colour *</option>{colours.map(c => <option key={c} value={c}>{c}</option>)}</select>}
             </div>}
             {err(`size-${i.cartKey || i.id}`)}{err(`color-${i.cartKey || i.id}`)}
           </div>); })}
