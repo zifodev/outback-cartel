@@ -80,3 +80,25 @@ test("protected review report classifies risky renamed approved products as held
     globalThis.fetch = originalFetch;
   }
 });
+
+test("HEAD requests return feed headers without contacting suppliers", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    throw new Error("HEAD must not fetch supplier data");
+  };
+  try {
+    const result = await productsResponse({
+      method: "HEAD",
+      url: "https://shop.test/api/products",
+      env: { BUSINESSKORO_API_KEY: "test-key" },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body, null);
+    assert.match(result.headers["Cache-Control"], /s-maxage=3600/);
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
