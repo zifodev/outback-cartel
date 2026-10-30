@@ -124,9 +124,9 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
     sql.includes("references public.oc_product_variants(id, product_id)"), true);
   assert.equal(sql.includes("price_bdt integer not null check (price_bdt > 0)"), true);
   assert.ok(sql.includes("idempotency_key text not null check (length(idempotency_key) between 16 and 200)"));
-  assert.match(sql, /idempotency_scope_hash text not null check/);
-  assert.match(sql, /request_fingerprint text not null check/);
-  assert.match(sql, /unique \\(idempotency_scope_hash, idempotency_key\\)/);
+  assert.ok(sql.includes("idempotency_scope_hash text not null check"));
+  assert.ok(sql.includes("request_fingerprint text not null check"));
+  assert.ok(sql.includes("unique (idempotency_scope_hash, idempotency_key)"));
   assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
   assert.match(sql, /to_status text not null check/);
   assert.ok(sql.includes("create or replace function public.oc_guard_order_status_change()"));
