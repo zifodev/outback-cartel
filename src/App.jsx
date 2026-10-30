@@ -760,7 +760,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
   const waReview = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(`Review for ${product.name}: ⭐ _/5 — `)}`;
 
   const handleAdd = () => {
-    for (let i = 0; i < qty; i++) onAdd(product);
+    onAdd(product, qty);
     setAddedMsg(true);
     setTimeout(() => setAddedMsg(false), 2000);
   };
@@ -1766,9 +1766,10 @@ export default function OutbackCartel() {
 
   const nav = (p, cat) => { setPage(p); setSelectedProd(null); if (cat) setActiveCat(cat); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
-  const addToCart = p => {
-    setCart(prev => { const ex = prev.find(c => c.id === p.id); return ex ? prev.map(c => c.id === p.id ? { ...c, qty: c.qty + 1 } : c) : [...prev, { ...p, qty: 1 }]; });
-    toast_(`✅ ${p.name.substring(0, 26)}… added!`);
+  const addToCart = (p, quantity = 1) => {
+    const amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
+    setCart(prev => { const ex = prev.find(c => c.id === p.id); return ex ? prev.map(c => c.id === p.id ? { ...c, qty: c.qty + amount } : c) : [...prev, { ...p, qty: amount }]; });
+    toast_(`✅ ${amount} × ${p.name.substring(0, 26)}… added!`);
   };
   const runSearch = () => {
     setShopQ(headerQ.trim()); setActiveCat("all"); setPage("shop"); setSelectedProd(null);
