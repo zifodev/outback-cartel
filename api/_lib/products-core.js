@@ -243,16 +243,16 @@ const debugAllowed = (given, env) => {
 //  Mohasagor
 // ─────────────────────────────────────────────────────────────
 async function fetchMohasagor(debug, budget, env) {
-  const key = clean(config.DROPSHIP_API_KEY);
-  const secret = clean(config.DROPSHIP_SECRET_KEY);
+  const key = clean(env.DROPSHIP_API_KEY);
+  const secret = clean(env.DROPSHIP_SECRET_KEY);
   if (!key || !secret) return { configured: false, products: [], raw: [], error: null };
 
-  const imageBase = (config.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
-  const markupPct = num(config.DROPSHIP_MARKUP_PERCENT);
-  const markupFlat = num(config.DROPSHIP_MARKUP_FLAT);
-  const maxPages = Math.max(1, num(config.DROPSHIP_MAX_PAGES) || 100);
+  const imageBase = (env.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
+  const markupPct = num(env.DROPSHIP_MARKUP_PERCENT);
+  const markupFlat = num(env.DROPSHIP_MARKUP_FLAT);
+  const maxPages = Math.max(1, num(env.DROPSHIP_MAX_PAGES) || 100);
   let catMap = {};
-  try { catMap = JSON.parse(config.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
+  try { catMap = JSON.parse(env.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
 
   const url = path => {
     if (!path) return "";
@@ -293,7 +293,7 @@ async function fetchMohasagor(debug, budget, env) {
     // Show everything except products explicitly marked inactive or out of stock.
     // Most of this supplier's catalog has a blank stock_status, which we treat as sellable.
     // Set DROPSHIP_IN_STOCK_ONLY=1 to list ONLY items explicitly marked "available".
-    const inStockOnly = /^(1|true|yes)$/i.test(String(config.DROPSHIP_IN_STOCK_ONLY || ""));
+    const inStockOnly = /^(1|true|yes)$/i.test(String(env.DROPSHIP_IN_STOCK_ONLY || ""));
     const INACTIVE = new Set(["0", "inactive", "draft", "disabled", "unpublished", "pending", "false"]);
     const OUT = new Set(["stock_out", "out_of_stock", "out of stock", "unavailable", "sold_out", "sold out", "0", "no"]);
     const products = raw
@@ -305,7 +305,7 @@ async function fetchMohasagor(debug, budget, env) {
         // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
         // supplier's regular price, the higher number) or "sale_price" (their discounted price).
         // reselling_price, when the API sends it, is always preferred.
-        const field = (config.DROPSHIP_PRICE_FIELD || "price").trim();
+        const field = (env.DROPSHIP_PRICE_FIELD || "price").trim();
         const base = num(p.reselling_price) || num(p[field]) || num(p.price) || num(p.sale_price);
         const price = Math.round(base * (1 + markupPct / 100) + markupFlat);
         const regular = field === "sale_price" && num(p.price) > price ? num(p.price) : null;
@@ -343,7 +343,7 @@ async function fetchMohasagor(debug, budget, env) {
     const error = { message: String(err && err.message || err) };
     if (debug && err && err.body) error.supplierSays = err.body;
     if (debug) {
-      const rawVals = { apiKey: String(config.DROPSHIP_API_KEY || ""), secretKey: String(config.DROPSHIP_SECRET_KEY || "") };
+      const rawVals = { apiKey: String(env.DROPSHIP_API_KEY || ""), secretKey: String(env.DROPSHIP_SECRET_KEY || "") };
       error.keyCheck = { apiKeyLength: key.length, secretKeyLength: secret.length, hadExtraSpacesOrQuotes: rawVals.apiKey !== key || rawVals.secretKey !== secret };
       const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
       const h = v => createHash("sha256").update(v).digest("hex").slice(0, 16);
@@ -357,12 +357,12 @@ async function fetchMohasagor(debug, budget, env) {
 //  Business Koro
 // ─────────────────────────────────────────────────────────────
 async function fetchBusinessKoro(debug, budget, env) {
-  const apiKey = clean(config.BUSINESSKORO_API_KEY);
+  const apiKey = clean(env.BUSINESSKORO_API_KEY);
   if (!apiKey) return { configured: false, products: [], raw: [], error: null };
 
-  const domain = clean(config.BUSINESSKORO_DOMAIN);
-  const markupPct = num(config.BUSINESSKORO_MARKUP_PERCENT);
-  const markupFlat = num(config.BUSINESSKORO_MARKUP_FLAT);
+  const domain = clean(env.BUSINESSKORO_DOMAIN);
+  const markupPct = num(env.BUSINESSKORO_MARKUP_PERCENT);
+  const markupFlat = num(env.BUSINESSKORO_MARKUP_FLAT);
 
   const headers = { "x-api-key": apiKey, "Content-Type": "application/json", Accept: "application/json" };
   if (domain) headers["x-domain"] = domain;
