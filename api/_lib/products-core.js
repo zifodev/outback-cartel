@@ -313,7 +313,7 @@ async function fetchMohasagor(debug, budget, env) {
     const products = raw
       .filter(p => !INACTIVE.has(String(p.status).toLowerCase()) &&
                    (inStockOnly
-                     ? p.stock_status === "available"
+                     ? String(p.stock_status || "").trim().toLowerCase() === "available"
                      : !OUT.has(String(p.stock_status || "").toLowerCase())))
       .map(p => {
         // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
