@@ -239,3 +239,30 @@ test("debug reports stay disabled without a sufficiently long matching token", a
     globalThis.fetch = originalFetch;
   }
 });
+
+test("supplier product images must use absolute HTTPS URLs", async () => {
+  const originalFetch = globalThis.fetch;
+  const records = [
+    { ...product, id: approvedId, images: ["https://cdn.example.test/good.jpg"] },
+    { ...product, id: "unsafe-js-image", images: ["javascript:alert(1)"] },
+    { ...product, id: "insecure-http-image", images: ["http://cdn.example.test/image.jpg"] },
+    { ...product, id: "relative-image", images: ["/uploads/product.jpg"] },
+    { ...product, id: "empty-image", images: [""] },
+  ];
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: records }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products",
+      env: { BUSINESSKORO_API_KEY: "test-key" },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.products.length, 1);
+    assert.equal(result.body.products[0].img, "https://cdn.example.test/good.jpg");
+    assert.deepEqual(result.body.products[0].images, ["https://cdn.example.test/good.jpg"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
