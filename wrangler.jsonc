@@ -1,0 +1,28 @@
+// Cloudflare Workers settings: COMPATIBILITY TEST ONLY (free plan, free workers.dev test address).
+// The live shop stays on Vercel. No custom domain, no DNS, no paid features.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "outback-cartel-test",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "build": { "command": "npm run build" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // any address that isn't a file opens the shop (it's a single-page app)
+    "not_found_handling": "single-page-application",
+    // only /api/... starts the Worker; everything else is a free static file
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    // Cloudflare's free plan allows 50 outgoing calls per request; keep a margin
+    "SUPPLIER_CALL_LIMIT": "40"
+  },
+  // request logs (free: 200,000 a day, kept 3 days), used to read CPU time per request
+  "observability": { "enabled": true }
+  // Secrets (BUSINESSKORO_API_KEY, PRODUCTS_DEBUG_TOKEN) are added in the Cloudflare
+  // dashboard by the owner, never in this file.
+}
