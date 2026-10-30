@@ -1118,18 +1118,18 @@ function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
           {cart.length === 0 ? <div style={{ textAlign: "center", padding: "60px 20px", color: C.muted }}><div style={{ fontSize: 52, marginBottom: 12 }}>🛒</div><p>Your cart is empty!</p></div>
             : cart.map(item => (
-              <div key={item.id} style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div key={item.cartKey || item.id} style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ width: 58, height: 58, borderRadius: 12, background: "var(--dawn)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0, overflow: "hidden" }}>{item.img ? <img src={item.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.icon}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{item.name}</div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.hot }}>{fmt(item.price * item.qty)}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6 }}>
-                    <button onClick={() => onQty(item.id, -1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                    <button onClick={() => onQty(item.cartKey || item.id, -1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                     <span style={{ fontSize: 13, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{item.qty}</span>
                     <button onClick={() => onQty(item.id, 1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                   </div>
                 </div>
-                <button onClick={() => onRemove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, alignSelf: "flex-start", padding: 4 }}>🗑</button>
+                <button onClick={() => onRemove(item.cartKey || item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, alignSelf: "flex-start", padding: 4 }}>🗑</button>
               </div>
             ))}
         </div>
@@ -1183,9 +1183,9 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
   const pick = (id, k, v) => { setPicks(p => ({ ...p, [id]: { ...p[id], [k]: v } })); setErrors(e => ({ ...e, [`${k}-${id}`]: "" })); };
   const lines = cart.map(i => {
-    const p = picks[i.id] || {}, colours = colourChoices(i);
+    const lineKey = i.cartKey || i.id, p = picks[lineKey] || {}, colours = colourChoices(i);
     const colour = p.color || (colours.length === 1 ? colours[0] : "");
-    return { id: i.id, name: i.name, qty: i.qty, total: i.price * i.qty, opts: [p.size && `size ${p.size}`, colour && `colour ${colour}`].filter(Boolean).join(", ") };
+    return { id: lineKey, name: i.name, qty: i.qty, total: i.price * i.qty, opts: [p.size && `size ${p.size}`, colour && `colour ${colour}`].filter(Boolean).join(", ") };
   });
   const message = buildOrderMessage({ lines, sub, delText, totalText, zone, share, form });
   const waHref = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(message)}`;
@@ -1193,8 +1193,8 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
     const e = {};
     if (!form.zone) e.zone = "Choose your delivery area";
     cart.forEach(i => {
-      if (sizeChoices(i).length && !picks[i.id]?.size) e[`size-${i.id}`] = "Choose a size";
-      if (colourChoices(i).length > 1 && !picks[i.id]?.color) e[`color-${i.id}`] = "Choose a colour";
+      if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${i.id}`] = "Choose a size";
+      if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${i.id}`] = "Choose a colour";
     });
     if (share) {
       if (!form.name.trim()) e.name = "Required";
@@ -1231,13 +1231,13 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       <div style={label}>📦 Your order</div>
       <div style={{ background: C.bg, borderRadius: 10, padding: "6px 12px 10px", marginBottom: 16, border: `1px solid ${C.border}` }}>
         {cart.map(i => { const sizes = sizeChoices(i), colours = colourChoices(i); return (
-          <div key={i.id} style={{ padding: "8px 0", borderBottom: `1px dashed ${C.border}` }}>
+          <div key={i.cartKey || i.id} style={{ padding: "8px 0", borderBottom: `1px dashed ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5 }}><span>{i.icon} {i.name} × {i.qty}</span><span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(i.price * i.qty)}</span></div>
             {(sizes.length > 0 || colours.length > 1) && <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-              {sizes.length > 0 && <select aria-label={`Size for ${i.name}`} value={picks[i.id]?.size || ""} onChange={e => pick(i.id, "size", e.target.value)} style={{ ...iS(`size-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Size *</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>}
-              {colours.length > 1 && <select aria-label={`Colour for ${i.name}`} value={picks[i.id]?.color || ""} onChange={e => pick(i.id, "color", e.target.value)} style={{ ...iS(`color-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Colour *</option>{colours.map(c => <option key={c} value={c}>{c}</option>)}</select>}
+              {sizes.length > 0 && <select aria-label={`Size for ${i.name}`} value={picks[i.cartKey || i.id]?.size || ""} onChange={e => pick(i.cartKey || i.id, "size", e.target.value)} style={{ ...iS(`size-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Size *</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>}
+              {colours.length > 1 && <select aria-label={`Colour for ${i.name}`} value={picks[i.cartKey || i.id]?.color || ""} onChange={e => pick(i.cartKey || i.id, "color", e.target.value)} style={{ ...iS(`color-${i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Colour *</option>{colours.map(c => <option key={c} value={c}>{c}</option>)}</select>}
             </div>}
-            {err(`size-${i.id}`)}{err(`color-${i.id}`)}
+            {err(`size-${i.cartKey || i.id}`)}{err(`color-${i.cartKey || i.id}`)}
           </div>); })}
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, paddingTop: 8 }}><span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmt(sub)}</span></div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, paddingTop: 4 }}><span>Delivery</span><span style={{ color: free ? C.okText : "inherit", fontWeight: 600 }}>{free || zone ? delText : "Choose your area below"}</span></div>
@@ -1768,7 +1768,10 @@ export default function OutbackCartel() {
 
   const addToCart = (p, quantity = 1) => {
     const amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
-    setCart(prev => { const ex = prev.find(c => c.id === p.id); return ex ? prev.map(c => c.id === p.id ? { ...c, qty: c.qty + amount } : c) : [...prev, { ...p, qty: amount }]; });
+    // Keep each add as its own line so customers can choose different sizes/colours
+    // for the same product during checkout.
+    const cartKey = `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setCart(prev => [...prev, { ...p, cartKey, qty: amount }]);
     toast_(`✅ ${amount} × ${p.name.substring(0, 26)}… added!`);
   };
   const runSearch = () => {
@@ -1776,8 +1779,8 @@ export default function OutbackCartel() {
     setTimeout(() => { const el = document.getElementById("oc-shop"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
   };
   const viewProduct = p => { setSelectedProd(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const changeQty = (id, d) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: c.qty + d } : c).filter(c => c.qty > 0));
-  const removeItem = id => setCart(prev => prev.filter(c => c.id !== id));
+  const changeQty = (key, d) => setCart(prev => prev.map(c => (c.cartKey || c.id) === key ? { ...c, qty: Math.min(99, c.qty + d) } : c).filter(c => c.qty > 0));
+  const removeItem = key => setCart(prev => prev.filter(c => (c.cartKey || c.id) !== key));
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
   const handleLogout = () => { setAccount(null); ls.del("oc_account"); setShowDash(false); toast_("👋 Logged out"); };
