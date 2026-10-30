@@ -349,3 +349,33 @@ test("Mohasagor reselling price takes precedence and configured markup is applie
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Mohasagor stock-only mode accepts normalized available labels only", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    products: [
+      { id: "stock-lower", name: "Lowercase", status: "active", stock_status: "available", reselling_price: 500, thumbnail_img: "lower.jpg" },
+      { id: "stock-upper", name: "Uppercase", status: "active", stock_status: " AVAILABLE ", reselling_price: 500, thumbnail_img: "upper.jpg" },
+      { id: "stock-blank", name: "Unknown", status: "active", stock_status: "", reselling_price: 500, thumbnail_img: "unknown.jpg" },
+      { id: "stock-out", name: "Out", status: "active", stock_status: "out_of_stock", reselling_price: 500, thumbnail_img: "out.jpg" },
+    ],
+    last_page: 1,
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const token = "mohasagor-stock-mode-token-123";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: {
+        DROPSHIP_API_KEY: "test-api-key",
+        DROPSHIP_SECRET_KEY: "test-secret-key",
+        DROPSHIP_IN_STOCK_ONLY: "1",
+        PRODUCTS_DEBUG_TOKEN: token,
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.mohasagor.usableCount, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
