@@ -140,6 +140,17 @@ const outOfCalls = () => Object.assign(new Error("supplier call limit reached"),
 // tolerate stray spaces, line breaks or quotes picked up when pasting keys into Vercel
 const clean = v => String(v || "").trim().replace(/^["']+|["']+$/g, "").trim();
 
+// Supplier-controlled image fields are untrusted. Only publish absolute HTTPS image URLs.
+const safeImageUrl = value => {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
+};
+
 // ─────────────────────────────────────────────────────────────
 //  Supplier product review
 // ─────────────────────────────────────────────────────────────
@@ -312,7 +323,7 @@ async function fetchMohasagor(debug, budget, env) {
         const regular = field === "sale_price" && num(p.price) > price ? num(p.price) : null;
         const imgList = Array.isArray(p.product_images) ? p.product_images : Array.isArray(p.product_image) ? p.product_image : [];
         const images = imgList
-          .map(im => url(im && im.product_image))
+          .map(im => safeImageUrl(url(im && im.product_image)))
           .filter(Boolean)
           .slice(0, 4); // keep the payload small across thousands of products
         return {
@@ -333,7 +344,7 @@ async function fetchMohasagor(debug, budget, env) {
           old: regular,
           icon: "📦",
           badge: null,
-          img: images[0] || url(p.thumbnail_img),
+          img: images[0] || safeImageUrl(url(p.thumbnail_img)),
           images,
           details: detailLines(p.details),
         };
@@ -405,7 +416,7 @@ async function fetchBusinessKoro(debug, budget, env) {
         let price = Math.round(base * (1 + markupPct / 100) + markupFlat);
         if (floor > 0 && price < floor) price = floor; // stay above the supplier's minimum or the order gets rejected
         const variants = Array.isArray(p.variants) ? p.variants : [];
-        const images = (Array.isArray(p.images) ? p.images : []).filter(Boolean).slice(0, 4);
+        const images = (Array.isArray(p.images) ? p.images : []).map(safeImageUrl).filter(Boolean).slice(0, 4);
         return {
           id: `bk-${p.id}`,
           remote: true,
