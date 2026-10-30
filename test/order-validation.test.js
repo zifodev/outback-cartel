@@ -108,3 +108,14 @@ test("rejects unsafe integer totals from the trusted catalogue", () => {
   ]);
   assert.equal(priceValidatedOrder(validated, hugePrice).ok, false);
 });
+
+test("draft order schema enables RLS and revokes browser-role table access", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const schemaUrl = new URL("../supabase/migrations/202610310001_orders_schema.sql", import.meta.url);
+  const sql = await readFile(fileURLToPath(schemaUrl), "utf8");
+  for (const table of ["oc_products", "oc_product_variants", "oc_orders", "oc_order_items", "oc_order_events"]) {
+    assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security;`));
+    assert.match(sql, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated;`));
+  }
+});
