@@ -122,7 +122,7 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
   }
   assert.equal(sql.includes("foreign key (variant_id, product_id)") &&
     sql.includes("references public.oc_product_variants(id, product_id)"), true);
-  assert.match(sql, /price_bdt integer not null check \\(price_bdt > 0\\)/);
+  assert.equal(sql.includes("price_bdt integer not null check (price_bdt > 0)"), true);
   assert.match(sql, /subtotal_bdt bigint not null/);
   assert.match(sql, /total_bdt bigint not null/);
   assert.match(sql, /line_total_bdt bigint not null/);
