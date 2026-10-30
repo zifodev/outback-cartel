@@ -127,3 +127,70 @@ test("Business Koro products with unavailable or unknown stock are not published
     globalThis.fetch = originalFetch;
   }
 });
+
+test("one supplier outage does not take down the other supplier's feed", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).startsWith("https://businesskoro-down.test/")) {
+      throw new Error("Business Koro unavailable");
+    }
+    return new Response(JSON.stringify({ products: [] }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products",
+      env: {
+        DROPSHIP_API_KEY: "mohasagor-key",
+        DROPSHIP_SECRET_KEY: "mohasagor-secret",
+        MOHASAGOR_API_URL: "https://mohasagor.test/products",
+        BUSINESSKORO_API_KEY: "businesskoro-key",
+        BUSINESSKORO_API_URL: "https://businesskoro-down.test/products",
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body.products, []);
+    assert.equal(result.body.suppliers.mohasagor.ok, true);
+    assert.equal(result.body.suppliers.businessKoro.ok, false);
+    assert.match(result.body.suppliers.businessKoro.error, /unavailable/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("shared supplier call budget is never exceeded", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async url => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ products: [], data: [] }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const token = "supplier-budget-debug-token-123";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: {
+        DROPSHIP_API_KEY: "mohasagor-key",
+        DROPSHIP_SECRET_KEY: "mohasagor-secret",
+        MOHASAGOR_API_URL: "https://mohasagor.test/products",
+        BUSINESSKORO_API_KEY: "businesskoro-key",
+        BUSINESSKORO_API_URL: "https://businesskoro.test/products",
+        SUPPLIER_CALL_LIMIT: "1",
+        PRODUCTS_DEBUG_TOKEN: token,
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(result.body.supplierCalls.limit, 1);
+    assert.equal(result.body.supplierCalls.used, 1);
+    assert.ok(result.body.mohasagor.error || result.body.businessKoro.error);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
