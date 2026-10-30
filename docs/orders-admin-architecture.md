@@ -23,7 +23,7 @@ Use a server-side API backed by a managed database and a managed identity provid
 - `variants`: product ID, SKU, size, colour, availability state, last_verified_at.
 - `orders`: internal UUID, unique random public reference, customer contact/address fields, consent timestamp, status, subtotal, delivery zone, delivery fee, total, currency, created/updated timestamps.
 - `order_items`: order ID, product ID, SKU/selected variant, immutable product title and unit-price snapshot, quantity, line total.
-- `order_events`: order ID, actor ID/type, previous/new status, timestamp, safe event metadata.
+- `order_events`: order ID, actor ID/type, previous/new status, timestamp, safe event metadata. The draft schema blocks ordinary UPDATE/DELETE operations with an append-only trigger; database owners can still alter triggers, so restrict database ownership and treat this as tamper-resistance rather than absolute immutability.
 - `admin_members`: identity-provider user ID, role, active state.
 
 ### State machine
