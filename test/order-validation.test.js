@@ -70,3 +70,41 @@ test("rejects combined repeated-line quantities above the limit", () => {
   }));
   assert.equal(result.ok, false);
 });
+
+test("applies each delivery-zone fee and the free-delivery threshold consistently", () => {
+  const cases = [
+    ["inside", 60],
+    ["sub", 100],
+    ["outside", 120],
+  ];
+  for (const [deliveryZone, expectedFee] of cases) {
+    const validated = validateOrderPayload(payload({ deliveryZone }));
+    const priced = priceValidatedOrder(validated, new Map([
+      ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: 998 }],
+    ]));
+    assert.equal(priced.ok, true);
+    assert.equal(priced.value.deliveryBdt, expectedFee);
+  }
+  const atThreshold = validateOrderPayload(payload());
+  const free = priceValidatedOrder(atThreshold, new Map([
+    ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: 999 }],
+  ]));
+  assert.equal(free.value.deliveryBdt, 0);
+  assert.equal(free.value.totalBdt, 999);
+});
+
+test("rejects malformed customer and cart item objects", () => {
+  assert.equal(validateOrderPayload(null).ok, false);
+  assert.equal(validateOrderPayload(payload({ customer: [] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [null] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1.5 }] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1, variantId: " " }] })).ok, true);
+});
+
+test("rejects unsafe integer totals from the trusted catalogue", () => {
+  const validated = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 99 }] }));
+  const hugePrice = new Map([
+    ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: Number.MAX_SAFE_INTEGER }],
+  ]);
+  assert.equal(priceValidatedOrder(validated, hugePrice).ok, false);
+});
