@@ -123,8 +123,8 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
   assert.equal(sql.includes("foreign key (variant_id, product_id)") &&
     sql.includes("references public.oc_product_variants(id, product_id)"), true);
   assert.equal(sql.includes("price_bdt integer not null check (price_bdt > 0)"), true);
-  assert.equal(sql.includes("idempotency_key text not null unique"), true);
-  assert.equal(sql.includes("lookup_token_hash text not null check (length(lookup_token_hash) >= 32)"), true);
+  assert.match(sql, /idempotency_key text not null unique check \(length\(idempotency_key\) between 16 and 200\)/);
+  assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
   assert.match(sql, /to_status text not null check/);
   assert.match(sql, /subtotal_bdt bigint not null/);
   assert.match(sql, /total_bdt bigint not null/);
