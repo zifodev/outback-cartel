@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOrderIdentifiers, hashLookupToken, isValidIdempotencyKey } from "../api/_lib/order-security.js";
+import { createOrderIdentifiers, hashLookupToken, isValidIdempotencyKey, readIdempotencyKey } from "../api/_lib/order-security.js";
 
 test("creates opaque order identifiers with a high-entropy lookup token", () => {
   const ids = createOrderIdentifiers();
@@ -33,4 +33,15 @@ test("validates bounded idempotency keys", () => {
   assert.equal(isValidIdempotencyKey("short"), false);
   assert.equal(isValidIdempotencyKey("bad key with spaces"), false);
   assert.equal(isValidIdempotencyKey(null), false);
+});
+
+
+test("reads one valid Idempotency-Key header without guessing duplicates", () => {
+  assert.equal(readIdempotencyKey({ "idempotency-key": "client-request-12345" }), "client-request-12345");
+  assert.equal(readIdempotencyKey({ "Idempotency-Key": "client-request-12345" }), "client-request-12345");
+  assert.equal(readIdempotencyKey({}), null);
+  assert.equal(readIdempotencyKey(null), null);
+  assert.equal(readIdempotencyKey({ "idempotency-key": ["client-request-12345"] }), null);
+  assert.equal(readIdempotencyKey({ "idempotency-key": "short" }), null);
+  assert.equal(readIdempotencyKey({ "idempotency-key": "client-request-12345", "Idempotency-Key": "client-request-67890" }), null);
 });
