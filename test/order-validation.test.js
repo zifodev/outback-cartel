@@ -129,4 +129,11 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
   assert.match(sql, /subtotal_bdt bigint not null/);
   assert.match(sql, /total_bdt bigint not null/);
   assert.match(sql, /line_total_bdt bigint not null/);
+  assert.match(sql, /public_reference text not null unique check \(length\(public_reference\) between 8 and 64\)/);
+  assert.match(sql, /idempotency_key text not null unique check \(length\(idempotency_key\) between 16 and 200\)/);
+  assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
+  assert.match(sql, /customer_name text not null check/);
+  assert.match(sql, /phone text not null check/);
+  assert.match(sql, /constraint oc_orders_delivery_fee_matches_zone check/);
+  assert.match(sql, /subtotal_bdt >= 999 and delivery_bdt = 0/);
 });
