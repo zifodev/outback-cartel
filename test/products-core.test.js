@@ -54,3 +54,58 @@ test("unknown query parameters cannot bypass the normal feed route", async () =>
   assert.equal(result.status, 308);
   assert.equal(result.headers.Location, "/api/products");
 });
+
+test("approved supplier IDs remain blocked when product names match safety hold rules", async () => {
+  const originalFetch = globalThis.fetch;
+  const riskyNames = [
+    "Vintage Sword Display",
+    "Wireless Bluetooth Speaker with Vape 16000 Puffs",
+    "Premium Wine Gift Set",
+    "Replica Designer Earbuds",
+  ];
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: riskyNames.map((name, index) => ({
+      ...product,
+      id: approvedId,
+      name,
+      suggestedPrice: 1200 + index,
+    })),
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products?debug=invalid",
+      env: { BUSINESSKORO_API_KEY: "test-key" },
+    });
+    // The public feed must never publish a held item, even when its supplier ID is approved.
+    assert.equal(result.status, 308);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("protected review report classifies risky renamed approved products as held", async () => {
+  const originalFetch = globalThis.fetch;
+  const riskyNames = ["Vintage Sword Display", "Premium Wine Gift Set", "Replica Designer Earbuds"];
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: riskyNames.map((name, index) => ({
+      ...product,
+      id: approvedId,
+      name,
+      suggestedPrice: 1200 + index,
+    })),
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const token = "test-debug-token-123456789";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: { BUSINESSKORO_API_KEY: "test-key", PRODUCTS_DEBUG_TOKEN: token },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.review.held.length, riskyNames.length);
+    assert.equal(result.body.review.published.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
