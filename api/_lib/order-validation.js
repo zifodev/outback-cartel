@@ -68,10 +68,12 @@ export function priceValidatedOrder(validated, trustedProducts) {
         !Number.isSafeInteger(product.priceBdt) || product.priceBdt < 1) {
       return { ok: false, error: "A product is unavailable. Please refresh your cart." };
     }
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (variants.length > 0 && !item.variantId) {
+      return { ok: false, error: "Choose a size or colour for this product." };
+    }
     if (item.variantId) {
-      const variant = Array.isArray(product.variants)
-        ? product.variants.find(v => v.id === item.variantId)
-        : null;
+      const variant = variants.find(v => v.id === item.variantId);
       if (!variant || variant.available !== true) {
         return { ok: false, error: "A selected size or colour is unavailable." };
       }
@@ -83,6 +85,8 @@ export function priceValidatedOrder(validated, trustedProducts) {
     lines.push({ ...item, unitPriceBdt: product.priceBdt, lineTotalBdt });
   }
   const deliveryBdt = subtotalBdt >= FREE_DELIVERY_FROM_BDT ? 0 : DELIVERY_FEES_BDT[validated.value.deliveryZone];
+  const totalBdt = subtotalBdt + deliveryBdt;
+  if (!Number.isSafeInteger(totalBdt)) return { ok: false, error: "Order total is invalid." };
   return {
     ok: true,
     value: {
@@ -91,7 +95,7 @@ export function priceValidatedOrder(validated, trustedProducts) {
       lines,
       subtotalBdt,
       deliveryBdt,
-      totalBdt: subtotalBdt + deliveryBdt,
+      totalBdt,
       paymentMethod: "cod",
     },
   };
