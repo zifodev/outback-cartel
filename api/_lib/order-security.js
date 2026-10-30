@@ -71,3 +71,13 @@ export function hashOrderRequest(value) {
   const canonicalJson = JSON.stringify(canonicalize(value));
   return createHash("sha256").update(canonicalJson, "utf8").digest("hex");
 }
+
+// Hash a server-verified customer ID or guest-session identifier before it is
+// stored as the idempotency scope. Never pass an untrusted request header here.
+export function hashIdempotencyScope(scopeIdentifier) {
+  if (typeof scopeIdentifier !== "string" || scopeIdentifier.length < 16 || scopeIdentifier.length > 512 ||
+      scopeIdentifier.trim() !== scopeIdentifier) {
+    throw new TypeError("A verified checkout scope identifier is required.");
+  }
+  return createHash("sha256").update(scopeIdentifier, "utf8").digest("hex");
+}
