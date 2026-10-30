@@ -32,7 +32,6 @@ export function validateOrderPayload(payload) {
   if (name.length < 2 || !/^[+\d][\d\s()+-]{7,30}$/.test(phone) || !district || address.length < 5) {
     return { ok: false, error: "Enter a valid name, phone, district and delivery address." };
   }
-  const seen = new Set();
   const items = [];
   for (const line of payload.items) {
     if (!line || typeof line !== "object" || Array.isArray(line)) {
@@ -41,7 +40,6 @@ export function validateOrderPayload(payload) {
     const productId = cleanText(line.productId, 120);
     const variantId = line.variantId == null ? null : cleanText(line.variantId, 120);
     const quantity = Number(line.quantity);
-    const key = productId + "::" + (variantId || "");
     if (!productId || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
       return { ok: false, error: "A product, variant or quantity is invalid." };
     }
@@ -52,7 +50,6 @@ export function validateOrderPayload(payload) {
       }
       existing.quantity += quantity;
     } else {
-      seen.add(key);
       items.push({ productId, variantId, quantity });
     }
   }
