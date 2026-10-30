@@ -30,7 +30,8 @@ create table if not exists public.oc_product_variants (
 create table if not exists public.oc_orders (
   id uuid primary key default gen_random_uuid(),
   public_reference text not null unique,
-  lookup_token_hash text not null,
+  idempotency_key text not null unique,
+  lookup_token_hash text not null check (length(lookup_token_hash) >= 32),
   status text not null default 'pending_review'
     check (status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
   customer_name text not null,
@@ -66,8 +67,8 @@ create table if not exists public.oc_order_events (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.oc_orders(id) on delete cascade,
   actor_id text not null,
-  from_status text,
-  to_status text not null,
+  from_status text check (from_status is null or from_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
+  to_status text not null check (to_status in ('pending_review', 'confirmed', 'processing', 'dispatched', 'delivered', 'cancelled')),
   note text,
   created_at timestamptz not null default now()
 );
@@ -93,12 +94,13 @@ revoke all on table public.oc_order_items from public, anon, authenticated;
 revoke all on table public.oc_order_events from public, anon, authenticated;
 
 -- IMPORTANT SECURITY CHECKLIST BEFORE USE:
--- 1. Enable RLS on every table.
--- 2. Deny anonymous SELECT/INSERT/UPDATE/DELETE by default.
--- 3. Do not expose service-role credentials in the browser.
--- 4. Only server code with verified admin/customer authorization may access PII.
--- 5. Create orders in one transaction after reloading approved prices and
+-- 1. Confirm RLS and browser-role revocations above remain in place.
+-- 2. Do not expose service-role credentials in the browser.
+-- 3. Only server code with verified admin/customer authorization may access PII.
+-- 4. Create orders in one transaction after reloading approved prices and
 --    availability; recompute delivery and totals server-side.
--- 6. Hash random tracking tokens with a modern password hash; never store raw tokens.
--- 7. Add rate limiting, idempotency, CSRF protection for cookie sessions,
---    retention/deletion controls and audited admin status transitions.
+-- 5. Generate high-entropy public references and tracking tokens; store only
+--    a one-way hash of the tracking token.
+-- 6. Enforce the idempotency_key on POST /api/orders to prevent duplicate orders.
+-- 7. Add rate limiting, CSRF protection for cookie sessions, retention/deletion
+--    controls and audited admin status transitions before applying this draft.
