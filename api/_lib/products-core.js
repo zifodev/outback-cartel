@@ -395,8 +395,10 @@ async function fetchBusinessKoro(debug, budget, env) {
     }
     const truncated = lastPage < Math.min(trueLastPage, 50);
 
+    // Fail closed: only explicitly in-stock supplier records may be published.
+    // Missing/null stock flags are unknown, not proof of availability.
     const products = raw
-      .filter(p => p.inStock !== false)
+      .filter(p => p.inStock === true)
       .map(p => {
         const base = num(p.suggestedPrice) || num(p.costPrice);
         const floor = num(p.minimumSellingPrice?.customerPaysDelivery);
