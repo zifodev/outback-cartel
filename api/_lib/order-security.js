@@ -34,3 +34,40 @@ export function readIdempotencyKey(headers) {
   const value = matches[0][1];
   return isValidIdempotencyKey(value) ? value : null;
 }
+
+// Fingerprint an already validated, normalized JSON request. Object key order
+// is canonicalized; array order is preserved. Do not pass raw HTTP input here.
+export function hashOrderRequest(value) {
+  const ancestors = new Set();
+  function canonicalize(input) {
+    if (input === null || typeof input === "string" || typeof input === "boolean") return input;
+    if (typeof input === "number") {
+      if (!Number.isFinite(input)) throw new TypeError("Order request must contain finite numbers.");
+      return input;
+    }
+    if (Array.isArray(input)) {
+      if (ancestors.has(input)) throw new TypeError("Order request cannot contain circular data.");
+      ancestors.add(input);
+      const result = input.map(canonicalize);
+      ancestors.delete(input);
+      return result;
+    }
+    if (typeof input === "object" && Object.getPrototypeOf(input) === Object.prototype) {
+      if (ancestors.has(input)) throw new TypeError("Order request cannot contain circular data.");
+      ancestors.add(input);
+      const result = {};
+      for (const key of Object.keys(input).sort()) {
+        const entry = input[key];
+        if (entry === undefined || typeof entry === "function" || typeof entry === "symbol" || typeof entry === "bigint") {
+          throw new TypeError("Order request must contain JSON-compatible values.");
+        }
+        result[key] = canonicalize(entry);
+      }
+      ancestors.delete(input);
+      return result;
+    }
+    throw new TypeError("Order request must contain JSON-compatible values.");
+  }
+  const canonicalJson = JSON.stringify(canonicalize(value));
+  return createHash("sha256").update(canonicalJson, "utf8").digest("hex");
+}
