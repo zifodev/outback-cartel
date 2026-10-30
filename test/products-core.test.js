@@ -1,0 +1,56 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { productsResponse } from "../api/_lib/products-core.js";
+
+const approvedId = "22fb3fe4-4c41-470f-b0e0-79c3e1bb95f8";
+const product = {
+  id: approvedId,
+  name: "Black Paisley Hoodie & Dropsoulder Combo",
+  suggestedPrice: 1200,
+  inStock: true,
+  images: ["https://example.test/hoodie.jpg"],
+  variants: [{ size: "L" }],
+};
+
+test("supplier configuration stays isolated across overlapping requests", async () => {
+  const originalFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, options = {}) => {
+    const key = options.headers?.["x-api-key"];
+    seen.push({ url: String(url), key });
+    await new Promise(resolve => setTimeout(resolve, key === "key-A" ? 20 : 5));
+    return new Response(JSON.stringify({ data: key === "key-A" ? [product] : [] }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  };
+  try {
+    const [a, b] = await Promise.all([
+      productsResponse({ method: "GET", url: "https://shop.test/api/products", env: {
+        BUSINESSKORO_API_KEY: "key-A", BUSINESSKORO_API_URL: "https://supplier-a.test/products",
+      } }),
+      productsResponse({ method: "GET", url: "https://shop.test/api/products", env: {
+        BUSINESSKORO_API_KEY: "key-B", BUSINESSKORO_API_URL: "https://supplier-b.test/products",
+      } }),
+    ]);
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
+    assert.equal(a.body.products.length, 1);
+    assert.equal(b.body.products.length, 0);
+    assert.ok(seen.some(x => x.url === "https://supplier-a.test/products" && x.key === "key-A"));
+    assert.ok(seen.some(x => x.url === "https://supplier-b.test/products" && x.key === "key-B"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("non-GET methods are rejected", async () => {
+  const result = await productsResponse({ method: "POST", url: "https://shop.test/api/products", env: {} });
+  assert.equal(result.status, 405);
+  assert.equal(result.headers.Allow, "GET, HEAD");
+});
+
+test("unknown query parameters cannot bypass the normal feed route", async () => {
+  const result = await productsResponse({ method: "GET", url: "https://shop.test/api/products?bypass=1", env: {} });
+  assert.equal(result.status, 308);
+  assert.equal(result.headers.Location, "/api/products");
+});
