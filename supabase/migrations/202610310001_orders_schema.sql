@@ -154,6 +154,26 @@ execute function public.oc_guard_order_status_change();
 
 
 
+-- Keep the order-event history append-only for ordinary application roles.
+-- Database owners/superusers can still alter triggers; this is tamper-resistance
+-- against accidental/API mutation, not a substitute for restricted DB ownership.
+create or replace function public.oc_reject_order_event_mutation()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $oc_event_immutable$
+begin
+  raise exception 'Order audit events are append-only'
+    using errcode = '42501';
+end;
+$oc_event_immutable$;
+
+drop trigger if exists oc_order_events_immutable on public.oc_order_events;
+create trigger oc_order_events_immutable
+before update or delete on public.oc_order_events
+for each row
+execute function public.oc_reject_order_event_mutation();
+
 -- Record the initial pending state so the audit trail has a complete origin.
 create or replace function public.oc_record_order_creation()
 returns trigger
