@@ -98,7 +98,55 @@ revoke all on table public.oc_orders from public, anon, authenticated;
 revoke all on table public.oc_order_items from public, anon, authenticated;
 revoke all on table public.oc_order_events from public, anon, authenticated;
 
--- IMPORTANT SECURITY CHECKLIST BEFORE USE:
+
+-- Enforce the documented state machine at the database boundary and append
+-- an audit event in the same transaction as each status change. The trusted
+-- server must set a verified actor with SET LOCAL app.actor_id before updates.
+create or replace function public.oc_guard_order_status_change()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $
+declare
+  verified_actor text;
+  allowed_transition boolean := false;
+begin
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  verified_actor := nullif(btrim(current_setting('app.actor_id', true)), '');
+  if verified_actor is null then
+    raise exception 'A verified order actor is required for status changes'
+      using errcode = '42501';
+  end if;
+
+  allowed_transition :=
+    (old.status = 'pending_review' and new.status in ('confirmed', 'cancelled')) or
+    (old.status = 'confirmed' and new.status in ('processing', 'cancelled')) or
+    (old.status = 'processing' and new.status = 'dispatched') or
+    (old.status = 'dispatched' and new.status = 'delivered');
+
+  if not allowed_transition then
+    raise exception 'Invalid order status transition: % -> %', old.status, new.status
+      using errcode = '23514';
+  end if;
+
+  new.updated_at := now();
+
+  insert into public.oc_order_events (order_id, actor_id, from_status, to_status)
+  values (old.id, verified_actor, old.status, new.status);
+
+  return new;
+end;
+$;
+
+drop trigger if exists oc_orders_status_guard on public.oc_orders;
+create trigger oc_orders_status_guard
+before update of status on public.oc_orders
+for each row
+execute function public.oc_guard_order_status_change();
+\n-- IMPORTANT SECURITY CHECKLIST BEFORE USE:
 -- 1. Confirm RLS and browser-role revocations above remain in place.
 -- 2. Do not expose service-role credentials in the browser.
 -- 3. Only server code with verified admin/customer authorization may access PII.
