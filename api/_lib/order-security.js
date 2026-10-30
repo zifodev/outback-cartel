@@ -55,7 +55,7 @@ export function hashOrderRequest(value) {
     if (typeof input === "object" && Object.getPrototypeOf(input) === Object.prototype) {
       if (ancestors.has(input)) throw new TypeError("Order request cannot contain circular data.");
       ancestors.add(input);
-      const result = {};
+      const result = Object.create(null);
       for (const key of Object.keys(input).sort()) {
         const entry = input[key];
         if (entry === undefined || typeof entry === "function" || typeof entry === "symbol" || typeof entry === "bigint") {
