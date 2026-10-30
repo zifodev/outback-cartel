@@ -38,7 +38,7 @@ export function validateOrderPayload(payload) {
       return { ok: false, error: "An item in your cart is invalid." };
     }
     const productId = cleanText(line.productId, 120);
-    const variantId = line.variantId == null ? null : cleanText(line.variantId, 120);
+    const variantId = line.variantId == null ? null : (cleanText(line.variantId, 120) || null);
     const quantity = Number(line.quantity);
     if (!productId || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
       return { ok: false, error: "A product, variant or quantity is invalid." };
