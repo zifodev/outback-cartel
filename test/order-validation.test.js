@@ -126,6 +126,11 @@ test("draft order schema enables RLS and revokes browser-role table access", asy
   assert.match(sql, /idempotency_key text not null unique check \(length\(idempotency_key\) between 16 and 200\)/);
   assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
   assert.match(sql, /to_status text not null check/);
+  assert.match(sql, /create or replace function public\\.oc_guard_order_status_change\\(\\)/);
+  assert.match(sql, /current_setting\\('app\\.actor_id', true\\)/);
+  assert.match(sql, /Invalid order status transition/);
+  assert.match(sql, /insert into public\\.oc_order_events/);
+  assert.match(sql, /before update of status on public\\.oc_orders/);
   assert.match(sql, /subtotal_bdt bigint not null/);
   assert.match(sql, /total_bdt bigint not null/);
   assert.match(sql, /line_total_bdt bigint not null/);
