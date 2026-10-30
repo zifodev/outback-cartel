@@ -320,7 +320,7 @@ test("Mohasagor reselling price takes precedence and configured markup is applie
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({
     products: [{
-      id: "markup-product",
+      id: approvedId,
       name: "Test Hoodie",
       status: "active",
       stock_status: "available",
