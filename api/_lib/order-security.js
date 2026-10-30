@@ -23,3 +23,14 @@ export function isValidIdempotencyKey(value) {
   return typeof value === "string" && value.length >= 16 && value.length <= 200 &&
     /^[A-Za-z0-9._:-]+$/.test(value);
 }
+
+// Read exactly one Idempotency-Key header from a Node/Vercel-style headers
+// object. Reject arrays or duplicate casing rather than guessing which value
+// the proxy/client intended. Persistence and replay handling belong in the API.
+export function readIdempotencyKey(headers) {
+  if (!headers || typeof headers !== "object" || Array.isArray(headers)) return null;
+  const matches = Object.entries(headers).filter(([name]) => name.toLowerCase() === "idempotency-key");
+  if (matches.length !== 1) return null;
+  const value = matches[0][1];
+  return isValidIdempotencyKey(value) ? value : null;
+}
