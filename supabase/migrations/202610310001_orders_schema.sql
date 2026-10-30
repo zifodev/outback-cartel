@@ -9,7 +9,7 @@ create table if not exists public.oc_products (
   source text not null check (source in ('house', 'supplier')),
   supplier_id text,
   title text not null,
-  price_bdt integer not null check (price_bdt >= 0),
+  price_bdt integer not null check (price_bdt > 0),
   approved boolean not null default false,
   active boolean not null default false,
   updated_at timestamptz not null default now()
@@ -39,9 +39,9 @@ create table if not exists public.oc_orders (
   area text,
   address text not null,
   delivery_zone text not null check (delivery_zone in ('inside', 'sub', 'outside')),
-  subtotal_bdt integer not null check (subtotal_bdt >= 0),
-  delivery_bdt integer not null check (delivery_bdt >= 0),
-  total_bdt integer not null check (total_bdt = subtotal_bdt + delivery_bdt),
+  subtotal_bdt bigint not null check (subtotal_bdt >= 0),
+  delivery_bdt bigint not null check (delivery_bdt >= 0),
+  total_bdt bigint not null check (total_bdt = subtotal_bdt + delivery_bdt),
   payment_method text not null default 'cod' check (payment_method = 'cod'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -54,9 +54,9 @@ create table if not exists public.oc_order_items (
   variant_id uuid,
   product_title_snapshot text not null,
   variant_snapshot jsonb not null default '{}'::jsonb,
-  unit_price_bdt integer not null check (unit_price_bdt >= 0),
+  unit_price_bdt integer not null check (unit_price_bdt > 0),
   quantity integer not null check (quantity between 1 and 99),
-  line_total_bdt integer not null check (line_total_bdt = unit_price_bdt * quantity),
+  line_total_bdt bigint not null check (line_total_bdt = unit_price_bdt::bigint * quantity),
   constraint oc_order_items_variant_product_fk
     foreign key (variant_id, product_id)
     references public.oc_product_variants(id, product_id)
