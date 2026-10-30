@@ -22,7 +22,9 @@ create table if not exists public.oc_product_variants (
   colour text,
   availability text not null default 'unknown'
     check (availability in ('unknown', 'available', 'unavailable')),
-  unique (product_id, size, colour)
+  unique (product_id, size, colour),
+  -- Enables order_items to prove a selected variant belongs to its product.
+  unique (id, product_id)
 );
 
 create table if not exists public.oc_orders (
@@ -49,12 +51,15 @@ create table if not exists public.oc_order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.oc_orders(id) on delete cascade,
   product_id text not null references public.oc_products(id),
-  variant_id uuid references public.oc_product_variants(id),
+  variant_id uuid,
   product_title_snapshot text not null,
   variant_snapshot jsonb not null default '{}'::jsonb,
   unit_price_bdt integer not null check (unit_price_bdt >= 0),
   quantity integer not null check (quantity between 1 and 99),
-  line_total_bdt integer not null check (line_total_bdt = unit_price_bdt * quantity)
+  line_total_bdt integer not null check (line_total_bdt = unit_price_bdt * quantity),
+  constraint oc_order_items_variant_product_fk
+    foreign key (variant_id, product_id)
+    references public.oc_product_variants(id, product_id)
 );
 
 create table if not exists public.oc_order_events (
