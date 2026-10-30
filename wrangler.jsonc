@@ -19,10 +19,18 @@
   },
   "vars": {
     // Cloudflare's free plan allows 50 outgoing calls per request; keep a margin
-    "SUPPLIER_CALL_LIMIT": "40"
+    "SUPPLIER_CALL_LIMIT": "40",
+    // Where the product feed is stored between supplier calls: "auto" (KV if linked, else
+    // Cloudflare's cache), "cache", "kv" or "off". Switched during the test to check each one.
+    "FEED_CACHE_MODE": "auto",
+    // STAND-IN SUPPLIER (owner's decision, option C until Business Koro sends a separate test key):
+    // a saved copy of the public product list in this repository, and a made-up key.
+    // No production key is used. Remove both lines when a real test key is added as a secret.
+    "BUSINESSKORO_API_URL": "https://raw.githubusercontent.com/zifodev/outback-cartel/task-2-cloudflare-test/test/fixtures/businesskoro-standin.json",
+    "BUSINESSKORO_API_KEY": "stand-in-not-a-real-key"
   },
   // request logs (free: 200,000 a day, kept 3 days), used to read CPU time per request
   "observability": { "enabled": true }
-  // Secrets (BUSINESSKORO_API_KEY, PRODUCTS_DEBUG_TOKEN) are added in the Cloudflare
-  // dashboard by the owner, never in this file.
+  // Secrets (PRODUCTS_DEBUG_TOKEN, and later a Business Koro TEST key) are added in the
+  // Cloudflare dashboard by the owner, never in this file. No production keys on this test.
 }

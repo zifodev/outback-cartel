@@ -15,7 +15,9 @@
 //    the background, so each supplier is asked about once an hour, not on every visit.
 //    Stored in Workers KV when a FEED_CACHE namespace is linked (works on every address),
 //    otherwise in Cloudflare's cache for this data centre.
-//    The X-Feed-Cache header says what happened: hit, stale, miss or off.
+//    FEED_CACHE_MODE (optional setting) forces one for testing: "kv", "cache" or "off".
+//    Headers on every feed reply: X-Feed-Cache (hit, stale, miss or off), X-Feed-Store
+//    (kv, cache or off) and X-Feed-Age (seconds since the stored copy was made).
 // ─────────────────────────────────────────────────────────────
 import { productsResponse } from "../api/_lib/products-core.js";
 
@@ -35,7 +37,9 @@ const toResponse = (r, method) => {
 
 // ── where the stored feed lives ──
 function feedStore(env, origin) {
-  if (env.FEED_CACHE) {
+  const mode = String(env.FEED_CACHE_MODE || "auto").toLowerCase();
+  if (mode === "off") return { kind: "off", async get() { return null; }, async put() {} };
+  if (env.FEED_CACHE && mode !== "cache") {
     return {
       kind: "kv",
       async get() {
@@ -62,13 +66,15 @@ function feedStore(env, origin) {
   };
 }
 
-const feedReply = (body, state, method) => new Response(method === "HEAD" ? null : body, {
+const feedReply = (body, state, method, store, age) => new Response(method === "HEAD" ? null : body, {
   status: 200,
   headers: {
     "Content-Type": "application/json; charset=utf-8",
     // browsers may keep it 5 minutes; the Worker's own store does the long caching
     "Cache-Control": "public, max-age=300",
-    "X-Feed-Cache": state,
+    "X-Feed-Cache": store.kind === "off" ? "off" : state,
+    "X-Feed-Store": store.kind,
+    "X-Feed-Age": String(Math.max(0, Math.round(age))),
   },
 });
 
@@ -108,13 +114,13 @@ async function products(request, env, ctx) {
     return { r, body: null };
   };
 
-  if (stored && age < FRESH_SECONDS) return feedReply(stored.body, "hit", request.method);
+  if (stored && age < FRESH_SECONDS) return feedReply(stored.body, "hit", request.method, store, age);
   if (stored && age < STALE_SECONDS) {
     ctx.waitUntil(refresh().catch(() => {}));
-    return feedReply(stored.body, "stale", request.method);
+    return feedReply(stored.body, "stale", request.method, store, age);
   }
   const { r, body } = await refresh();
-  if (body) return feedReply(body, "miss", request.method);
+  if (body) return feedReply(body, "miss", request.method, store, 0);
   return toResponse(r, request.method); // suppliers failed: same error reply as Vercel
 }
 
