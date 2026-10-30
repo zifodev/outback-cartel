@@ -380,3 +380,39 @@ test("Mohasagor stock-only mode accepts normalized available labels only", async
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Mohasagor sale_price mode uses discounted price when no reseller price exists", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    products: [{
+      id: "sale-price-test-item",
+      name: "Test Winter Hoodie",
+      status: "active",
+      stock_status: "available",
+      price: 900,
+      sale_price: 450,
+      thumbnail_img: "uploads/hoodie.jpg",
+    }],
+    last_page: 1,
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const token = "mohasagor-sale-price-debug-token";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: {
+        DROPSHIP_API_KEY: "test-api-key",
+        DROPSHIP_SECRET_KEY: "test-secret-key",
+        DROPSHIP_PRICE_FIELD: "sale_price",
+        DROPSHIP_MARKUP_PERCENT: "10",
+        DROPSHIP_MARKUP_FLAT: "25",
+        PRODUCTS_DEBUG_TOKEN: token,
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.mohasagor.usableCount, 1);
+    assert.equal(result.body.review.pending[0].price, 520);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
