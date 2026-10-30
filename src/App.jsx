@@ -1193,8 +1193,9 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
     const e = {};
     if (!form.zone) e.zone = "Choose your delivery area";
     cart.forEach(i => {
-      if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${i.id}`] = "Choose a size";
-      if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${i.id}`] = "Choose a colour";
+      const lineKey = i.cartKey || i.id;
+      if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${lineKey}`] = "Choose a size";
+      if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${lineKey}`] = "Choose a colour";
     });
     if (share) {
       if (!form.name.trim()) e.name = "Required";
