@@ -22,8 +22,8 @@
     "SUPPLIER_CALL_LIMIT": "40",
     // Where the product feed is stored between supplier calls: "auto" (KV if linked, else
     // Cloudflare's cache), "cache", "kv" or "off". Switched during the test to check each one.
-    // Test round 1 of 3: "off" = every request processes the feed fresh (CPU limit check).
-    "FEED_CACHE_MODE": "off",
+    // Test round 2 of 3: "cache" = store the feed in Cloudflare's per-datacentre cache.
+    "FEED_CACHE_MODE": "cache",
     // STAND-IN SUPPLIER (owner's decision, option C until Business Koro sends a separate test key):
     // a saved copy of the public product list in this repository, and a made-up key.
     // No production key is used. Remove both lines when a real test key is added as a secret.
