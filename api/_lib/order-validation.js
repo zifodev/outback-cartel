@@ -42,11 +42,19 @@ export function validateOrderPayload(payload) {
     const variantId = line.variantId == null ? null : cleanText(line.variantId, 120);
     const quantity = Number(line.quantity);
     const key = productId + "::" + (variantId || "");
-    if (!productId || seen.has(key) || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
+    if (!productId || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
       return { ok: false, error: "A product, variant or quantity is invalid." };
     }
-    seen.add(key);
-    items.push({ productId, variantId, quantity });
+    const existing = items.find(entry => entry.productId === productId && entry.variantId === variantId);
+    if (existing) {
+      if (existing.quantity + quantity > MAX_QUANTITY) {
+        return { ok: false, error: "The combined quantity for a product variant cannot exceed 99." };
+      }
+      existing.quantity += quantity;
+    } else {
+      seen.add(key);
+      items.push({ productId, variantId, quantity });
+    }
   }
   return {
     ok: true,
