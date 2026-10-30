@@ -6,9 +6,8 @@ const MAX_LINES = 30;
 const MAX_QUANTITY = 99;
 const MAX_TEXT = 500;
 
-// eslint-disable-next-line no-control-regex -- strip control characters from untrusted customer input
 const cleanText = (value, max = MAX_TEXT) =>
-  typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, max) : "";
+  typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, max) : ""; // eslint-disable-line no-control-regex -- strip control characters from untrusted customer input
 
 export function validateOrderPayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
