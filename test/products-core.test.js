@@ -102,3 +102,28 @@ test("HEAD requests return feed headers without contacting suppliers", async () 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Business Koro products with unavailable or unknown stock are not published", async () => {
+  const originalFetch = globalThis.fetch;
+  const stockRecords = [
+    { ...product, inStock: true },
+    { ...product, id: "out-of-stock-id", inStock: false },
+    { ...product, id: "unknown-stock-id", inStock: undefined },
+    { ...product, id: "null-stock-id", inStock: null },
+  ];
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: stockRecords }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+  try {
+    const token = "stock-check-debug-token-123456";
+    const result = await productsResponse({
+      method: "GET",
+      url: `https://shop.test/api/products?debug=${token}`,
+      env: { BUSINESSKORO_API_KEY: "test-key", PRODUCTS_DEBUG_TOKEN: token },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.businessKoro.usableCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
