@@ -315,3 +315,37 @@ test("Mohasagor image paths are normalized and unsafe protocols are not publishe
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Mohasagor reselling price takes precedence and configured markup is applied", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    products: [{
+      id: "markup-product",
+      name: "Test Hoodie",
+      status: "active",
+      stock_status: "available",
+      reselling_price: 500,
+      price: 900,
+      sale_price: 450,
+      thumbnail_img: "uploads/hoodie.jpg",
+    }],
+    last_page: 1,
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const result = await productsResponse({
+      method: "GET",
+      url: "https://shop.test/api/products",
+      env: {
+        DROPSHIP_API_KEY: "test-api-key",
+        DROPSHIP_SECRET_KEY: "test-secret-key",
+        DROPSHIP_MARKUP_PERCENT: "10",
+        DROPSHIP_MARKUP_FLAT: "25",
+      },
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.products.length, 1);
+    assert.equal(result.body.products[0].price, 575);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
