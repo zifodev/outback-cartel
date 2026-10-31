@@ -59,7 +59,7 @@ after(async () => {
 // ── Schema structure ──────────────────────────────────────────
 
 describe("database schema", () => {
-  test("all five tables exist", async (t) => {
+  test("all six tables exist", async (t) => {
     if (!requireDb(t)) return;
     const { rows } = await query(`
       SELECT tablename FROM pg_tables
@@ -68,6 +68,7 @@ describe("database schema", () => {
     `);
     const names = rows.map(r => r.tablename);
     assert.deepEqual(names, [
+      "oc_events",
       "oc_order_events",
       "oc_order_items",
       "oc_orders",
