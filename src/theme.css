@@ -342,6 +342,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--star) !important
 @keyframes ocHeroIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .oc-hero-in { animation: none; } }
 @media (max-width: 640px) { .oc-hero { padding: 72px 18px 54px; } }
+.oc-hero-link { margin-top: 22px; }
+.oc-hero-link button { background: none; border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, .75); padding: 4px; transition: color .15s; }
+.oc-hero-link button:hover { color: #fff; }
+.oc-hero-link button span { display: inline-block; transition: transform .2s; }
+.oc-hero-link button:hover span { transform: translateX(3px); }
 
 /* ── Why shop with us ────────────────────────────────────── */
 .oc-why { max-width: 1240px; margin: 36px auto 0; padding: 0 18px 56px; }
