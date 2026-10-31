@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Outback Cartel</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--bg:#0f0f13;--surface:#1a1a22;--card:#22222e;--border:#2e2e3a;--text:#e6e6ef;--muted:#8888a0;--hot:#ff5533;--ok:#22c55e;--blue:#3b82f6;--gold:#fbbf24;--radius:10px;font-family:system-ui,-apple-system,sans-serif}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);min-height:100vh;padding:0}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:20px;font-weight:800;margin-bottom:4px}
+.sub{font-size:12px;color:var(--muted);margin-bottom:20px}
+.login{max-width:360px;margin:80px auto;padding:32px;background:var(--surface);border-radius:14px;text-align:center}
+.login h1{font-size:22px;margin-bottom:16px}
+.login input{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;margin-bottom:12px}
+.login input:focus{outline:none;border-color:var(--blue)}
+.btn{display:inline-block;padding:10px 20px;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--hot);color:#fff}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:6px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.error{color:var(--hot);font-size:12px;margin-bottom:8px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-pending{background:#553300;color:var(--gold)}
+.badge-confirmed{background:#1a3a1a;color:var(--ok)}
+.badge-processing{background:#1a2a4a;color:var(--blue)}
+.badge-dispatched{background:#2a1a4a;color:#a78bfa}
+.badge-delivered{background:#0a3a2a;color:#34d399}
+.badge-cancelled{background:#3a1a1a;color:#ef4444}
+.order-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px;overflow:hidden}
+.order-header{padding:14px 16px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+.order-header:hover{background:var(--card)}
+.order-ref{font-weight:800;font-size:14px;font-family:monospace;letter-spacing:.5px}
+.order-meta{font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.order-body{padding:0 16px 14px;border-top:1px solid var(--border)}
+.order-body table{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0}
+.order-body th{text-align:left;color:var(--muted);font-weight:600;padding:4px 8px 4px 0;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.order-body td{padding:4px 8px 4px 0}
+.cust-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin:10px 0}
+.cust-grid dt{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.cust-grid dd{margin:0 0 6px}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty span{font-size:48px;display:block;margin-bottom:12px}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+.topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.refresh{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit}
+.refresh:hover{color:var(--text);border-color:var(--muted)}
+select.filter{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const app = $("app");
+  let password = sessionStorage.getItem("oc_admin_pw") || "";
+  let orders = [];
+  let filter = "all";
+  let loading = false;
+  let error = "";
+  let expandedIds = new Set();
+
+  const STATUS_LABELS = {
+    pending_review: "Pending",
+    confirmed: "Confirmed",
+    processing: "Processing",
+    dispatched: "Dispatched",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  };
+
+  const STATUS_ACTIONS = {
+    pending_review: [["confirmed","✅ Confirm"],["cancelled","❌ Cancel"]],
+    confirmed: [["processing","⚙️ Processing"],["cancelled","❌ Cancel"]],
+    processing: [["dispatched","🚚 Dispatch"]],
+    dispatched: [["delivered","📦 Delivered"]],
+  };
+
+  function fmt(n) { return "৳" + Number(n).toLocaleString("en-BD"); }
+
+  function timeSince(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const mins = Math.floor((now - d) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return days + "d ago";
+    return d.toLocaleDateString("en-AU",{day:"numeric",month:"short"});
+  }
+
+  function headers() {
+    return { "Content-Type": "application/json", "X-Admin-Password": password };
+  }
+
+  async function fetchOrders() {
+    loading = true; error = ""; render();
+    try {
+      const res = await fetch("/api/admin/orders", { headers: headers() });
+      if (res.status === 401) { password = ""; sessionStorage.removeItem("oc_admin_pw"); error = "Wrong password"; loading = false; render(); return; }
+      if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || res.status); }
+      const data = await res.json();
+      orders = data.orders || [];
+    } catch(e) { error = e.message; }
+    loading = false; render();
+  }
+
+  async function updateStatus(orderId, newStatus) {
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ orderId, newStatus, actorId: "admin" }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) { alert("Error: " + (data.error || res.status)); return; }
+      await fetchOrders();
+    } catch(e) { alert("Network error: " + e.message); }
+  }
+
+  function login(pw) {
+    password = pw;
+    sessionStorage.setItem("oc_admin_pw", pw);
+    fetchOrders();
+  }
+
+  function logout() {
+    password = "";
+    sessionStorage.removeItem("oc_admin_pw");
+    orders = [];
+    render();
+  }
+
+  function toggleExpand(id) {
+    if (expandedIds.has(id)) expandedIds.delete(id); else expandedIds.add(id);
+    render();
+  }
+
+  function renderLogin() {
+    app.innerHTML = `
+      <div class="login">
+        <h1>🔒 Admin</h1>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Outback Cartel order management</p>
+        ${error ? `<div class="error">${error}</div>` : ""}
+        <form id="loginForm">
+          <input type="password" id="pwInput" placeholder="Admin password" autocomplete="current-password">
+          <button type="submit" class="btn btn-primary" style="width:100%">Sign in</button>
+        </form>
+      </div>`;
+    $("loginForm").onsubmit = e => { e.preventDefault(); login($("pwInput").value); };
+    $("pwInput").focus();
+  }
+
+  function renderOrders() {
+    const filtered = filter === "all" ? orders : orders.filter(o => o.status === filter);
+    const counts = {};
+    for (const o of orders) counts[o.status] = (counts[o.status]||0) + 1;
+
+    let html = `<div class="wrap">
+      <div class="topbar">
+        <div><h1>📦 Orders</h1><div class="sub">${orders.length} total</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="filter" id="statusFilter">
+            <option value="all">All (${orders.length})</option>
+            ${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${filter===k?"selected":""}>${v} (${counts[k]||0})</option>`).join("")}
+          </select>
+          <button class="refresh" id="refreshBtn">↻ Refresh</button>
+          <button class="refresh" id="logoutBtn" style="color:var(--hot)">Logout</button>
+        </div>
+      </div>`;
+
+    if (loading) {
+      html += `<div class="loading">Loading orders…</div>`;
+    } else if (error) {
+      html += `<div class="error" style="text-align:center;padding:20px">${error}</div>`;
+    } else if (filtered.length === 0) {
+      html += `<div class="empty"><span>📭</span>No orders${filter!=="all"?" with this status":""} yet</div>`;
+    } else {
+      for (const o of filtered) {
+        const expanded = expandedIds.has(o.id);
+        const badge = `badge-${o.status.replace("pending_review","pending")}`;
+        html += `<div class="order-card">
+          <div class="order-header" data-toggle="${o.id}">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="order-ref">${o.public_reference}</span>
+              <span class="badge ${badge}">${STATUS_LABELS[o.status]||o.status}</span>
+            </div>
+            <div class="order-meta">
+              <span>${fmt(o.total_bdt)}</span>
+              <span>${o.customer_name}</span>
+              <span>${timeSince(o.created_at)}</span>
+              <span>${expanded?"▲":"▼"}</span>
+            </div>
+          </div>`;
+        if (expanded) {
+          html += `<div class="order-body">
+            <dl class="cust-grid">
+              <dt>Customer</dt><dd>${o.customer_name}</dd>
+              <dt>Phone</dt><dd>${o.phone}</dd>
+              <dt>District</dt><dd>${o.district}${o.area?", "+o.area:""}</dd>
+              <dt>Address</dt><dd>${o.address}</dd>
+              <dt>Zone</dt><dd>${o.delivery_zone}</dd>
+              <dt>Payment</dt><dd>${o.payment_method.toUpperCase()}</dd>
+            </dl>
+            <table>
+              <thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+              <tbody>
+                ${(o.items||[]).map(i=>{
+                  const vs = i.variant_snapshot||{};
+                  const vt = [vs.size,vs.colour].filter(Boolean).join(", ")||"—";
+                  return `<tr><td>${i.product_title_snapshot}</td><td>${vt}</td><td>${i.quantity}</td><td>${fmt(i.unit_price_bdt)}</td><td>${fmt(i.line_total_bdt)}</td></tr>`;
+                }).join("")}
+              </tbody>
+              <tfoot>
+                <tr><td colspan="4" style="text-align:right;font-weight:700">Subtotal</td><td>${fmt(o.subtotal_bdt)}</td></tr>
+                <tr><td colspan="4" style="text-align:right;font-weight:700">Delivery</td><td>${fmt(o.delivery_bdt)}</td></tr>
+                <tr><td colspan="4" style="text-align:right;font-weight:800;font-size:14px">Total</td><td style="font-weight:800;font-size:14px">${fmt(o.total_bdt)}</td></tr>
+              </tfoot>
+            </table>
+            ${(STATUS_ACTIONS[o.status]||[]).length ? `<div class="actions">${(STATUS_ACTIONS[o.status]||[]).map(([s,l])=>`<button class="btn btn-sm btn-primary" data-action="${o.id}:${s}">${l}</button>`).join("")}</div>` : ""}
+          </div>`;
+        }
+        html += `</div>`;
+      }
+    }
+    html += `</div>`;
+    app.innerHTML = html;
+
+    // Event listeners
+    $("refreshBtn")?.addEventListener("click", fetchOrders);
+    $("logoutBtn")?.addEventListener("click", logout);
+    $("statusFilter")?.addEventListener("change", e => { filter = e.target.value; render(); });
+    document.querySelectorAll("[data-toggle]").forEach(el => {
+      el.addEventListener("click", () => toggleExpand(el.dataset.toggle));
+    });
+    document.querySelectorAll("[data-action]").forEach(el => {
+      el.addEventListener("click", e => {
+        e.stopPropagation();
+        const [id, status] = el.dataset.action.split(":");
+        if (confirm(`Change status to "${STATUS_LABELS[status]||status}"?`)) updateStatus(id, status);
+      });
+    });
+  }
+
+  function render() {
+    if (!password) renderLogin(); else renderOrders();
+  }
+
+  render();
+  if (password) fetchOrders();
+})();
+</script>
+</body>
+</html>

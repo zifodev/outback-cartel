@@ -8,11 +8,11 @@ This repository contains both storefront code and development-only backend exper
 
 **Important current limitations**
 - Checkout currently prepares a WhatsApp order message. Opening WhatsApp does not create or confirm a website order.
-- Persistent website orders, customer order tracking, and a secure admin order-management system are not active.
-- SSLCommerz is not connected. Cash on delivery is the intended initial payment method.
+- Persistent website orders are stored in Supabase. A minimal admin panel is available at /admin.
+- Cash on delivery is the only active payment method.
 - Supplier products are filtered through an explicit review/approval list. New supplier products are not automatically published.
 - The Cloudflare Worker configuration is a compatibility test, not the production host.
-- The Supabase SQL migration is a draft and has not been applied to a live database.
+- The Supabase SQL migration has been applied to the hosted database.
 
 Do not treat browser cart data, browser prices, or a WhatsApp message as a confirmed order.
 

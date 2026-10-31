@@ -11,8 +11,7 @@ const CONFIG = {
   STORE_NAME: "Outback Cartel",
   WHATSAPP: "8801881816245",
   WHATSAPP_DISPLAY: "01881816245",
-  // Online payment (SSLCommerz) will be added later from server code only. Its store password
-  // must never be written in this file: every visitor downloads it.
+  // Online payment will be added later from server code only.
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -1145,35 +1144,29 @@ function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  CHECKOUT — temporary WhatsApp ordering (cash on delivery)
+//  CHECKOUT — real order submission (cash on delivery)
 // ─────────────────────────────────────────────────────────────
-// Until orders are saved on the server, checkout only PREPARES a WhatsApp message to the store.
-// This website saves and sends nothing itself: the order reaches the store only when the customer
-// presses Send in WhatsApp, and it is confirmed only when the store replies there. Prices in the
-// message come from this page, so the store checks them before confirming.
-// Name, phone and address go into the message only if the customer ticks the consent box.
+// Orders are POSTed to /api/orders, validated server-side against the trusted
+// catalogue, and persisted to the database. The customer receives a reference
+// number and can contact WhatsApp support with questions.
 const DISTRICTS = ["Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna", "Barisal", "Mymensingh", "Rangpur", "Comilla", "Gazipur", "Narayanganj", "Cox's Bazar", "Jessore", "Bogura", "Other"];
-// Items added from a product card or product page carry the product's own size and colour lists, so
-// they are chosen here. Showroom and rack items already have their size in the item name.
 const sizeChoices = i => (Array.isArray(i.sizes) ? i.sizes.filter(Boolean) : []);
 const colourChoices = i => (Array.isArray(i.colors) ? i.colors.filter(Boolean) : []);
 
-function buildOrderMessage({ lines, sub, delText, totalText, zone, share, form }) {
-  const out = ["Hello Outback Cartel! I'd like to order (cash on delivery):", ""];
-  lines.forEach((l, n) => out.push(`${n + 1}. ${l.name}${l.opts ? ` (${l.opts})` : ""} × ${l.qty} = ${fmt(l.total)}`));
-  out.push("", `Subtotal: ${fmt(sub)}`, `Delivery${zone ? ` (${zone.name})` : ""}: ${delText}`, `Total: ${totalText}`, "Payment: cash on delivery", "");
-  if (share) out.push(`Name: ${form.name.trim()}`, `Phone: ${form.phone.trim()}`, `Address: ${[form.address.trim(), form.area.trim(), form.district].filter(Boolean).join(", ")}`);
-  else out.push("I'll send my name, phone number and delivery address in this chat.");
-  out.push("", "(From the website's temporary WhatsApp checkout. Not confirmed until you reply.)");
-  return out.join("\n");
+/** Generate a simple idempotency key: timestamp + random suffix */
+function makeIdempotencyKey() {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 14);
+  return `oc-${ts}-${rand}`.padEnd(16, "0");
 }
 
 function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const [form, setForm] = useState({ name: account?.name || "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "" });
-  const [share, setShare] = useState(false); // consent: put name, phone and address in the message
   const [picks, setPicks] = useState({});    // size / colour chosen here, per cart line
   const [errors, setErrors] = useState({});
-  const [step, setStep] = useState("form");  // "form", then "sent" once WhatsApp has been opened
+  const [step, setStep] = useState("form");  // "form" → "submitting" → "confirmed" | "error"
+  const [orderResult, setOrderResult] = useState(null); // server response on success
+  const [submitError, setSubmitError] = useState("");
   const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const zone = DELIVERY_ZONES.find(z => z.k === form.zone) || null;
   const free = sub >= FREE_DELIVERY_FROM;
@@ -1182,13 +1175,6 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const totalText = free || zone ? fmt(total) : `${fmt(sub)} + delivery`;
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
   const pick = (id, k, v) => { setPicks(p => ({ ...p, [id]: { ...p[id], [k]: v } })); setErrors(e => ({ ...e, [`${k}-${id}`]: "" })); };
-  const lines = cart.map(i => {
-    const lineKey = i.cartKey || i.id, p = picks[lineKey] || {}, colours = colourChoices(i);
-    const colour = p.color || (colours.length === 1 ? colours[0] : "");
-    return { id: lineKey, name: i.name, qty: i.qty, total: i.price * i.qty, opts: [p.size && `size ${p.size}`, colour && `colour ${colour}`].filter(Boolean).join(", ") };
-  });
-  const message = buildOrderMessage({ lines, sub, delText, totalText, zone, share, form });
-  const waHref = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(message)}`;
   const validate = () => {
     const e = {};
     if (!cart.length) e.cart = "Your cart is empty. Add a product before checkout.";
@@ -1204,38 +1190,91 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${lineKey}`] = "Choose a size";
       if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${lineKey}`] = "Choose a colour";
     });
-    if (share) {
-      if (!form.name.trim()) e.name = "Required";
-      if (!form.phone.trim()) e.phone = "Required";
-      if (!form.district) e.district = "Required";
-      if (!form.address.trim()) e.address = "Required";
-    }
+    if (!form.name.trim()) e.name = "Required";
+    if (!form.phone.trim()) e.phone = "Required";
+    if (!form.district) e.district = "Required";
+    if (!form.address.trim()) e.address = "Required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-  const close = () => { setStep("form"); onClose(); };
+  const close = () => { setStep("form"); setSubmitError(""); setOrderResult(null); onClose(); };
+
+  const submitOrder = async () => {
+    if (!validate()) return;
+    setStep("submitting");
+    setSubmitError("");
+    try {
+      const items = cart.map(i => {
+        const lineKey = i.cartKey || i.id, p = picks[lineKey] || {}, colours = colourChoices(i);
+        const colour = p.color || (colours.length === 1 ? colours[0] : null);
+        const size = p.size || null;
+        // Build variantId the same way the server catalogue does
+        let variantId = null;
+        if (size && colour) variantId = `${size}-${colour}`.toLowerCase();
+        else if (colour) variantId = String(colour).toLowerCase();
+        else if (size) variantId = String(size).toLowerCase();
+        return { productId: i.id, variantId, quantity: i.qty };
+      });
+      const payload = {
+        customer: { name: form.name.trim(), phone: form.phone.trim(), district: form.district, area: form.area.trim(), address: form.address.trim() },
+        deliveryZone: form.zone,
+        items,
+      };
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": makeIdempotencyKey() },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setOrderResult(data);
+        setStep("confirmed");
+      } else {
+        setSubmitError(data.error || `Something went wrong (${res.status}). Please try again.`);
+        setStep("error");
+      }
+    } catch (e) {
+      setSubmitError("Could not connect to the server. Check your internet and try again.");
+      setStep("error");
+    }
+  };
+
   const iS = k => ({ width: "100%", border: `2px solid ${errors[k] ? C.primary : C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", color: C.dark, background: "var(--surface)" });
   const label = { fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .6, marginBottom: 10 };
   const err = k => errors[k] && <span style={{ color: C.hot, fontSize: 11 }}>{errors[k]}</span>;
-  const waBtn = { display: "block", textAlign: "center", background: "#25D366", color: "#05210F", textDecoration: "none", padding: 15, fontSize: 15, fontWeight: 800, borderRadius: 12 };
   if (!open) return null;
-  const frame = body => (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.72)", zIndex: 660, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div role="dialog" aria-modal="true" aria-label="Checkout by WhatsApp" style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>{body}</div></div>);
+  const frame = body => (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.72)", zIndex: 660, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div role="dialog" aria-modal="true" aria-label="Checkout" style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>{body}</div></div>);
 
-  // after "Open WhatsApp": the order is NOT placed yet, the customer still has to press Send
-  if (step === "sent") return frame(<div className="oc-wa-sent" style={{ padding: "30px 24px 24px", textAlign: "center" }}>
-    <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">💬</div>
-    <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Now press Send in WhatsApp</h2>
-    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 10px" }}>WhatsApp has your order typed in. <strong>We only receive it after you press Send.</strong> We'll reply in WhatsApp to confirm it; until we do, your order is not confirmed.</p>
-    <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>WhatsApp didn't open? <a href={waHref} target="_blank" rel="noopener noreferrer" style={{ color: "var(--earth)", fontWeight: 700 }}>Open it again</a>, or message us on {CONFIG.WHATSAPP_DISPLAY}.</p>
-    <Btn onClick={() => { onClearCart(); setPicks({}); setShare(false); close(); }} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 8 }}>I've sent it, empty my cart</Btn>
-    <Btn variant="ghost" onClick={() => setStep("form")} style={{ width: "100%", padding: 12, borderRadius: 12 }}>Back to my order</Btn>
+  // order confirmed
+  if (step === "confirmed" && orderResult) return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
+    <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">✅</div>
+    <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order placed!</h2>
+    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Your order reference:</p>
+    <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: C.hot, letterSpacing: 1, margin: "0 0 14px", background: C.bg, borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}` }}>{orderResult.publicReference}</div>
+    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — Cash on delivery</p>
+    <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>We'll review your order and confirm it soon. Questions? WhatsApp us on {CONFIG.WHATSAPP_DISPLAY} with your reference number.</p>
+    <Btn onClick={() => { onClearCart(); setPicks({}); close(); }} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 8 }}>Done</Btn>
+  </div>);
+
+  // submitting
+  if (step === "submitting") return frame(<div style={{ padding: "50px 24px", textAlign: "center" }}>
+    <div style={{ fontSize: 36, marginBottom: 12, animation: "spin 1s linear infinite" }}>⏳</div>
+    <p style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>Placing your order…</p>
+    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+  </div>);
+
+  // error after submit
+  if (step === "error") return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
+    <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">⚠️</div>
+    <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order could not be placed</h2>
+    <p style={{ fontSize: 13, color: C.hot, lineHeight: 1.7, margin: "0 0 14px" }}>{submitError}</p>
+    <Btn onClick={() => setStep("form")} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 8 }}>Try again</Btn>
+    <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "6px 0 0" }}>Or WhatsApp us at {CONFIG.WHATSAPP_DISPLAY} to place your order.</p>
   </div>);
 
   return frame(<>
-    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "var(--surface)", zIndex: 1, borderRadius: "18px 18px 0 0" }}><span style={{ fontSize: 16, fontWeight: 800 }}>🧾 Checkout by WhatsApp</span><button onClick={close} aria-label="Close checkout" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.muted }}>✕</button></div>
+    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "var(--surface)", zIndex: 1, borderRadius: "18px 18px 0 0" }}><span style={{ fontSize: 16, fontWeight: 800 }}>🧾 Checkout</span><button onClick={close} aria-label="Close checkout" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.muted }}>✕</button></div>
     <div style={{ padding: "18px 22px" }}>
-      <div role="note" className="oc-wa-note" style={{ background: "var(--tint-gold)", border: "1px solid var(--line-gold)", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontSize: 12.5, lineHeight: 1.6, color: C.dark }}><strong>Temporary WhatsApp ordering.</strong> Online checkout is still being built. For now this page only prepares your order as a WhatsApp message to us. Nothing is saved on this website, and your order is not confirmed until we reply in WhatsApp.</div>
-
       <div style={label}>📦 Your order</div>
       <div style={{ background: C.bg, borderRadius: 10, padding: "6px 12px 10px", marginBottom: 16, border: `1px solid ${C.border}` }}>
         {cart.map(i => { const sizes = sizeChoices(i), colours = colourChoices(i); return (
@@ -1255,11 +1294,8 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       <div style={label}>🚚 Delivery area</div>
       <div style={{ marginBottom: 16 }}><select value={form.zone} onChange={e => set("zone", e.target.value)} aria-label="Delivery area" style={{ ...iS("zone"), cursor: "pointer" }}><option value="">Choose your delivery area *</option>{DELIVERY_ZONES.map(z => <option key={z.k} value={z.k}>{zoneLabel(z)}</option>)}</select>{err("zone")}{free && <div style={{ fontSize: 11, color: C.okText, marginTop: 4 }}>Free delivery: your order is {fmt(FREE_DELIVERY_FROM)} or more.</div>}</div>
 
-      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, lineHeight: 1.5, cursor: "pointer", marginBottom: share ? 12 : 16, color: C.dark }}>
-        <input type="checkbox" checked={share} onChange={e => { setShare(e.target.checked); setErrors({}); }} style={{ marginTop: 3, width: 16, height: 16, flex: "none", accentColor: "var(--earth)" }} />
-        <span><strong>Add my name, phone number and delivery address to the WhatsApp message</strong><br /><span style={{ color: C.muted, fontSize: 12 }}>Optional. They only go into the message you send; this website doesn't save them. Leave it unticked to share them in the chat instead.</span></span>
-      </label>
-      {share && <div style={{ marginBottom: 6 }}>
+      <div style={label}>👤 Your details</div>
+      <div style={{ marginBottom: 6 }}>
         <div style={{ marginBottom: 11 }}><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Full name *" aria-label="Full name" autoComplete="name" style={iS("name")} />{err("name")}</div>
         <div style={{ marginBottom: 11 }}><input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Phone *" aria-label="Phone" type="tel" autoComplete="tel" style={iS("phone")} />{err("phone")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 11 }}>
@@ -1267,16 +1303,14 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
           <div><input value={form.area} onChange={e => set("area", e.target.value)} placeholder="Area" aria-label="Area" style={iS("area")} /></div>
         </div>
         <div style={{ marginBottom: 14 }}><input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Full address *" aria-label="Full address" autoComplete="street-address" style={iS("address")} />{err("address")}</div>
-      </div>}
+      </div>
 
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 22 }} aria-hidden="true">💵</span><div><div style={{ fontSize: 12, fontWeight: 700, color: C.dark }}>Cash on delivery</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Pay when your order arrives. Online payment isn't available yet.</div></div></div>
-
-      <details style={{ marginTop: 12, fontSize: 12 }}><summary style={{ cursor: "pointer", color: C.muted, fontWeight: 600 }}>See the exact WhatsApp message</summary><pre className="oc-wa-preview" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 12, lineHeight: 1.6, color: C.dark, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, margin: "8px 0 0" }}>{message}</pre></details>
     </div>
     <div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, background: C.bg, borderRadius: "0 0 18px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginBottom: 12 }}><span>Total</span><span style={{ color: C.hot }}>{totalText}</span></div>
-      <a className="oc-wa-open" href={waHref} target="_blank" rel="noopener noreferrer" onClick={e => { if (!validate()) { e.preventDefault(); return; } setStep("sent"); }} style={waBtn}>💬 Open WhatsApp to send your order</a>
-      <p style={{ fontSize: 11.5, color: C.muted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>WhatsApp opens with your order typed in. <strong>You must press Send in WhatsApp</strong>, or we won't receive it.</p>
+      <Btn onClick={submitOrder} style={{ width: "100%", padding: 15, fontSize: 15, borderRadius: 12 }}>Place order — {totalText}</Btn>
+      <p style={{ fontSize: 11.5, color: C.muted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>Cash on delivery. We'll confirm your order and delivery timing.</p>
     </div>
   </>);
 }
@@ -1912,7 +1946,7 @@ export default function OutbackCartel() {
         onCheckout={() => { setCartOpen(false); setCheckoutOpen(true); }} />
 
       <CheckoutModal cart={cart} open={checkoutOpen} onClose={() => setCheckoutOpen(false)} account={account}
-        onClearCart={() => { setCart([]); toast_("🛒 Cart emptied. Watch WhatsApp for our reply."); }} />
+        onClearCart={() => { setCart([]); toast_("🛒 Order placed! Cart emptied."); }} />
 
       {/* AI CHATBOT */}
       <AIChatbot products={products} />
