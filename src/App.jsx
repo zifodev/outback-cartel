@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense, Component } from "react";
 import HoodieRail from "./HoodieRail.jsx";
+import { supabase, supabaseConfigured } from "./lib/supabaseClient.js";
 
 // the 3D showroom loads on its own, so the shop itself appears straight away
 const Showroom = lazy(() => import("./Showroom.jsx"));
@@ -77,7 +78,6 @@ const C = {
 };
 
 const fmt = n => "৳" + Number(n).toLocaleString();
-const genOTP = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // ─────────────────────────────────────────────────────────────
 //  STORAGE
@@ -110,56 +110,23 @@ function Input({ label, value, onChange, placeholder, type = "text", error, styl
 }
 
 // ─────────────────────────────────────────────────────────────
-//  EMAILJS CONFIG — Real OTP emails
-// ─────────────────────────────────────────────────────────────
-const EMAILJS_SERVICE_ID = "service_cn10t29";
-const EMAILJS_TEMPLATE_ID = "template_u78jccs";
-const EMAILJS_PUBLIC_KEY = "E0vzUC5hOdSLjLmVw";
-
-async function sendEmailOTP({ toEmail, toName, otpCode }) {
-  // Use EmailJS REST API directly — no SDK needed, no CORS issues
-  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      service_id: EMAILJS_SERVICE_ID,
-      template_id: EMAILJS_TEMPLATE_ID,
-      user_id: EMAILJS_PUBLIC_KEY,
-      template_params: {
-        to_name: toName || "Customer",
-        email: toEmail,
-        passcode: otpCode,
-        time: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString("en-BD"),
-      },
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "EmailJS error");
-  }
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────
 //  ── AUTH MODAL (Sign up / Login with OTP) ──
 // ─────────────────────────────────────────────────────────────
+// Real account authentication — Supabase Auth email OTP. The 6-digit code is generated and
+// checked server-side by Supabase, never in the browser: this component only sends the email
+// address to Supabase and submits whatever the customer types back to it for verification.
+// No password is stored or needed.
 function AuthModal({ open, onClose, onSuccess }) {
-  const [step, setStep] = useState("choose"); // choose|signup|login|otp|forgot|reset
-  const [method, setMethod] = useState("email");
+  const [step, setStep] = useState("email"); // email|otp
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
-  const [pw, setPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [isForgotFlow, setIsForgotFlow] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [genOtp, setGenOtp] = useState("");
   const [timer, setTimer] = useState(60);
   const [timerOn, setTimerOn] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const otpRefs = useRef([]);
 
-  // Timer countdown
   const startTimer = () => {
     setTimer(60); setTimerOn(true);
     const id = setInterval(() => {
@@ -167,39 +134,32 @@ function AuthModal({ open, onClose, onSuccess }) {
     }, 1000);
   };
 
-  const sendOTP = async (isResend = false, isForgot = false) => {
+  const resetAll = () => {
+    setStep("email"); setName(""); setContact("");
+    setOtp(["", "", "", "", "", ""]); setErrors({}); setLoading(false);
+  };
+
+  const sendOTP = async (isResend = false) => {
     const err = {};
-    if ((step === "signup" || isResend) && !isForgot) {
-      if (!name.trim()) err.name = "Required";
-    }
+    if (!isResend && !name.trim()) err.name = "Required";
     if (!contact.trim()) err.contact = "Required";
-    if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email address";
-    if (!pw.trim() && !isForgot) err.pw = "Required";
-
-    // Check duplicate email on signup
-    if (step === "signup" && !isForgot) {
-      const existing = ls.get("oc_account");
-      if (existing && existing.contact === contact.trim()) {
-        err.contact = "This email is already registered. Please login instead.";
-      }
-    }
-
+    else if (!/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email address";
     if (Object.keys(err).length) { setErrors(err); return; }
 
     setLoading(true);
-    const code = genOTP();
-    setGenOtp(code);
-
-    try {
-      await sendEmailOTP({ toEmail: contact, toName: name || "Customer", otpCode: code });
-      setLoading(false);
-      setStep("otp");
-      setOtp(["", "", "", "", "", ""]);
-      startTimer();
-    } catch (e) {
-      setLoading(false);
-      setErrors({ contact: "Failed to send email. Please check the address and try again." });
+    const { error: sendErr } = await supabase.auth.signInWithOtp({
+      email: contact.trim(),
+      options: { shouldCreateUser: true, data: { name: name.trim() || undefined } },
+    });
+    setLoading(false);
+    if (sendErr) {
+      setErrors({ contact: sendErr.message || "Failed to send the code. Please check the address and try again." });
+      return;
     }
+    setStep("otp");
+    setOtp(["", "", "", "", "", ""]);
+    setErrors({});
+    startTimer();
   };
 
   const handleOtpChange = (i, val) => {
@@ -209,143 +169,52 @@ function AuthModal({ open, onClose, onSuccess }) {
     if (!val && i > 0) otpRefs.current[i - 1]?.focus();
   };
 
-  const verifyOTP = () => {
+  const verifyOTP = async () => {
     const entered = otp.join("");
     if (entered.length < 6) { setErrors({ otp: "Enter all 6 digits" }); return; }
-    if (entered !== genOtp) { setErrors({ otp: "Incorrect OTP. Try again." }); return; }
-
-    if (isForgotFlow) {
-      // Go to reset password step
-      setStep("reset");
-      setErrors({});
+    setLoading(true);
+    const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+      email: contact.trim(), token: entered, type: "email",
+    });
+    setLoading(false);
+    if (verifyErr || !data?.user) {
+      setErrors({ otp: "Incorrect or expired code. Try again." });
       return;
     }
-
-    // Normal signup/login success
-    const existing = ls.get("oc_account");
-    const acc = step === "login" && existing?.contact === contact
-      ? { ...existing }
-      : { name: name || "Customer", contact, method: "email", joined: new Date().toLocaleDateString("en-BD"), orders: [], avatar: "" };
-    ls.set("oc_account", acc);
-    onSuccess(acc);
+    onSuccess(data.user.user_metadata?.name || name.trim() || "Customer");
     resetAll();
-  };
-
-  const resetPassword = () => {
-    if (!newPw.trim() || newPw.length < 6) { setErrors({ newPw: "Password must be at least 6 characters" }); return; }
-    const existing = ls.get("oc_account") || {};
-    const updated = { ...existing, contact, pw: newPw };
-    ls.set("oc_account", updated);
-    onSuccess(updated);
-    resetAll();
-  };
-
-  const resetAll = () => {
-    setStep("choose"); setName(""); setContact(""); setPw(""); setNewPw("");
-    setOtp(["", "", "", "", "", ""]); setErrors({}); setIsForgotFlow(false);
   };
 
   if (!open) return null;
 
-  // ── STEP: Choose method — Email only ──
-  if (step === "choose") return (
+  if (!supabaseConfigured) return (
+    <Overlay onClose={onClose}>
+      <ModalHeader title="Accounts unavailable" sub="" onClose={onClose} />
+      <div style={{ padding: "22px 24px 26px" }}>
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>Accounts aren't configured on this deployment yet. You can still shop and check out without one.</p>
+        <Btn onClick={onClose} style={{ width: "100%", padding: 14, borderRadius: 12, marginTop: 10 }}>Got it</Btn>
+      </div>
+    </Overlay>
+  );
+
+  // ── STEP: Email ──
+  if (step === "email") return (
     <Overlay onClose={onClose}>
       <ModalHeader title="Welcome 👋" sub="Sign in or create your account" onClose={() => { onClose(); resetAll(); }} />
-      <div style={{ padding: "24px 24px 28px" }}>
+      <div style={{ padding: "22px 24px 26px" }}>
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 18, background: "var(--tint-gold)", padding: "10px 14px", borderRadius: 8, border: `1px solid var(--line-gold)`, lineHeight: 1.6 }}>
-          💡 <strong>Account is optional.</strong> You can shop without one. An account keeps your name and contact details on this device.
+          💡 <strong>Account is optional.</strong> You can shop without one.
         </p>
-        <button onClick={() => { setMethod("email"); setStep("signup"); }}
-          style={{ width: "100%", border: `2px solid ${C.border}`, borderRadius: 14, padding: "20px", background: "var(--surface)", cursor: "pointer", textAlign: "center", transition: "all .2s", fontFamily: "inherit", marginBottom: 14 }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "var(--tint-earth)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "var(--surface)"; }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📧</div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>Continue with Email</div>
-          <div style={{ fontSize: 12, color: C.muted }}>We'll send a 6-digit OTP to your email</div>
-        </button>
-        <div style={{ textAlign: "center", fontSize: 13, color: C.muted }}>
-          Already have an account? <span onClick={() => setStep("login")} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login →</span>
-        </div>
-        <div style={{ textAlign: "center", marginTop: 14 }}>
-          <span onClick={() => { onClose(); resetAll(); }} style={{ fontSize: 12, color: C.muted, cursor: "pointer", textDecoration: "underline" }}>Continue without account</span>
-        </div>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Sign up ──
-  if (step === "signup") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Create Account 📧" sub="Sign up with your email address" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
-      <div style={{ padding: "22px 24px 24px" }}>
         <Input label="Full Name" value={name} onChange={e => { setName(e.target.value); setErrors({}); }} placeholder="Your full name" error={errors.name} />
         <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }} placeholder="you@email.com" type="email" error={errors.contact} />
-        <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Create a password" type="password" error={errors.pw} />
-        <OTPInfoBanner method="email" contact={contact} />
+        <OTPInfoBanner contact={contact} />
         <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending OTP to your email…" : "Send OTP →"}
+          {loading ? "⏳ Sending code to your email…" : "Send Code →"}
         </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          Already have an account? <span onClick={() => { setStep("login"); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Login ──
-  if (step === "login") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Login 🔑" sub="Welcome back!" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
-          placeholder="you@email.com" type="email" error={errors.contact} />
-        <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Your password" type="password" error={errors.pw} />
-        <div style={{ textAlign: "right", marginTop: -8, marginBottom: 14 }}>
-          <span onClick={() => { setIsForgotFlow(true); setStep("forgot"); setErrors({}); }} style={{ fontSize: 12, color: C.hot, fontWeight: 600, cursor: "pointer" }}>Forgot password?</span>
+        <p style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 10 }}>Already have an account? Just enter the same email — we'll log you in.</p>
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <span onClick={() => { onClose(); resetAll(); }} style={{ fontSize: 12, color: C.muted, cursor: "pointer", textDecoration: "underline" }}>Continue without account</span>
         </div>
-        <OTPInfoBanner method="email" contact={contact} isLogin />
-        <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending OTP…" : "Send OTP to Verify →"}
-        </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          No account? <span onClick={() => { setStep("signup"); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Sign Up</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Forgot Password ──
-  if (step === "forgot") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Reset Password 🔒" sub="Enter your email to receive a reset code" onClose={() => { onClose(); resetAll(); }} back={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--info)", lineHeight: 1.6 }}>
-          🔐 Enter the email address linked to your account. We'll send you a 6-digit code to reset your password.
-        </div>
-        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
-          placeholder="you@email.com" type="email" error={errors.contact} />
-        <Btn onClick={() => { const err = {}; if (!contact.trim()) err.contact = "Required"; if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email"; if (Object.keys(err).length) { setErrors(err); return; } sendOTP(false, true); }} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending reset code…" : "Send Reset Code →"}
-        </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          Remembered your password? <span onClick={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Reset Password (after OTP verified) ──
-  if (step === "reset") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="New Password 🔑" sub="Choose a strong new password" onClose={() => { onClose(); resetAll(); }} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <div style={{ background: "var(--tint-gum)", border: "1px solid var(--line-gum)", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--ok)" }}>
-          ✅ Identity verified! Now set your new password for <strong>{contact}</strong>
-        </div>
-        <Input label="New Password" value={newPw} onChange={e => { setNewPw(e.target.value); setErrors({}); }} placeholder="Minimum 6 characters" type="password" error={errors.newPw} />
-        <Btn onClick={resetPassword} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>
-          🔑 Set New Password & Login →
-        </Btn>
       </div>
     </Overlay>
   );
@@ -353,16 +222,13 @@ function AuthModal({ open, onClose, onSuccess }) {
   // ── STEP: OTP Entry ──
   if (step === "otp") return (
     <Overlay onClose={onClose}>
-      <ModalHeader title="Verify OTP 🔐" sub={`Enter the 6-digit code sent to your ${method}`} onClose={() => { onClose(); resetAll(); }} back={() => { setStep(step === "otp" ? "signup" : "login"); setErrors({}); }} />
+      <ModalHeader title="Verify Code 🔐" sub="Enter the 6-digit code sent to your email" onClose={() => { onClose(); resetAll(); }} back={() => { setStep("email"); setErrors({}); }} />
       <div style={{ padding: "22px 24px 28px", textAlign: "center" }}>
-
-        {/* Destination display */}
         <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--info)" }}>
           📧 Code sent to: <strong>{contact}</strong><br />
           <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>Check your inbox (and spam folder just in case)</span>
         </div>
 
-        {/* 6-box OTP input */}
         <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 8 }}>
           {otp.map((d, i) => (
             <input key={i} ref={el => otpRefs.current[i] = el} value={d} onChange={e => handleOtpChange(i, e.target.value)}
@@ -373,13 +239,12 @@ function AuthModal({ open, onClose, onSuccess }) {
         </div>
         {errors.otp && <p style={{ color: C.hot, fontSize: 12, marginBottom: 10 }}>⚠️ {errors.otp}</p>}
 
-        {/* Timer */}
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
-          {timerOn ? `Resend OTP in ${timer}s` : <span onClick={() => sendOTP(true)} style={{ color: C.hot, cursor: "pointer", fontWeight: 700 }}>Resend OTP →</span>}
+          {timerOn ? `Resend code in ${timer}s` : <span onClick={() => sendOTP(true)} style={{ color: C.hot, cursor: "pointer", fontWeight: 700 }}>Resend code →</span>}
         </p>
 
-        <Btn onClick={verifyOTP} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>
-          ✅ Verify & Continue
+        <Btn onClick={verifyOTP} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
+          {loading ? "⏳ Verifying…" : "✅ Verify & Continue"}
         </Btn>
       </div>
     </Overlay>
@@ -388,11 +253,10 @@ function AuthModal({ open, onClose, onSuccess }) {
   return null;
 }
 
-function OTPInfoBanner({ method, contact, isLogin = false }) {
+function OTPInfoBanner() {
   return (
     <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 9, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "var(--info)", lineHeight: 1.6 }}>
-      🔐 We'll send a <strong>6-digit OTP</strong> to your {method === "email" ? "email" : "phone"} to verify your account.
-      {isLogin && " This confirms it's really you."}
+      🔐 We'll send a <strong>6-digit code</strong> to your email to verify your account.
     </div>
   );
 }
@@ -431,7 +295,6 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(account.name);
-  const [editContact, setEditContact] = useState(account.contact || "");
   const [saveMsg, setSaveMsg] = useState("");
   const fileRef = useRef();
 
@@ -441,26 +304,46 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const STATUS_LABELS = { delivered: "Delivered ✅", on_the_way: "Out for Delivery 🚚", processing: "Processing 📦", confirmed: "Confirmed ✔️" };
   const TRACK_STEPS = ["Confirmed", "Processing", "Out for Delivery", "Delivered"];
 
-  const saveProfile = () => {
-    if (!editName.trim()) return;
-    const updated = { ...account, name: editName.trim(), contact: editContact.trim() };
-    ls.set("oc_account", updated);
-    onUpdate(updated);
+  const saveProfile = async () => {
+    if (!editName.trim() || !supabaseConfigured) return;
+    const { data, error: updErr } = await supabase.auth.updateUser({ data: { name: editName.trim() } });
+    if (updErr) { setSaveMsg("Could not save — try again"); setTimeout(() => setSaveMsg(""), 2500); return; }
+    onUpdate({ ...account, name: data.user.user_metadata?.name || editName.trim() });
     setEditing(false);
     setSaveMsg("Profile updated! ✅");
     setTimeout(() => setSaveMsg(""), 2500);
   };
 
-  const handleAvatar = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const updated = { ...account, avatar: ev.target.result };
-      ls.set("oc_account", updated);
-      onUpdate(updated);
+  // Shrinks the chosen photo to a small square JPEG before saving — keeps it well under the
+  // size limit for Supabase Auth's user_metadata, which is meant for small profile fields.
+  const downscaleImage = (file, maxSide = 160, quality = 0.8) => new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image")); };
+    img.src = url;
+  });
+
+  const handleAvatar = async e => {
+    const file = e.target.files[0];
+    if (!file || !supabaseConfigured) return;
+    try {
+      const dataUrl = await downscaleImage(file);
+      const { data, error: updErr } = await supabase.auth.updateUser({ data: { avatar: dataUrl } });
+      if (updErr) { setSaveMsg("Could not save photo — try a smaller image"); setTimeout(() => setSaveMsg(""), 2500); return; }
+      onUpdate({ ...account, avatar: data.user.user_metadata?.avatar || dataUrl });
+    } catch {
+      setSaveMsg("Could not read that image");
+      setTimeout(() => setSaveMsg(""), 2500);
+    }
   };
 
   const TABS = [
@@ -680,7 +563,8 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
               {editing ? (
                 <div>
                   <Input label="Full Name" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your full name" />
-                  <Input label={account.method === "email" ? "Email" : "Phone"} value={editContact} onChange={e => setEditContact(e.target.value)} placeholder={account.method === "email" ? "you@email.com" : "01XXXXXXXXX"} />
+                  <p style={{ fontSize: 11, color: C.muted, margin: "-8px 0 14px" }}>Your login email ({account.contact}) can't be changed here yet.</p>
+                  {saveMsg && <p style={{ fontSize: 12, color: saveMsg.includes("Could not") ? C.hot : C.okText, marginBottom: 10 }}>{saveMsg}</p>}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn variant="ghost" onClick={() => setEditing(false)} style={{ flex: 1 }}>Cancel</Btn>
                     <Btn onClick={saveProfile} style={{ flex: 2 }}>💾 Save Changes</Btn>
@@ -694,7 +578,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
                       <span style={{ fontSize: 14, fontWeight: 700 }}>{account.name}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 12, color: C.muted }}>{account.method === "email" ? "Email" : "Phone"}</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>Email</span>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{account.contact}</span>
                     </div>
                   </div>
@@ -1841,7 +1725,28 @@ export default function OutbackCartel() {
   const [toast, setToast] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [showDash, setShowDash] = useState(false);
-  const [account, setAccount] = useState(() => ls.get("oc_account"));
+  // Real account state comes from the Supabase Auth session, not localStorage — see AuthModal.
+  const [account, setAccount] = useState(null);
+  const sessionToAccount = session => {
+    const u = session?.user;
+    if (!u) return null;
+    return {
+      name: u.user_metadata?.name || u.email || "Customer",
+      contact: u.email,
+      method: "email",
+      joined: new Date(u.created_at).toLocaleDateString("en-BD"),
+      avatar: u.user_metadata?.avatar || "",
+      orders: [],
+    };
+  };
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    supabase.auth.getSession().then(({ data }) => setAccount(sessionToAccount(data.session)));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAccount(sessionToAccount(session));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   const [shopQ, setShopQ] = useState("");     // the shop's search box
   const [headerQ, setHeaderQ] = useState(""); // the header's search box
 
@@ -1884,7 +1789,7 @@ export default function OutbackCartel() {
   const removeItem = key => setCart(prev => prev.filter(c => (c.cartKey || c.id) !== key));
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
-  const handleLogout = () => { setAccount(null); ls.del("oc_account"); setShowDash(false); toast_("👋 Logged out"); };
+  const handleLogout = async () => { if (supabaseConfigured) await supabase.auth.signOut(); setAccount(null); setShowDash(false); toast_("👋 Logged out"); };
   const handleAccountClick = () => account ? setShowDash(true) : setShowAuth(true);
 
   const pageContent = () => {
@@ -1974,7 +1879,7 @@ export default function OutbackCartel() {
 
       {/* MODALS */}
       <AuthModal open={showAuth} onClose={() => setShowAuth(false)}
-        onSuccess={acc => { setAccount(acc); setShowAuth(false); toast_(`🎉 Welcome, ${acc.name}!`); setTimeout(() => setShowDash(true), 400); }} />
+        onSuccess={name => { setShowAuth(false); toast_(`🎉 Welcome, ${name}!`); setTimeout(() => setShowDash(true), 400); }} />
 
       {showDash && account && <UserDashboard account={account} onClose={() => setShowDash(false)}
         onUpdate={acc => setAccount(acc)} onLogout={handleLogout} />}
