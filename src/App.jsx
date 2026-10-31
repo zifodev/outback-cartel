@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense, Component } from "react";
 import HoodieRail from "./HoodieRail.jsx";
 import { supabase, supabaseConfigured } from "./lib/supabaseClient.js";
+import { track } from "./lib/analytics.js";
 
 // the 3D showroom loads on its own, so the shop itself appears straight away
 const Showroom = lazy(() => import("./Showroom.jsx"));
@@ -1915,6 +1916,32 @@ export default function OutbackCartel() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // ── Basic campaign tracking (see src/lib/analytics.js) ──
+  // Page views: fires on first load and on every page/collection/product-view
+  // change. Product and collection views don't always have a real URL change
+  // (e.g. opening a product detail), so "view" carries a human label while
+  // "path" stays the real browser path.
+  useEffect(() => {
+    const view = selectedProd ? `product:${selectedProd.id}`
+      : page === "collection" ? `collection:${collectionSlug}`
+      : page;
+    track("page_view", { view });
+  }, [page, collectionSlug, selectedProd]);
+
+  // WhatsApp clicks: one delegated listener instead of instrumenting every
+  // wa.me link individually (there are ~18 across the app) — covers all of
+  // them, including any added later.
+  useEffect(() => {
+    const onClick = e => {
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (a && /^https:\/\/wa\.me\//.test(a.href)) {
+        track("whatsapp_click", { href: a.href });
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
   const addToCart = (p, quantity = 1) => {
     const amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
     // Keep each add as its own line so customers can choose different sizes/colours
@@ -1922,6 +1949,7 @@ export default function OutbackCartel() {
     const cartKey = `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setCart(prev => [...prev, { ...p, cartKey, qty: amount }]);
     toast_(`✅ ${amount} × ${p.name.substring(0, 26)}… added!`);
+    track("add_to_cart", { productId: p.id, name: p.name, price: p.price });
   };
   const runSearch = () => {
     setShopQ(headerQ.trim()); setActiveCat("all"); setPage("shop"); setSelectedProd(null);
