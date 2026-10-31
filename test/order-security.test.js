@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOrderIdentifiers, hashLookupToken, hashOrderRequest, hashIdempotencyScope, isValidIdempotencyKey, readIdempotencyKey } from "../api/_lib/order-security.js";
+import { createOrderIdentifiers, hashLookupToken, hashOrderRequest, hashIdempotencyScope, classifyIdempotencyRecord, isValidIdempotencyKey, readIdempotencyKey } from "../api/_lib/order-security.js";
 
 test("creates opaque order identifiers with a high-entropy lookup token", () => {
   const ids = createOrderIdentifiers();
@@ -77,4 +77,18 @@ test("rejects missing, short, oversized and padded checkout scope identifiers", 
   for (const value of [null, "", "short", "x".repeat(513), " padded-session-identifier "]) {
     assert.throws(() => hashIdempotencyScope(value), TypeError);
   }
+});
+
+
+test("classifies new, replayed and conflicting idempotency records", () => {
+  const original = "a".repeat(64);
+  const changed = "b".repeat(64);
+  assert.equal(classifyIdempotencyRecord(null, original), "new");
+  assert.equal(classifyIdempotencyRecord(original, original), "replay");
+  assert.equal(classifyIdempotencyRecord(original, changed), "conflict");
+});
+
+test("rejects malformed idempotency fingerprints", () => {
+  assert.throws(() => classifyIdempotencyRecord(null, "bad"), TypeError);
+  assert.throws(() => classifyIdempotencyRecord("bad", "a".repeat(64)), TypeError);
 });
