@@ -92,7 +92,10 @@ create table if not exists public.oc_orders (
       when 'inside' then 60 when 'sub' then 100 when 'outside' then 120 end)
   ),
 
-  payment_method text not null default 'cod' check (payment_method = 'cod'),
+  -- The customer's chosen payment method. "cod" pays fully on delivery; "bkash"/"nagad"/"rocket"
+  -- mean the customer intends to pay via that mobile wallet, arranged manually over WhatsApp
+  -- (no payment gateway is integrated — see api/_lib/order-validation.js).
+  payment_method text not null default 'cod' check (payment_method = any (array['cod', 'bkash', 'nagad', 'rocket'])),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

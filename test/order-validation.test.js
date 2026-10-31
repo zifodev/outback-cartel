@@ -4,6 +4,7 @@ import { validateOrderPayload, priceValidatedOrder, DELIVERY_FEES_BDT } from "..
 
 const payload = (overrides = {}) => ({
   deliveryZone: "inside",
+  paymentMethod: "cod",
   customer: { name: "Test Buyer", phone: "+8801712345678", district: "Dhaka", area: "Dhanmondi", address: "Road 4, House 10" },
   items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 1 }],
   ...overrides,
@@ -178,11 +179,18 @@ test("priceValidatedOrder rejects non-Map catalogue input", () => {
   assert.equal(priceValidatedOrder(validated, []).ok, false);
 });
 
-test("priceValidatedOrder always sets paymentMethod to cod", () => {
-  const validated = validateOrderPayload(payload());
-  const priced = priceValidatedOrder(validated, catalogue);
-  assert.equal(priced.ok, true);
-  assert.equal(priced.value.paymentMethod, "cod");
+test("priceValidatedOrder passes through the customer's chosen payment method", () => {
+  for (const method of ["cod", "bkash", "nagad", "rocket"]) {
+    const validated = validateOrderPayload(payload({ paymentMethod: method }));
+    const priced = priceValidatedOrder(validated, catalogue);
+    assert.equal(priced.ok, true);
+    assert.equal(priced.value.paymentMethod, method);
+  }
+});
+
+test("rejects an unrecognised payment method", () => {
+  assert.equal(validateOrderPayload(payload({ paymentMethod: "cash-app" })).ok, false);
+  assert.equal(validateOrderPayload(payload({ paymentMethod: "" })).ok, false);
 });
 
 test("delivery fee constants are frozen and cannot be modified", () => {

@@ -2,6 +2,11 @@
 // Call only after loading the approved product/variant catalogue from a trusted server source.
 export const DELIVERY_FEES_BDT = Object.freeze({ inside: 60, sub: 100, outside: 120 });
 export const FREE_DELIVERY_FROM_BDT = 999;
+// All four are collected the same way today: nothing here charges a card or calls a payment
+// gateway. "cod" pays fully on delivery; the other three mean the customer intends to pay via
+// that mobile wallet and arranges the actual transfer manually over WhatsApp (see CheckoutModal
+// in src/App.jsx). This is just which option the customer picked, recorded on the order.
+export const PAYMENT_METHODS = Object.freeze(["cod", "bkash", "nagad", "rocket"]);
 const MAX_LINES = 30;
 const MAX_QUANTITY = 99;
 const MAX_TEXT = 500;
@@ -23,6 +28,10 @@ export function validateOrderPayload(payload) {
   const zone = cleanText(payload.deliveryZone, 20);
   if (!Object.hasOwn(DELIVERY_FEES_BDT, zone)) {
     return { ok: false, error: "Choose a valid delivery area." };
+  }
+  const paymentMethod = cleanText(payload.paymentMethod, 20).toLowerCase();
+  if (!PAYMENT_METHODS.includes(paymentMethod)) {
+    return { ok: false, error: "Choose a valid payment method." };
   }
   const name = cleanText(customer.name, 100);
   const phone = cleanText(customer.phone, 32);
@@ -64,7 +73,7 @@ export function validateOrderPayload(payload) {
   }
   return {
     ok: true,
-    value: { customer: { name, phone, district, area, address }, deliveryZone: zone, items },
+    value: { customer: { name, phone, district, area, address }, deliveryZone: zone, paymentMethod, items },
   };
 }
 
@@ -110,7 +119,7 @@ export function priceValidatedOrder(validated, trustedProducts) {
       subtotalBdt,
       deliveryBdt,
       totalBdt,
-      paymentMethod: "cod",
+      paymentMethod: validated.value.paymentMethod,
     },
   };
 }

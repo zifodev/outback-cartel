@@ -1160,8 +1160,15 @@ function makeIdempotencyKey() {
   return `oc-${ts}-${rand}`.padEnd(16, "0");
 }
 
+const PAYMENT_METHODS = [
+  { k: "cod", label: "Cash on Delivery", icon: "💵", note: "Pay when your order arrives." },
+  { k: "bkash", label: "bKash", icon: "📱", note: "We'll WhatsApp you our bKash number." },
+  { k: "nagad", label: "Nagad", icon: "📱", note: "We'll WhatsApp you our Nagad number." },
+  { k: "rocket", label: "Rocket", icon: "📱", note: "We'll WhatsApp you our Rocket number." },
+];
+
 function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
-  const [form, setForm] = useState({ name: account?.name || "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "" });
+  const [form, setForm] = useState({ name: account?.name || "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "", payment: "cod" });
   const [picks, setPicks] = useState({});    // size / colour chosen here, per cart line
   const [errors, setErrors] = useState({});
   const [step, setStep] = useState("form");  // "form" → "submitting" → "confirmed" | "error"
@@ -1219,6 +1226,7 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       const payload = {
         customer: { name: form.name.trim(), phone: form.phone.trim(), district: form.district, area: form.area.trim(), address: form.address.trim() },
         deliveryZone: form.zone,
+        paymentMethod: form.payment,
         items,
       };
       const res = await fetch("/api/orders", {
@@ -1248,22 +1256,23 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
 
   // order confirmed
   if (step === "confirmed" && orderResult) {
-    const waMsg = `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'll pay cash on delivery.`;
-    const waAdvanceMsg = `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'd like to pay in advance — please send me payment details.`;
+    const methodLabel = PAYMENT_METHODS.find(m => m.k === orderResult.paymentMethod)?.label || "Cash on Delivery";
+    const isCod = orderResult.paymentMethod === "cod";
+    const waMsg = isCod
+      ? `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'll pay cash on delivery. Sending the ৳120 advance now to confirm my order.`
+      : `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'd like to pay via ${methodLabel} — please send me your ${methodLabel} number.`;
     return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
       <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">✅</div>
       <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order placed!</h2>
       <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Your order reference:</p>
       <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: C.hot, letterSpacing: 1, margin: "0 0 14px", background: C.bg, borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}` }}>{orderResult.publicReference}</div>
-      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — Cash on delivery</p>
-      <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>Pay cash when your order arrives, or message us on WhatsApp if you'd rather pay in advance.</p>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — {methodLabel}</p>
+      {isCod
+        ? <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>To confirm your order, please send a ৳120 advance over WhatsApp (deducted from your total — pay the rest on delivery). Orders without an advance may be cancelled.</p>
+        : <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>Message us on WhatsApp and we'll send you our {methodLabel} number to complete payment.</p>}
       <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(waMsg)}`} target="_blank" rel="noopener noreferrer"
         style={{ display: "block", textAlign: "center", background: "#25D366", color: "#05210F", textDecoration: "none", padding: 14, fontSize: 14, fontWeight: 800, borderRadius: 12, marginBottom: 8 }}>
-        💬 Message us on WhatsApp
-      </a>
-      <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(waAdvanceMsg)}`} target="_blank" rel="noopener noreferrer"
-        style={{ display: "block", textAlign: "center", color: "var(--earth)", textDecoration: "none", padding: 10, fontSize: 12.5, fontWeight: 700, borderRadius: 12, marginBottom: 8, border: `1px solid ${C.border}` }}>
-        Prefer to pay in advance? Tap here
+        💬 {isCod ? "Send ৳120 advance on WhatsApp" : `Message us for our ${methodLabel} number`}
       </a>
       <Btn onClick={() => { onClearCart(); setPicks({}); close(); }} variant="ghost" style={{ width: "100%", padding: 13, borderRadius: 12 }}>Done</Btn>
     </div>);
@@ -1318,12 +1327,27 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
         <div style={{ marginBottom: 14 }}><input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Full address *" aria-label="Full address" autoComplete="street-address" style={iS("address")} />{err("address")}</div>
       </div>
 
-      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 22 }} aria-hidden="true">💵</span><div><div style={{ fontSize: 12, fontWeight: 700, color: C.dark }}>Cash on delivery</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Pay when your order arrives. Online payment isn't available yet.</div></div></div>
+      <div style={label}>💳 Payment method</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 4 }}>
+        {PAYMENT_METHODS.map(m => (
+          <button key={m.k} type="button" onClick={() => set("payment", m.k)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, textAlign: "left", cursor: "pointer",
+              border: `2px solid ${form.payment === m.k ? "var(--earth)" : C.border}`,
+              background: form.payment === m.k ? "var(--tint-gold)" : "var(--surface)",
+              borderRadius: 10, padding: "10px 12px", fontFamily: "inherit",
+            }}>
+            <span style={{ fontSize: 18 }} aria-hidden="true">{m.icon}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: C.dark }}>{m.label}</span>
+          </button>
+        ))}
+      </div>
+      <p style={{ fontSize: 11, color: C.muted, margin: "4px 0 0", lineHeight: 1.5 }}>{PAYMENT_METHODS.find(m => m.k === form.payment)?.note}</p>
     </div>
     <div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, background: C.bg, borderRadius: "0 0 18px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginBottom: 12 }}><span>Total</span><span style={{ color: C.hot }}>{totalText}</span></div>
       <Btn onClick={submitOrder} style={{ width: "100%", padding: 15, fontSize: 15, borderRadius: 12 }}>Place order — {totalText}</Btn>
-      <p style={{ fontSize: 11.5, color: C.muted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>Cash on delivery. We'll confirm your order and delivery timing.</p>
+      <p style={{ fontSize: 11.5, color: C.muted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>We'll confirm your order and delivery timing after you place it.</p>
     </div>
   </>);
 }

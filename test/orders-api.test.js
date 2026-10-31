@@ -24,6 +24,7 @@ function makeReq(overrides = {}) {
     headers: { "idempotency-key": "test-idempotency-key-0001" },
     body: {
       deliveryZone: "inside",
+      paymentMethod: "cod",
       customer: { name: "Test Buyer", phone: "+8801712345678", district: "Dhaka", area: "Dhanmondi", address: "Road 4, House 10" },
       items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 1 }],
     },

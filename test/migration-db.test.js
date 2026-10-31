@@ -457,7 +457,27 @@ describe("oc_orders constraints", () => {
     );
   });
 
-  test("only accepts cod payment method", async (t) => {
+  test("accepts cod, bkash, nagad and rocket payment methods", async (t) => {
+    if (!requireDb(t)) return;
+    for (const [i, method] of ["cod", "bkash", "nagad", "rocket"].entries()) {
+      const suffix = String(i).repeat(8);
+      await query(`
+        INSERT INTO oc_orders (
+          public_reference, idempotency_scope_hash, idempotency_key,
+          request_fingerprint, lookup_token_hash, customer_name, phone,
+          district, address, delivery_zone, subtotal_bdt, delivery_bdt,
+          total_bdt, payment_method
+        ) VALUES (
+          $1, $2, $3,
+          $4, $5, 'Test', '+8801234567890',
+          'Dhaka', '123 Test Street Area', 'inside', 500, 60, 560, $6
+        )
+      `, [`OC-OK-PAY-${suffix}`, "e".repeat(56) + suffix, `ok-pay-key-${suffix}123`,
+        "f".repeat(56) + suffix, "a".repeat(56) + suffix, method]);
+    }
+  });
+
+  test("rejects an unrecognised payment method", async (t) => {
     if (!requireDb(t)) return;
     await assert.rejects(
       () => query(`
@@ -469,7 +489,7 @@ describe("oc_orders constraints", () => {
         ) VALUES (
           'OC-BAD-PAY-123456', $1, 'bad-pay-key-1234567',
           $2, $3, 'Test', '+8801234567890',
-          'Dhaka', '123 Test Street Area', 'inside', 500, 60, 560, 'bkash'
+          'Dhaka', '123 Test Street Area', 'inside', 500, 60, 560, 'cash-app'
         )
       `, ["f".repeat(64), "b".repeat(64), "c".repeat(64)]),
       { message: /payment_method/ }
