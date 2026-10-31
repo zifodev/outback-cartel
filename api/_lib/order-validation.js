@@ -29,8 +29,17 @@ export function validateOrderPayload(payload) {
   const district = cleanText(customer.district, 80);
   const area = cleanText(customer.area, 100);
   const address = cleanText(customer.address, 300);
-  if (name.length < 2 || !/^[+\d][\d\s()+-]{7,30}$/.test(phone) || !district || address.length < 5) {
-    return { ok: false, error: "Enter a valid name, phone, district and delivery address." };
+  if (name.length < 2) {
+    return { ok: false, error: "Enter your full name (at least 2 characters)." };
+  }
+  if (!/^[+\d][\d\s()+-]{7,30}$/.test(phone)) {
+    return { ok: false, error: "Enter a valid phone number, e.g. 01XXXXXXXXX or +8801XXXXXXXXX." };
+  }
+  if (!district) {
+    return { ok: false, error: "Choose your district." };
+  }
+  if (address.length < 5) {
+    return { ok: false, error: "Enter your full delivery address (at least 5 characters)." };
   }
   const items = [];
   for (const line of payload.items) {
