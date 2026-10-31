@@ -1132,8 +1132,11 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
     try {
       const items = cart.map(i => {
         const lineKey = i.cartKey || i.id, p = picks[lineKey] || {}, colours = colourChoices(i);
-        const colour = p.color || (colours.length === 1 ? colours[0] : null);
-        const size = p.size || null;
+        // Showroom/HoodieRail items resolve their size & colour at
+        // add-to-cart time (selectedSize/selectedColour) rather than via
+        // this modal's picker — prefer that when present.
+        const colour = i.selectedColour || p.color || (colours.length === 1 ? colours[0] : null);
+        const size = i.selectedSize || p.size || null;
         // Build variantId the same way the server catalogue does
         let variantId = null;
         if (size && colour) variantId = `${size}-${colour}`.toLowerCase();
@@ -1776,7 +1779,7 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
       <ShowroomSlot hoodies={HOUSE_HOODIES} onAdd={onAdd} onBuyNow={onBuyNow}
         onDetails={id => { const p = products.find(x => x.id === id); if (p) onView(p); }}
         onShopAll={() => scrollTo("oc-shop")}
-        fallback={<div id="oc-rack" style={{ scrollMarginTop: 64 }}><HoodieRail key={railHoodies.length} extra={railHoodies} onAdd={onAdd} onBrowse={() => { onCatChange("hoodies"); scrollTo("oc-shop"); }} /></div>} />
+        fallback={<div id="oc-rack" style={{ scrollMarginTop: 64 }}><HoodieRail key={railHoodies.length} extra={railHoodies} houseHoodies={HOUSE_HOODIES} onAdd={onAdd} onBrowse={() => { onCatChange("hoodies"); scrollTo("oc-shop"); }} /></div>} />
       <div id="oc-shop" className="oc-shop">
         <div className="oc-trust">
           <span><b>Fast delivery</b>{DELIVERY_ZONES.filter(z => z.k !== "sub").map(z => `${z.name} ${z.days}`).join(", ")}</span>

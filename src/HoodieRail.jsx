@@ -389,8 +389,14 @@ const CSS = `
 
 const BURST = ["#D63A26", "#F4B740", "#178F61", "#7A8CFF", "#FF92CB", "#15123A", "#F4B740", "#FF6B3D"];
 
-export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
+export default function HoodieRail({ onAdd, onBrowse, extra = [], houseHoodies = [] }) {
   const ITEMS = [...HOUSE_ITEMS, ...RAIL_ITEMS, ...uniqueHoodies(extra).map(toItem)].slice(0, RAIL_MAX);
+  // HOUSE_ITEMS/RAIL_ITEMS are this rack's own hand-tuned data (ids 102, 103,
+  // 201-213 — purely for the animation) and were never wired to the real
+  // product catalogue, so an add-to-cart from here used to send an id the
+  // server had never heard of and checkout rejected it. Their names are
+  // written to match the real catalogue 1:1, so resolve the real id by name.
+  const idByName = Object.fromEntries(houseHoodies.map(h => [h.name, h.id]));
   const [facing, setFacing] = useState(null);   // garment turned towards the viewer
   const [active, setActive] = useState(null);   // garment pulled off the rail
   const [lifted, setLifted] = useState(() => ITEMS.map(() => false));
@@ -746,7 +752,11 @@ export default function HoodieRail({ onAdd, onBrowse, extra = [] }) {
 
   const add = () => {
     if (!sel || !size || !hasPrice) return;
-    onAdd({ id: `${sel.id}-${selVar.name}-${size}`, name: `${sel.name} · ${selVar.name} (${size})`, cat: "clothing", price: sel.price, old: 0, icon: "🧥", badge: null, img: selVar.img });
+    // sel.id is only valid for remote/extra items; house items need the
+    // real catalogue id resolved by name (see idByName above) — fall back
+    // to sel.id only for the rare unmatched case, same as before this fix.
+    const realId = idByName[sel.name] || sel.id;
+    onAdd({ id: realId, name: `${sel.name} · ${selVar.name} (${size})`, cat: "clothing", price: sel.price, old: 0, icon: "🧥", badge: null, img: selVar.img, selectedSize: size, selectedColour: selVar.name });
     setAdded(true); setBurst(b => b + 1);
   };
 
