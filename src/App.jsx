@@ -1247,15 +1247,27 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const frame = body => (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.72)", zIndex: 660, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div role="dialog" aria-modal="true" aria-label="Checkout" style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>{body}</div></div>);
 
   // order confirmed
-  if (step === "confirmed" && orderResult) return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
-    <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">✅</div>
-    <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order placed!</h2>
-    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Your order reference:</p>
-    <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: C.hot, letterSpacing: 1, margin: "0 0 14px", background: C.bg, borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}` }}>{orderResult.publicReference}</div>
-    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — Cash on delivery</p>
-    <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>We'll review your order and confirm it soon. Questions? WhatsApp us on {CONFIG.WHATSAPP_DISPLAY} with your reference number.</p>
-    <Btn onClick={() => { onClearCart(); setPicks({}); close(); }} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 8 }}>Done</Btn>
-  </div>);
+  if (step === "confirmed" && orderResult) {
+    const waMsg = `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'll pay cash on delivery.`;
+    const waAdvanceMsg = `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'd like to pay in advance — please send me payment details.`;
+    return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
+      <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">✅</div>
+      <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order placed!</h2>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Your order reference:</p>
+      <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: C.hot, letterSpacing: 1, margin: "0 0 14px", background: C.bg, borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}` }}>{orderResult.publicReference}</div>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — Cash on delivery</p>
+      <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>Pay cash when your order arrives, or message us on WhatsApp if you'd rather pay in advance.</p>
+      <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(waMsg)}`} target="_blank" rel="noopener noreferrer"
+        style={{ display: "block", textAlign: "center", background: "#25D366", color: "#05210F", textDecoration: "none", padding: 14, fontSize: 14, fontWeight: 800, borderRadius: 12, marginBottom: 8 }}>
+        💬 Message us on WhatsApp
+      </a>
+      <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(waAdvanceMsg)}`} target="_blank" rel="noopener noreferrer"
+        style={{ display: "block", textAlign: "center", color: "var(--earth)", textDecoration: "none", padding: 10, fontSize: 12.5, fontWeight: 700, borderRadius: 12, marginBottom: 8, border: `1px solid ${C.border}` }}>
+        Prefer to pay in advance? Tap here
+      </a>
+      <Btn onClick={() => { onClearCart(); setPicks({}); close(); }} variant="ghost" style={{ width: "100%", padding: 13, borderRadius: 12 }}>Done</Btn>
+    </div>);
+  }
 
   // submitting
   if (step === "submitting") return frame(<div style={{ padding: "50px 24px", textAlign: "center" }}>
