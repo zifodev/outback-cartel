@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import {
   adminEmails,
   clearAdminSessionCookie,
@@ -152,4 +153,7 @@ test("admin page no longer stores credentials in web storage or submits a caller
   assert.doesNotMatch(html, /actorId\s*:/);
   assert.match(html, /autocomplete="one-time-code"/);
   assert.match(html, /credentials:"same-origin"/);
+  const inlineScript = html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+  assert.ok(inlineScript, "admin page must contain its application script");
+  assert.doesNotThrow(() => new vm.Script(inlineScript), "admin inline JavaScript must parse");
 });
