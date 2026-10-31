@@ -253,7 +253,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     if (analyticsLoading) {
       html += `<div class="loading">Loading analytics…</div>`;
     } else if (analyticsError) {
-      html += `<div class="error" style="text-align:center;padding:20px">${analyticsError}</div>`;
+      html += `<div class="error" style="text-align:center;padding:20px">${esc(analyticsError)}</div>`;
     } else if (analytics) {
       const t = analytics.totals || {};
       html += `<div class="stat-grid">
@@ -331,7 +331,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     if (loading) {
       html += `<div class="loading">Loading orders…</div>`;
     } else if (error) {
-      html += `<div class="error" style="text-align:center;padding:20px">${error}</div>`;
+      html += `<div class="error" style="text-align:center;padding:20px">${esc(error)}</div>`;
     } else if (filtered.length === 0) {
       html += `<div class="empty"><span>📭</span>No orders${filter!=="all"?" with this status":""} yet</div>`;
     } else {
@@ -356,7 +356,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
             <dl class="cust-grid">
               <dt>Customer</dt><dd>${esc(o.customer_name)}</dd>
               <dt>Phone</dt><dd>${esc(o.phone)}</dd>
-              <dt>District</dt><dd>${esc(o.district)}${o.area?", "+o.area:""}</dd>
+              <dt>District</dt><dd>${esc(o.district)}${o.area?", "+esc(o.area):""}</dd>
               <dt>Address</dt><dd>${esc(o.address)}</dd>
               <dt>Zone</dt><dd>${esc(o.delivery_zone)}</dd>
               <dt>Payment</dt><dd>${esc(o.payment_method).toUpperCase()}</dd>
