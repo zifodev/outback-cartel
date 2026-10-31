@@ -99,7 +99,7 @@ Configure these Vercel environment variables for the relevant preview/production
 
 The admin API verifies the HttpOnly session cookie against Supabase Auth on every request. The cookie is Secure on HTTPS, HttpOnly, SameSite=Strict and scoped to `/api/admin`. It contains only the short-lived access token; the refresh token is never placed in browser storage. Admins must request a new email code after the access token expires. Order status audit events use the verified admin email, never a client-supplied actor ID.
 
-Before enabling this on a deployment, add the intended admin email(s) to `ADMIN_EMAILS` and ensure those accounts already exist in Supabase Auth. Configure the Supabase Magic Link/OTP email template to send the six-digit `{{ .Token }}` code. Do not remove the old `ADMIN_PASSWORD` variable until the new preview flow has been verified; it is no longer used by the code on this branch.
+Before enabling this on a deployment, add the intended admin email(s) to `ADMIN_EMAILS` and ensure those accounts already exist in Supabase Auth. Configure the Supabase Magic Link/OTP email template to send the six-digit `{{ .Token }}` code.
 
 ## Deployment safety
 
