@@ -683,7 +683,11 @@ export default function Showroom({ hoodies, onAdd, onBuyNow, onDetails, onShopAl
   const priced = it && it.price > 0;
   const add = () => {
     if (!it || !size) return;
-    onAdd({ id: `${it.id}-${size}`, name: `${it.name} (${size})`, cat: "hoodies", price: it.price, old: it.old || null, icon: "🧥", badge: null, img: it.img });
+    // Keep the real catalogue id so checkout's server-side product lookup
+    // still matches — the chosen size rides along as selectedSize instead
+    // of being baked into id (that used to make every showroom add-to-cart
+    // fail checkout with "a product is unavailable").
+    onAdd({ id: it.id, name: `${it.name} (${size})`, cat: "hoodies", price: it.price, old: it.old || null, icon: "🧥", badge: null, img: it.img, selectedSize: size, selectedColour: it.colour || null });
     setAdded(true);
     // the hoodie flies into the bag
     const from = addBtn.current && addBtn.current.getBoundingClientRect(), to = document.querySelector(".oc-cartbtn");

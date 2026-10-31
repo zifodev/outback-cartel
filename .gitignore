@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cloudflare local files (test secrets and the local runtime cache)
+.wrangler
+.dev.vars*

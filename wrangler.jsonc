@@ -1,0 +1,41 @@
+// Cloudflare Workers settings: COMPATIBILITY TEST ONLY (free plan, free workers.dev test address).
+// The live shop stays on Vercel. No custom domain, no DNS, no paid features.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "outback-cartel-test",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "build": { "command": "npm run build" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // any address that isn't a file opens the shop (it's a single-page app)
+    "not_found_handling": "single-page-application",
+    // only /api/... starts the Worker; everything else is a free static file
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    // Cloudflare's free plan allows 50 outgoing calls per request; keep a margin
+    "SUPPLIER_CALL_LIMIT": "40",
+    // Where the product feed is stored between supplier calls: "auto" (KV if linked, else
+    // Cloudflare's cache), "cache", "kv" or "off". Switched during the test to check each one.
+    // Test round 3 of 3: "kv" = store the feed in the KV namespace (shared across datacentres).
+    "FEED_CACHE_MODE": "kv",
+    // STAND-IN SUPPLIER (owner's decision, option C until Business Koro sends a separate test key):
+    // a saved copy of the public product list in this repository, and a made-up key.
+    // No production key is used. Remove both lines when a real test key is added as a secret.
+    "BUSINESSKORO_API_URL": "https://raw.githubusercontent.com/zifodev/outback-cartel/task-2-cloudflare-test/test/fixtures/businesskoro-standin.json",
+    "BUSINESSKORO_API_KEY": "stand-in-not-a-real-key"
+  },
+  // free KV storage for the stored product feed (namespace created 30 Oct 2026 for this test)
+  "kv_namespaces": [
+    { "binding": "FEED_CACHE", "id": "60587dd5b3cd4e6ea8608ac139d80155" }
+  ],
+  // request logs with CPU time per request (free: 200,000 a day)
+  "observability": { "enabled": true, "logs": { "invocation_logs": true, "head_sampling_rate": 1 } }
+  // Secrets (PRODUCTS_DEBUG_TOKEN, and later a Business Koro TEST key) are added in the
+  // Cloudflare dashboard by the owner, never in this file. No production keys on this test.
+}

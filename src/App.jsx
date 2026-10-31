@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense, Component } from "react";
 import HoodieRail from "./HoodieRail.jsx";
+import { supabase, supabaseConfigured } from "./lib/supabaseClient.js";
+import { track } from "./lib/analytics.js";
 
 // the 3D showroom loads on its own, so the shop itself appears straight away
 const Showroom = lazy(() => import("./Showroom.jsx"));
@@ -11,10 +13,7 @@ const CONFIG = {
   STORE_NAME: "Outback Cartel",
   WHATSAPP: "8801881816245",
   WHATSAPP_DISPLAY: "01881816245",
-  ADMIN_PASSWORD: "outback2024",
-  SSL_STORE_ID: "YOUR_STORE_ID",
-  SSL_STORE_PASS: "YOUR_STORE_PASSWORD",
-  SSL_IS_LIVE: false,
+  // Online payment will be added later from server code only.
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -45,24 +44,36 @@ const hasPicture = p => typeof p.img === "string" && p.img.trim() !== ""; // pro
 // EDIT PRICES HERE (৳). old = optional strike-through "was" price.
 const HSIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 const HOUSE_HOODIES = [
-  { id: "hoodie-meow", house: true, cat: "hoodies", name: "Meow Cat Hoodie", price: 990, old: 1290, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-front.jpg", images: ["hoodies/gallery/meow-front.jpg", "hoodies/gallery/meow-back.jpg", "hoodies/gallery/meow-side.jpg", "hoodies/gallery/meow-side-l.jpg", "hoodies/gallery/meow-closeup.jpg"], colors: ["Pink"], sizes: HSIZES },
-  { id: "hoodie-okay", house: true, cat: "hoodies", name: "I'm OK Hoodie", price: 1090, old: 1390, icon: "🧥", badge: "Hot", img: "hoodies/gallery/okay-front.jpg", images: ["hoodies/gallery/okay-front.jpg", "hoodies/gallery/okay-back.jpg", "hoodies/gallery/okay-side.jpg", "hoodies/gallery/okay-side-l.jpg", "hoodies/gallery/okay-closeup.jpg", "hoodies/okay-pink.png"], colors: ["Grey", "Pink"], sizes: HSIZES },
-  { id: "hoodie-tribal", house: true, cat: "hoodies", name: "Tribal Mark Hoodie", price: 1090, old: 1390, icon: "🧥", badge: null, img: "hoodies/gallery/tribal-front.jpg", images: ["hoodies/gallery/tribal-front.jpg", "hoodies/gallery/tribal-back.jpg", "hoodies/gallery/tribal-side.jpg", "hoodies/gallery/tribal-side-l.jpg", "hoodies/gallery/tribal-closeup.jpg"], colors: ["Black"], sizes: HSIZES },
-  // new collection — price 0 shows "Coming soon" until you set a price
-  { id: "hoodie-moon-palm", house: true, cat: "hoodies", name: "Moonlit Palm Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/moon-palm-front.jpg", images: ["hoodies/gallery/moon-palm-front.jpg", "hoodies/gallery/moon-palm-back.jpg", "hoodies/gallery/moon-palm-side.jpg", "hoodies/gallery/moon-palm-side-l.jpg", "hoodies/gallery/moon-palm-closeup.jpg"], colors: ["Green"], sizes: HSIZES },
-  { id: "hoodie-death-note", house: true, cat: "hoodies", name: "Death Note Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/death-note-front.jpg", images: ["hoodies/gallery/death-note-front.jpg", "hoodies/gallery/death-note-back.jpg", "hoodies/gallery/death-note-side.jpg", "hoodies/gallery/death-note-side-l.jpg", "hoodies/gallery/death-note-closeup.jpg"], colors: ["Black"], sizes: HSIZES },
-  { id: "hoodie-move-forward", house: true, cat: "hoodies", name: "Let's Move Forward Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/move-forward-front.jpg", images: ["hoodies/gallery/move-forward-front.jpg", "hoodies/gallery/move-forward-back.jpg", "hoodies/gallery/move-forward-side.jpg", "hoodies/gallery/move-forward-side-l.jpg", "hoodies/gallery/move-forward-closeup.jpg"], colors: ["Blush"], sizes: HSIZES },
-  { id: "hoodie-musafir", house: true, cat: "hoodies", name: "Musafir Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/musafir-front.jpg", images: ["hoodies/gallery/musafir-front.jpg", "hoodies/gallery/musafir-back.jpg", "hoodies/gallery/musafir-side.jpg", "hoodies/gallery/musafir-side-l.jpg", "hoodies/gallery/musafir-closeup.jpg"], colors: ["Red"], sizes: HSIZES },
-  { id: "hoodie-sunnah", house: true, cat: "hoodies", name: "Smile Is Sunnah Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/sunnah-front.jpg", images: ["hoodies/gallery/sunnah-front.jpg", "hoodies/gallery/sunnah-back.jpg", "hoodies/gallery/sunnah-side.jpg", "hoodies/gallery/sunnah-side-l.jpg", "hoodies/gallery/sunnah-closeup.jpg"], colors: ["Navy"], sizes: HSIZES },
-  { id: "hoodie-butterfly", house: true, cat: "hoodies", name: "Butterfly Bloom Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/butterfly-front.jpg", images: ["hoodies/gallery/butterfly-front.jpg", "hoodies/gallery/butterfly-back.jpg", "hoodies/gallery/butterfly-side.jpg", "hoodies/gallery/butterfly-side-l.jpg", "hoodies/gallery/butterfly-closeup.jpg"], colors: ["Pink"], sizes: HSIZES },
-  { id: "hoodie-kitty", house: true, cat: "hoodies", name: "Kitty Heart Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/kitty-front.jpg", images: ["hoodies/gallery/kitty-front.jpg", "hoodies/gallery/kitty-back.jpg", "hoodies/gallery/kitty-side.jpg", "hoodies/gallery/kitty-side-l.jpg", "hoodies/gallery/kitty-closeup.jpg"], colors: ["Cream"], sizes: HSIZES },
-  { id: "hoodie-paris", house: true, cat: "hoodies", name: "Paris Stripe Hoodie", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/paris-front.jpg", images: ["hoodies/gallery/paris-front.jpg", "hoodies/gallery/paris-back.jpg", "hoodies/gallery/paris-three-q.jpg", "hoodies/gallery/paris-side.jpg", "hoodies/gallery/paris-side-l.jpg", "hoodies/gallery/paris-closeup.jpg"], colors: ["White"], sizes: HSIZES },
-  { id: "hoodie-meow-mustard", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Mustard", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-mustard-front.jpg", images: ["hoodies/gallery/meow-mustard-front.jpg", "hoodies/gallery/meow-mustard-back.jpg", "hoodies/gallery/meow-mustard-three-q.jpg", "hoodies/gallery/meow-mustard-side.jpg", "hoodies/gallery/meow-mustard-side-l.jpg", "hoodies/gallery/meow-mustard-closeup.jpg"], colors: ["Mustard"], sizes: HSIZES },
-  { id: "hoodie-meow-lavender", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Lavender", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-lavender-front.jpg", images: ["hoodies/gallery/meow-lavender-front.jpg", "hoodies/gallery/meow-lavender-back.jpg", "hoodies/gallery/meow-lavender-three-q.jpg", "hoodies/gallery/meow-lavender-side.jpg", "hoodies/gallery/meow-lavender-side-l.jpg", "hoodies/gallery/meow-lavender-closeup.jpg"], colors: ["Lavender"], sizes: HSIZES },
-  { id: "hoodie-plain-navy", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Navy", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-navy-front.jpg", images: ["hoodies/gallery/plain-navy-front.jpg", "hoodies/gallery/plain-navy-back.jpg", "hoodies/gallery/plain-navy-three-q.jpg", "hoodies/gallery/plain-navy-side.jpg", "hoodies/gallery/plain-navy-side-l.jpg", "hoodies/gallery/plain-navy-closeup.jpg"], colors: ["Navy"], sizes: HSIZES },
-  { id: "hoodie-plain-grey", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Grey", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-grey-front.jpg", images: ["hoodies/gallery/plain-grey-front.jpg", "hoodies/gallery/plain-grey-back.jpg", "hoodies/gallery/plain-grey-three-q.jpg", "hoodies/gallery/plain-grey-side.jpg", "hoodies/gallery/plain-grey-side-l.jpg", "hoodies/gallery/plain-grey-closeup.jpg"], colors: ["Grey melange"], sizes: HSIZES },
-  { id: "hoodie-plain-maroon", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Maroon", price: 0, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-maroon-front.jpg", images: ["hoodies/gallery/plain-maroon-front.jpg", "hoodies/gallery/plain-maroon-back.jpg", "hoodies/gallery/plain-maroon-three-q.jpg", "hoodies/gallery/plain-maroon-side.jpg", "hoodies/gallery/plain-maroon-side-l.jpg", "hoodies/gallery/plain-maroon-closeup.jpg"], colors: ["Maroon"], sizes: HSIZES },
+  { id: "hoodie-meow", house: true, cat: "hoodies", name: "Meow Cat Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-front.jpg", images: ["hoodies/gallery/meow-front.jpg", "hoodies/gallery/meow-back.jpg", "hoodies/gallery/meow-side.jpg", "hoodies/gallery/meow-side-l.jpg", "hoodies/gallery/meow-closeup.jpg"], colors: ["Pink"], sizes: HSIZES },
+  { id: "hoodie-okay", house: true, cat: "hoodies", name: "I'm OK Hoodie", price: 1199, old: null, icon: "🧥", badge: "Hot", img: "hoodies/gallery/okay-front.jpg", images: ["hoodies/gallery/okay-front.jpg", "hoodies/gallery/okay-back.jpg", "hoodies/gallery/okay-side.jpg", "hoodies/gallery/okay-side-l.jpg", "hoodies/gallery/okay-closeup.jpg", "hoodies/okay-pink.png"], colors: ["Grey", "Pink"], sizes: HSIZES },
+  { id: "hoodie-tribal", house: true, cat: "hoodies", name: "Tribal Mark Hoodie", price: 1199, old: null, icon: "🧥", badge: null, img: "hoodies/gallery/tribal-front.jpg", images: ["hoodies/gallery/tribal-front.jpg", "hoodies/gallery/tribal-back.jpg", "hoodies/gallery/tribal-side.jpg", "hoodies/gallery/tribal-side-l.jpg", "hoodies/gallery/tribal-closeup.jpg"], colors: ["Black"], sizes: HSIZES },
+  // prices set by the owner on 30 Oct 2026 (৳1,099–1,299). Price 0 would show "Coming soon".
+  { id: "hoodie-moon-palm", house: true, cat: "hoodies", name: "Moonlit Palm Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/moon-palm-front.jpg", images: ["hoodies/gallery/moon-palm-front.jpg", "hoodies/gallery/moon-palm-back.jpg", "hoodies/gallery/moon-palm-side.jpg", "hoodies/gallery/moon-palm-side-l.jpg", "hoodies/gallery/moon-palm-closeup.jpg"], colors: ["Green"], sizes: HSIZES },
+  { id: "hoodie-death-note", house: true, cat: "hoodies", name: "Death Note Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/death-note-front.jpg", images: ["hoodies/gallery/death-note-front.jpg", "hoodies/gallery/death-note-back.jpg", "hoodies/gallery/death-note-side.jpg", "hoodies/gallery/death-note-side-l.jpg", "hoodies/gallery/death-note-closeup.jpg"], colors: ["Black"], sizes: HSIZES },
+  { id: "hoodie-move-forward", house: true, cat: "hoodies", name: "Let's Move Forward Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/move-forward-front.jpg", images: ["hoodies/gallery/move-forward-front.jpg", "hoodies/gallery/move-forward-back.jpg", "hoodies/gallery/move-forward-side.jpg", "hoodies/gallery/move-forward-side-l.jpg", "hoodies/gallery/move-forward-closeup.jpg"], colors: ["Blush"], sizes: HSIZES },
+  { id: "hoodie-musafir", house: true, cat: "hoodies", name: "Musafir Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/musafir-front.jpg", images: ["hoodies/gallery/musafir-front.jpg", "hoodies/gallery/musafir-back.jpg", "hoodies/gallery/musafir-side.jpg", "hoodies/gallery/musafir-side-l.jpg", "hoodies/gallery/musafir-closeup.jpg"], colors: ["Red"], sizes: HSIZES },
+  { id: "hoodie-sunnah", house: true, cat: "hoodies", name: "Smile Is Sunnah Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/sunnah-front.jpg", images: ["hoodies/gallery/sunnah-front.jpg", "hoodies/gallery/sunnah-back.jpg", "hoodies/gallery/sunnah-side.jpg", "hoodies/gallery/sunnah-side-l.jpg", "hoodies/gallery/sunnah-closeup.jpg"], colors: ["Navy"], sizes: HSIZES },
+  { id: "hoodie-butterfly", house: true, cat: "hoodies", name: "Butterfly Bloom Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/butterfly-front.jpg", images: ["hoodies/gallery/butterfly-front.jpg", "hoodies/gallery/butterfly-back.jpg", "hoodies/gallery/butterfly-side.jpg", "hoodies/gallery/butterfly-side-l.jpg", "hoodies/gallery/butterfly-closeup.jpg"], colors: ["Pink"], sizes: HSIZES },
+  { id: "hoodie-kitty", house: true, cat: "hoodies", name: "Kitty Heart Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/kitty-front.jpg", images: ["hoodies/gallery/kitty-front.jpg", "hoodies/gallery/kitty-back.jpg", "hoodies/gallery/kitty-side.jpg", "hoodies/gallery/kitty-side-l.jpg", "hoodies/gallery/kitty-closeup.jpg"], colors: ["Cream"], sizes: HSIZES },
+  { id: "hoodie-paris", house: true, cat: "hoodies", name: "Paris Stripe Hoodie", price: 1199, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/paris-front.jpg", images: ["hoodies/gallery/paris-front.jpg", "hoodies/gallery/paris-back.jpg", "hoodies/gallery/paris-three-q.jpg", "hoodies/gallery/paris-side.jpg", "hoodies/gallery/paris-side-l.jpg", "hoodies/gallery/paris-closeup.jpg"], colors: ["White"], sizes: HSIZES },
+  { id: "hoodie-meow-mustard", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Mustard", price: 1299, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-mustard-front.jpg", images: ["hoodies/gallery/meow-mustard-front.jpg", "hoodies/gallery/meow-mustard-back.jpg", "hoodies/gallery/meow-mustard-three-q.jpg", "hoodies/gallery/meow-mustard-side.jpg", "hoodies/gallery/meow-mustard-side-l.jpg", "hoodies/gallery/meow-mustard-closeup.jpg"], colors: ["Mustard"], sizes: HSIZES },
+  { id: "hoodie-meow-lavender", house: true, cat: "hoodies", name: "Meow Hoodie \u00b7 Lavender", price: 1299, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/meow-lavender-front.jpg", images: ["hoodies/gallery/meow-lavender-front.jpg", "hoodies/gallery/meow-lavender-back.jpg", "hoodies/gallery/meow-lavender-three-q.jpg", "hoodies/gallery/meow-lavender-side.jpg", "hoodies/gallery/meow-lavender-side-l.jpg", "hoodies/gallery/meow-lavender-closeup.jpg"], colors: ["Lavender"], sizes: HSIZES },
+  { id: "hoodie-plain-navy", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Navy", price: 1099, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-navy-front.jpg", images: ["hoodies/gallery/plain-navy-front.jpg", "hoodies/gallery/plain-navy-back.jpg", "hoodies/gallery/plain-navy-three-q.jpg", "hoodies/gallery/plain-navy-side.jpg", "hoodies/gallery/plain-navy-side-l.jpg", "hoodies/gallery/plain-navy-closeup.jpg"], colors: ["Navy"], sizes: HSIZES },
+  { id: "hoodie-plain-grey", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Grey", price: 1099, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-grey-front.jpg", images: ["hoodies/gallery/plain-grey-front.jpg", "hoodies/gallery/plain-grey-back.jpg", "hoodies/gallery/plain-grey-three-q.jpg", "hoodies/gallery/plain-grey-side.jpg", "hoodies/gallery/plain-grey-side-l.jpg", "hoodies/gallery/plain-grey-closeup.jpg"], colors: ["Grey melange"], sizes: HSIZES },
+  { id: "hoodie-plain-maroon", house: true, cat: "hoodies", name: "Premium Plain Hoodie \u00b7 Maroon", price: 1099, old: null, icon: "🧥", badge: "New", img: "hoodies/gallery/plain-maroon-front.jpg", images: ["hoodies/gallery/plain-maroon-front.jpg", "hoodies/gallery/plain-maroon-back.jpg", "hoodies/gallery/plain-maroon-three-q.jpg", "hoodies/gallery/plain-maroon-side.jpg", "hoodies/gallery/plain-maroon-side-l.jpg", "hoodies/gallery/plain-maroon-closeup.jpg"], colors: ["Maroon"], sizes: HSIZES },
 ];
+
+// ─────────────────────────────────────────────────────────────
+//  ROUTING — a handful of real URLs the browser actually shows (so pages
+//  are shareable/bookmarkable), on top of the existing in-app page switch.
+// ─────────────────────────────────────────────────────────────
+const PATH_TO_PAGE = { "/": "shop", "/shop": "shop", "/about": "about", "/track": "track", "/returns": "returns", "/faq": "faq" };
+const PAGE_TO_PATH = { shop: "/", about: "/about", track: "/track", returns: "/returns", faq: "/faq" };
+function resolveRoute() {
+  if (typeof window === "undefined") return { page: "shop" };
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  return { page: PATH_TO_PAGE[path] || "shop" };
+}
 
 // ─────────────────────────────────────────────────────────────
 //  THEME
@@ -80,8 +91,6 @@ const C = {
 };
 
 const fmt = n => "৳" + Number(n).toLocaleString();
-const uid = () => Date.now() + Math.floor(Math.random() * 9999);
-const genOTP = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // ─────────────────────────────────────────────────────────────
 //  STORAGE
@@ -114,56 +123,23 @@ function Input({ label, value, onChange, placeholder, type = "text", error, styl
 }
 
 // ─────────────────────────────────────────────────────────────
-//  EMAILJS CONFIG — Real OTP emails
-// ─────────────────────────────────────────────────────────────
-const EMAILJS_SERVICE_ID = "service_cn10t29";
-const EMAILJS_TEMPLATE_ID = "template_u78jccs";
-const EMAILJS_PUBLIC_KEY = "E0vzUC5hOdSLjLmVw";
-
-async function sendEmailOTP({ toEmail, toName, otpCode }) {
-  // Use EmailJS REST API directly — no SDK needed, no CORS issues
-  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      service_id: EMAILJS_SERVICE_ID,
-      template_id: EMAILJS_TEMPLATE_ID,
-      user_id: EMAILJS_PUBLIC_KEY,
-      template_params: {
-        to_name: toName || "Customer",
-        email: toEmail,
-        passcode: otpCode,
-        time: new Date(Date.now() + 10 * 60 * 1000).toLocaleTimeString("en-BD"),
-      },
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "EmailJS error");
-  }
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────
 //  ── AUTH MODAL (Sign up / Login with OTP) ──
 // ─────────────────────────────────────────────────────────────
+// Real account authentication — Supabase Auth email OTP. The 6-digit code is generated and
+// checked server-side by Supabase, never in the browser: this component only sends the email
+// address to Supabase and submits whatever the customer types back to it for verification.
+// No password is stored or needed.
 function AuthModal({ open, onClose, onSuccess }) {
-  const [step, setStep] = useState("choose"); // choose|signup|login|otp|forgot|reset
-  const [method, setMethod] = useState("email");
+  const [step, setStep] = useState("email"); // email|otp
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
-  const [pw, setPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [isForgotFlow, setIsForgotFlow] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [genOtp, setGenOtp] = useState("");
   const [timer, setTimer] = useState(60);
   const [timerOn, setTimerOn] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const otpRefs = useRef([]);
 
-  // Timer countdown
   const startTimer = () => {
     setTimer(60); setTimerOn(true);
     const id = setInterval(() => {
@@ -171,39 +147,32 @@ function AuthModal({ open, onClose, onSuccess }) {
     }, 1000);
   };
 
-  const sendOTP = async (isResend = false, isForgot = false) => {
+  const resetAll = () => {
+    setStep("email"); setName(""); setContact("");
+    setOtp(["", "", "", "", "", ""]); setErrors({}); setLoading(false);
+  };
+
+  const sendOTP = async (isResend = false) => {
     const err = {};
-    if ((step === "signup" || isResend) && !isForgot) {
-      if (!name.trim()) err.name = "Required";
-    }
+    if (!isResend && !name.trim()) err.name = "Required";
     if (!contact.trim()) err.contact = "Required";
-    if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email address";
-    if (!pw.trim() && !isForgot) err.pw = "Required";
-
-    // Check duplicate email on signup
-    if (step === "signup" && !isForgot) {
-      const existing = ls.get("oc_account");
-      if (existing && existing.contact === contact.trim()) {
-        err.contact = "This email is already registered. Please login instead.";
-      }
-    }
-
+    else if (!/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email address";
     if (Object.keys(err).length) { setErrors(err); return; }
 
     setLoading(true);
-    const code = genOTP();
-    setGenOtp(code);
-
-    try {
-      await sendEmailOTP({ toEmail: contact, toName: name || "Customer", otpCode: code });
-      setLoading(false);
-      setStep("otp");
-      setOtp(["", "", "", "", "", ""]);
-      startTimer();
-    } catch (e) {
-      setLoading(false);
-      setErrors({ contact: "Failed to send email. Please check the address and try again." });
+    const { error: sendErr } = await supabase.auth.signInWithOtp({
+      email: contact.trim(),
+      options: { shouldCreateUser: true, data: { name: name.trim() || undefined } },
+    });
+    setLoading(false);
+    if (sendErr) {
+      setErrors({ contact: sendErr.message || "Failed to send the code. Please check the address and try again." });
+      return;
     }
+    setStep("otp");
+    setOtp(["", "", "", "", "", ""]);
+    setErrors({});
+    startTimer();
   };
 
   const handleOtpChange = (i, val) => {
@@ -213,143 +182,52 @@ function AuthModal({ open, onClose, onSuccess }) {
     if (!val && i > 0) otpRefs.current[i - 1]?.focus();
   };
 
-  const verifyOTP = () => {
+  const verifyOTP = async () => {
     const entered = otp.join("");
     if (entered.length < 6) { setErrors({ otp: "Enter all 6 digits" }); return; }
-    if (entered !== genOtp) { setErrors({ otp: "Incorrect OTP. Try again." }); return; }
-
-    if (isForgotFlow) {
-      // Go to reset password step
-      setStep("reset");
-      setErrors({});
+    setLoading(true);
+    const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+      email: contact.trim(), token: entered, type: "email",
+    });
+    setLoading(false);
+    if (verifyErr || !data?.user) {
+      setErrors({ otp: "Incorrect or expired code. Try again." });
       return;
     }
-
-    // Normal signup/login success
-    const existing = ls.get("oc_account");
-    const acc = step === "login" && existing?.contact === contact
-      ? { ...existing }
-      : { name: name || "Customer", contact, method: "email", joined: new Date().toLocaleDateString("en-BD"), orders: [], avatar: "" };
-    ls.set("oc_account", acc);
-    onSuccess(acc);
+    onSuccess(data.user.user_metadata?.name || name.trim() || "Customer");
     resetAll();
-  };
-
-  const resetPassword = () => {
-    if (!newPw.trim() || newPw.length < 6) { setErrors({ newPw: "Password must be at least 6 characters" }); return; }
-    const existing = ls.get("oc_account") || {};
-    const updated = { ...existing, contact, pw: newPw };
-    ls.set("oc_account", updated);
-    onSuccess(updated);
-    resetAll();
-  };
-
-  const resetAll = () => {
-    setStep("choose"); setName(""); setContact(""); setPw(""); setNewPw("");
-    setOtp(["", "", "", "", "", ""]); setErrors({}); setIsForgotFlow(false);
   };
 
   if (!open) return null;
 
-  // ── STEP: Choose method — Email only ──
-  if (step === "choose") return (
+  if (!supabaseConfigured) return (
+    <Overlay onClose={onClose}>
+      <ModalHeader title="Accounts unavailable" sub="" onClose={onClose} />
+      <div style={{ padding: "22px 24px 26px" }}>
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>Accounts aren't configured on this deployment yet. You can still shop and check out without one.</p>
+        <Btn onClick={onClose} style={{ width: "100%", padding: 14, borderRadius: 12, marginTop: 10 }}>Got it</Btn>
+      </div>
+    </Overlay>
+  );
+
+  // ── STEP: Email ──
+  if (step === "email") return (
     <Overlay onClose={onClose}>
       <ModalHeader title="Welcome 👋" sub="Sign in or create your account" onClose={() => { onClose(); resetAll(); }} />
-      <div style={{ padding: "24px 24px 28px" }}>
+      <div style={{ padding: "22px 24px 26px" }}>
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 18, background: "var(--tint-gold)", padding: "10px 14px", borderRadius: 8, border: `1px solid var(--line-gold)`, lineHeight: 1.6 }}>
-          💡 <strong>Account is optional.</strong> You can shop without one — but an account lets you track orders, save your address, and manage your profile.
+          💡 <strong>Account is optional.</strong> You can shop without one.
         </p>
-        <button onClick={() => { setMethod("email"); setStep("signup"); }}
-          style={{ width: "100%", border: `2px solid ${C.border}`, borderRadius: 14, padding: "20px", background: "var(--surface)", cursor: "pointer", textAlign: "center", transition: "all .2s", fontFamily: "inherit", marginBottom: 14 }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "var(--tint-earth)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "var(--surface)"; }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📧</div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>Continue with Email</div>
-          <div style={{ fontSize: 12, color: C.muted }}>We'll send a 6-digit OTP to your email</div>
-        </button>
-        <div style={{ textAlign: "center", fontSize: 13, color: C.muted }}>
-          Already have an account? <span onClick={() => setStep("login")} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login →</span>
-        </div>
-        <div style={{ textAlign: "center", marginTop: 14 }}>
-          <span onClick={() => { onClose(); resetAll(); }} style={{ fontSize: 12, color: C.muted, cursor: "pointer", textDecoration: "underline" }}>Continue without account</span>
-        </div>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Sign up ──
-  if (step === "signup") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Create Account 📧" sub="Sign up with your email address" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
-      <div style={{ padding: "22px 24px 24px" }}>
         <Input label="Full Name" value={name} onChange={e => { setName(e.target.value); setErrors({}); }} placeholder="Your full name" error={errors.name} />
         <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }} placeholder="you@email.com" type="email" error={errors.contact} />
-        <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Create a password" type="password" error={errors.pw} />
-        <OTPInfoBanner method="email" contact={contact} />
+        <OTPInfoBanner contact={contact} />
         <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending OTP to your email…" : "Send OTP →"}
+          {loading ? "⏳ Sending code to your email…" : "Send Code →"}
         </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          Already have an account? <span onClick={() => { setStep("login"); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Login ──
-  if (step === "login") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Login 🔑" sub="Welcome back!" onClose={() => { onClose(); resetAll(); }} back={() => setStep("choose")} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
-          placeholder="you@email.com" type="email" error={errors.contact} />
-        <Input label="Password" value={pw} onChange={e => { setPw(e.target.value); setErrors({}); }} placeholder="Your password" type="password" error={errors.pw} />
-        <div style={{ textAlign: "right", marginTop: -8, marginBottom: 14 }}>
-          <span onClick={() => { setIsForgotFlow(true); setStep("forgot"); setErrors({}); }} style={{ fontSize: 12, color: C.hot, fontWeight: 600, cursor: "pointer" }}>Forgot password?</span>
+        <p style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 10 }}>Already have an account? Just enter the same email — we'll log you in.</p>
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <span onClick={() => { onClose(); resetAll(); }} style={{ fontSize: 12, color: C.muted, cursor: "pointer", textDecoration: "underline" }}>Continue without account</span>
         </div>
-        <OTPInfoBanner method="email" contact={contact} isLogin />
-        <Btn onClick={() => sendOTP()} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending OTP…" : "Send OTP to Verify →"}
-        </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          No account? <span onClick={() => { setStep("signup"); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Sign Up</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Forgot Password ──
-  if (step === "forgot") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="Reset Password 🔒" sub="Enter your email to receive a reset code" onClose={() => { onClose(); resetAll(); }} back={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--info)", lineHeight: 1.6 }}>
-          🔐 Enter the email address linked to your account. We'll send you a 6-digit code to reset your password.
-        </div>
-        <Input label="Email Address" value={contact} onChange={e => { setContact(e.target.value); setErrors({}); }}
-          placeholder="you@email.com" type="email" error={errors.contact} />
-        <Btn onClick={() => { const err = {}; if (!contact.trim()) err.contact = "Required"; if (contact && !/\S+@\S+\.\S+/.test(contact)) err.contact = "Enter a valid email"; if (Object.keys(err).length) { setErrors(err); return; } sendOTP(false, true); }} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
-          {loading ? "⏳ Sending reset code…" : "Send Reset Code →"}
-        </Btn>
-        <p style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 12 }}>
-          Remembered your password? <span onClick={() => { setStep("login"); setIsForgotFlow(false); setErrors({}); }} style={{ color: C.hot, fontWeight: 700, cursor: "pointer" }}>Login</span>
-        </p>
-      </div>
-    </Overlay>
-  );
-
-  // ── STEP: Reset Password (after OTP verified) ──
-  if (step === "reset") return (
-    <Overlay onClose={onClose}>
-      <ModalHeader title="New Password 🔑" sub="Choose a strong new password" onClose={() => { onClose(); resetAll(); }} />
-      <div style={{ padding: "22px 24px 24px" }}>
-        <div style={{ background: "var(--tint-gum)", border: "1px solid var(--line-gum)", borderRadius: 9, padding: "12px 14px", marginBottom: 16, fontSize: 13, color: "var(--ok)" }}>
-          ✅ Identity verified! Now set your new password for <strong>{contact}</strong>
-        </div>
-        <Input label="New Password" value={newPw} onChange={e => { setNewPw(e.target.value); setErrors({}); }} placeholder="Minimum 6 characters" type="password" error={errors.newPw} />
-        <Btn onClick={resetPassword} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>
-          🔑 Set New Password & Login →
-        </Btn>
       </div>
     </Overlay>
   );
@@ -357,16 +235,13 @@ function AuthModal({ open, onClose, onSuccess }) {
   // ── STEP: OTP Entry ──
   if (step === "otp") return (
     <Overlay onClose={onClose}>
-      <ModalHeader title="Verify OTP 🔐" sub={`Enter the 6-digit code sent to your ${method}`} onClose={() => { onClose(); resetAll(); }} back={() => { setStep(step === "otp" ? "signup" : "login"); setErrors({}); }} />
+      <ModalHeader title="Verify Code 🔐" sub="Enter the 6-digit code sent to your email" onClose={() => { onClose(); resetAll(); }} back={() => { setStep("email"); setErrors({}); }} />
       <div style={{ padding: "22px 24px 28px", textAlign: "center" }}>
-
-        {/* Destination display */}
         <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: "var(--info)" }}>
           📧 Code sent to: <strong>{contact}</strong><br />
           <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>Check your inbox (and spam folder just in case)</span>
         </div>
 
-        {/* 6-box OTP input */}
         <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 8 }}>
           {otp.map((d, i) => (
             <input key={i} ref={el => otpRefs.current[i] = el} value={d} onChange={e => handleOtpChange(i, e.target.value)}
@@ -377,13 +252,12 @@ function AuthModal({ open, onClose, onSuccess }) {
         </div>
         {errors.otp && <p style={{ color: C.hot, fontSize: 12, marginBottom: 10 }}>⚠️ {errors.otp}</p>}
 
-        {/* Timer */}
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
-          {timerOn ? `Resend OTP in ${timer}s` : <span onClick={() => sendOTP(true)} style={{ color: C.hot, cursor: "pointer", fontWeight: 700 }}>Resend OTP →</span>}
+          {timerOn ? `Resend code in ${timer}s` : <span onClick={() => sendOTP(true)} style={{ color: C.hot, cursor: "pointer", fontWeight: 700 }}>Resend code →</span>}
         </p>
 
-        <Btn onClick={verifyOTP} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>
-          ✅ Verify & Continue
+        <Btn onClick={verifyOTP} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }} disabled={loading}>
+          {loading ? "⏳ Verifying…" : "✅ Verify & Continue"}
         </Btn>
       </div>
     </Overlay>
@@ -392,11 +266,10 @@ function AuthModal({ open, onClose, onSuccess }) {
   return null;
 }
 
-function OTPInfoBanner({ method, contact, isLogin = false }) {
+function OTPInfoBanner() {
   return (
     <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 9, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "var(--info)", lineHeight: 1.6 }}>
-      🔐 We'll send a <strong>6-digit OTP</strong> to your {method === "email" ? "email" : "phone"} to verify your account.
-      {isLogin && " This confirms it's really you."}
+      🔐 We'll send a <strong>6-digit code</strong> to your email to verify your account.
     </div>
   );
 }
@@ -435,11 +308,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const [tab, setTab] = useState("overview");
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(account.name);
-  const [editContact, setEditContact] = useState(account.contact || "");
   const [saveMsg, setSaveMsg] = useState("");
-  const [trackId, setTrackId] = useState("");
-  const [trackResult, setTrackResult] = useState(null);
-  const [trackErr, setTrackErr] = useState("");
   const fileRef = useRef();
 
   const ORDERS = account.orders?.length > 0 ? account.orders : [];
@@ -448,34 +317,46 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
   const STATUS_LABELS = { delivered: "Delivered ✅", on_the_way: "Out for Delivery 🚚", processing: "Processing 📦", confirmed: "Confirmed ✔️" };
   const TRACK_STEPS = ["Confirmed", "Processing", "Out for Delivery", "Delivered"];
 
-  const saveProfile = () => {
-    if (!editName.trim()) return;
-    const updated = { ...account, name: editName.trim(), contact: editContact.trim() };
-    ls.set("oc_account", updated);
-    onUpdate(updated);
+  const saveProfile = async () => {
+    if (!editName.trim() || !supabaseConfigured) return;
+    const { data, error: updErr } = await supabase.auth.updateUser({ data: { name: editName.trim() } });
+    if (updErr) { setSaveMsg("Could not save — try again"); setTimeout(() => setSaveMsg(""), 2500); return; }
+    onUpdate({ ...account, name: data.user.user_metadata?.name || editName.trim() });
     setEditing(false);
     setSaveMsg("Profile updated! ✅");
     setTimeout(() => setSaveMsg(""), 2500);
   };
 
-  const handleAvatar = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const updated = { ...account, avatar: ev.target.result };
-      ls.set("oc_account", updated);
-      onUpdate(updated);
+  // Shrinks the chosen photo to a small square JPEG before saving — keeps it well under the
+  // size limit for Supabase Auth's user_metadata, which is meant for small profile fields.
+  const downscaleImage = (file, maxSide = 160, quality = 0.8) => new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
-    reader.readAsDataURL(file);
-  };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image")); };
+    img.src = url;
+  });
 
-  const trackOrder = () => {
-    setTrackErr(""); setTrackResult(null);
-    if (!trackId.trim()) { setTrackErr("Enter an Order ID"); return; }
-    const found = ORDERS.find(o => o.id === trackId.trim());
-    if (found) setTrackResult(found);
-    else setTrackErr("Order not found. Check your Order ID or WhatsApp us at 01881816245");
+  const handleAvatar = async e => {
+    const file = e.target.files[0];
+    if (!file || !supabaseConfigured) return;
+    try {
+      const dataUrl = await downscaleImage(file);
+      const { data, error: updErr } = await supabase.auth.updateUser({ data: { avatar: dataUrl } });
+      if (updErr) { setSaveMsg("Could not save photo — try a smaller image"); setTimeout(() => setSaveMsg(""), 2500); return; }
+      onUpdate({ ...account, avatar: data.user.user_metadata?.avatar || dataUrl });
+    } catch {
+      setSaveMsg("Could not read that image");
+      setTimeout(() => setSaveMsg(""), 2500);
+    }
   };
 
   const TABS = [
@@ -606,7 +487,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
                 <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>
                   <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.dark, marginBottom: 6 }}>No orders yet</div>
-                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Once you place an order, it will appear here with live tracking.</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Orders are placed through WhatsApp for now, so they don't appear here yet.</div>
                   <button onClick={onClose} style={{ background: C.primary, color: "#fff", border: "none", padding: "10px 24px", borderRadius: 50, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Browse Products →</button>
                 </div>
               ) : ORDERS.map(o => (
@@ -625,7 +506,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 15, fontWeight: 800, color: C.hot }}>{fmt(o.total)}</span>
-                    <button onClick={() => { setTrackId(o.id); setTab("track"); }}
+                    <button onClick={() => setTab("track")}
                       style={{ background: "var(--tint-blue)", color: "var(--info)", border: "none", padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🚚 Track</button>
                   </div>
                   {/* Mini progress bar */}
@@ -648,60 +529,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
           )}
 
           {/* ── TRACK ORDER ── */}
-          {tab === "track" && (
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 4, height: 16, background: C.primary, borderRadius: 4, display: "inline-block" }} /> Track Your Order
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <input value={trackId} onChange={e => { setTrackId(e.target.value); setTrackErr(""); }}
-                  placeholder="Enter your Order ID (e.g. OC-12345678)"
-                  style={{ width: "100%", border: `2px solid ${trackErr ? C.primary : C.border}`, borderRadius: 9, padding: "12px 14px", fontSize: 14, outline: "none", fontFamily: "inherit" }} />
-                {trackErr && <p style={{ color: C.hot, fontSize: 11, marginTop: 4 }}>⚠️ {trackErr}</p>}
-              </div>
-              <Btn onClick={trackOrder} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 16 }}>🔍 Track Order</Btn>
-
-              {/* Quick select from orders — only if user has orders */}
-              {ORDERS.length > 0 && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 8 }}>Or pick from your orders:</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-                    {ORDERS.map(o => (
-                      <button key={o.id} onClick={() => { setTrackId(o.id); setTrackResult(null); setTrackErr(""); }}
-                        style={{ background: trackId === o.id ? "var(--tint-earth)" : "var(--surface)", border: `2px solid ${trackId === o.id ? C.primary : C.border}`, borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", color: trackId === o.id ? C.hot : C.muted }}>{o.id}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {trackResult && (
-                <div style={{ background: "var(--surface)", borderRadius: 14, padding: "18px", border: `1px solid ${C.border}`, boxShadow: "0 2px 10px rgba(0,0,0,.07)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800 }}>{trackResult.id}</div>
-                    <span style={{ background: STATUS_COLORS[trackResult.status], color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 50 }}>{STATUS_LABELS[trackResult.status]}</span>
-                  </div>
-                  {/* Step tracker */}
-                  <div style={{ position: "relative", marginBottom: 16 }}>
-                    <div style={{ position: "absolute", top: 20, left: 20, right: 20, height: 3, background: "var(--track)", zIndex: 0 }} />
-                    <div style={{ position: "absolute", top: 20, left: 20, height: 3, background: C.green, zIndex: 1, width: `${Math.min(((trackResult.steps - 1) / 3) * 100, 100)}%`, transition: "width .5s" }} />
-                    <div style={{ display: "flex", justifyContent: "space-between", position: "relative", zIndex: 2 }}>
-                      {["✔️", "📦", "🚚", "🎉"].map((ic, i) => {
-                        const done = i < trackResult.steps, active = i === trackResult.steps - 1;
-                        return <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-                          <div style={{ width: 40, height: 40, borderRadius: "50%", background: done || active ? (active ? C.primary : C.green) : "var(--track)", color: (done || active) ? "#fff" : C.muted, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, boxShadow: "0 2px 8px rgba(0,0,0,.1)", marginBottom: 6 }}>{ic}</div>
-                          <div style={{ fontSize: 10, fontWeight: 700, textAlign: "center", color: (done || active) ? C.dark : C.muted }}>{TRACK_STEPS[i]}</div>
-                        </div>;
-                      })}
-                    </div>
-                  </div>
-                  <div style={{ background: C.bg, borderRadius: 8, padding: "10px 12px" }}>
-                    {trackResult.items.map((item, i) => <div key={i} style={{ fontSize: 12, color: "var(--text-2)", marginBottom: i < trackResult.items.length - 1 ? 4 : 0 }}>📦 {item}</div>)}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.hot, marginTop: 8 }}>{fmt(trackResult.total)}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {tab === "track" && <TrackNotice />}
 
           {/* ── EDIT PROFILE ── */}
           {tab === "profile" && (
@@ -748,7 +576,8 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
               {editing ? (
                 <div>
                   <Input label="Full Name" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your full name" />
-                  <Input label={account.method === "email" ? "Email" : "Phone"} value={editContact} onChange={e => setEditContact(e.target.value)} placeholder={account.method === "email" ? "you@email.com" : "01XXXXXXXXX"} />
+                  <p style={{ fontSize: 11, color: C.muted, margin: "-8px 0 14px" }}>Your login email ({account.contact}) can't be changed here yet.</p>
+                  {saveMsg && <p style={{ fontSize: 12, color: saveMsg.includes("Could not") ? C.hot : C.okText, marginBottom: 10 }}>{saveMsg}</p>}
                   <div style={{ display: "flex", gap: 10 }}>
                     <Btn variant="ghost" onClick={() => setEditing(false)} style={{ flex: 1 }}>Cancel</Btn>
                     <Btn onClick={saveProfile} style={{ flex: 2 }}>💾 Save Changes</Btn>
@@ -762,7 +591,7 @@ function UserDashboard({ account, onClose, onUpdate, onLogout }) {
                       <span style={{ fontSize: 14, fontWeight: 700 }}>{account.name}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 12, color: C.muted }}>{account.method === "email" ? "Email" : "Phone"}</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>Email</span>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{account.contact}</span>
                     </div>
                   </div>
@@ -826,8 +655,24 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
   const isHoodie = product.cat === "hoodies";
   const waReview = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(`Review for ${product.name}: ⭐ _/5 — `)}`;
 
+  // Size/colour — mandatory wherever the product actually has options, and
+  // resets whenever the viewed product changes (same reset pattern as pic).
+  const [variantSel, setVariantSel] = useState({ id: null, size: null, colour: null });
+  const curSel = variantSel.id === product.id ? variantSel : { id: product.id, size: null, colour: null };
+  const setVariant = patch => setVariantSel({ ...curSel, ...patch, id: product.id });
+  const sizes = sizeChoices(product), colours = colourChoices(product);
+  const needsSize = sizes.length > 0, needsColour = colours.length > 1;
+  const resolvedColour = curSel.colour || (colours.length === 1 ? colours[0] : null);
+  const variantReady = (!needsSize || curSel.size) && (!needsColour || curSel.colour);
+  const variantSuffix = (needsSize && curSel.size && needsColour && curSel.colour) ? ` · ${curSel.colour} (${curSel.size})`
+    : curSel.size ? ` (${curSel.size})`
+    : (needsColour && curSel.colour) ? ` · ${curSel.colour}`
+    : "";
+  const withVariant = p => ({ ...p, name: `${p.name}${variantSuffix}`, selectedSize: curSel.size || null, selectedColour: resolvedColour });
+
   const handleAdd = () => {
-    for (let i = 0; i < qty; i++) onAdd(product);
+    if (!variantReady) return;
+    onAdd(withVariant(product), qty);
     setAddedMsg(true);
     setTimeout(() => setAddedMsg(false), 2000);
   };
@@ -903,7 +748,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
 
             {/* Features */}
             <div style={{ background: C.bg, borderRadius: 12, padding: "14px 16px", border: `1px solid ${C.border}` }}>
-              {[["🚚", "Fast Delivery", "Inside Dhaka 1-2 days · Outside Dhaka 2-4 days"], ["🔄", "Easy Returns", "7-day hassle-free returns"], ["🔒", "Secure Payment", "bKash · Nagad · Rocket · Cash on Delivery"], ["✅", "Quality Check", "Verified before dispatch"]].map(([ic, t, d]) => (
+              {[["🚚", "Delivery across Bangladesh", "Delivery fee depends on your area; timing is confirmed when your order is confirmed."], ["ℹ️", "Returns", "Contact us before ordering to confirm the applicable return conditions."], ["💵", "Cash on Delivery", "Pay when your order arrives"], ["💬", "Order confirmation", "We confirm product availability with you on WhatsApp."]].map(([ic, t, d]) => (
                 <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, lastChild: { marginBottom: 0 } }}>
                   <span style={{ fontSize: 16 }}>{ic}</span>
                   <div>
@@ -914,6 +759,38 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               ))}
             </div>
 
+            {/* Size / Colour — mandatory wherever this product actually has options */}
+            {(needsSize || needsColour) && (
+              <div>
+                {needsSize && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Size {!curSel.size && <span style={{ color: C.hot }}>*</span>}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {sizes.map(s => (
+                        <button key={s} onClick={() => setVariant({ size: s })} aria-pressed={curSel.size === s}
+                          style={{ padding: "6px 14px", borderRadius: 8, border: `2px solid ${curSel.size === s ? C.primary : C.border}`, background: curSel.size === s ? C.primary : "var(--surface)", color: curSel.size === s ? "#fff" : C.dark, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {needsColour && (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Colour {!curSel.colour && <span style={{ color: C.hot }}>*</span>}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {colours.map(c => (
+                        <button key={c} onClick={() => setVariant({ colour: c })} aria-pressed={curSel.colour === c}
+                          style={{ padding: "6px 14px", borderRadius: 8, border: `2px solid ${curSel.colour === c ? C.primary : C.border}`, background: curSel.colour === c ? C.primary : "var(--surface)", color: curSel.colour === c ? "#fff" : C.dark, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Qty + Buttons */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -921,23 +798,28 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, border: `2px solid ${C.border}`, borderRadius: 10, padding: "4px 10px" }}>
                   <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                   <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>
-                  <button onClick={() => setQty(q => q + 1)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                  <button onClick={() => setQty(q => Math.min(99, q + 1))} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.dark, fontWeight: 700, width: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                 </div>
                 {priced && <span style={{ fontSize: 12, color: C.muted }}>Total: <strong style={{ color: C.hot }}>{fmt(product.price * qty)}</strong></span>}
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={handleAdd} disabled={!priced}
-                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "var(--gum)" : "transparent", color: addedMsg ? "#fff" : C.dark, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
+                <button onClick={handleAdd} disabled={!priced || !variantReady}
+                  style={{ opacity: (priced && variantReady) ? 1 : .45, cursor: (priced && variantReady) ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "var(--gum)" : "transparent", color: addedMsg ? "#fff" : C.dark, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
                   {addedMsg ? "✅ Added!" : "🛒 Add to Cart"}
                 </button>
-                <button onClick={() => { onAdd(product); onBuyNow(); }} disabled={!priced}
-                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
+                <button onClick={() => { if (!variantReady) return; onAdd(withVariant(product), qty); onBuyNow(); }} disabled={!priced || !variantReady}
+                  style={{ opacity: (priced && variantReady) ? 1 : .45, cursor: (priced && variantReady) ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
                   ⚡ Buy Now
                 </button>
               </div>
+              {priced && !variantReady && (
+                <div style={{ fontSize: 12, color: C.hot, marginTop: 8 }}>
+                  Please choose {needsSize && !curSel.size ? "a size" : ""}{needsSize && !curSel.size && needsColour && !curSel.colour ? " and " : ""}{needsColour && !curSel.colour ? "a colour" : ""} before adding to cart.
+                </div>
+              )}
 
-              <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20I%20want%20to%20order:%20${encodeURIComponent(product.name)}`} target="_blank" rel="noreferrer"
+              <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20I%20want%20to%20order:%20${encodeURIComponent(product.name + variantSuffix)}`} target="_blank" rel="noreferrer"
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 10, background: "#25D366", color: "#05210F", textDecoration: "none", padding: "12px", borderRadius: 12, fontSize: 14, fontWeight: 700, boxSizing: "border-box" }}>
                 💬 Order via WhatsApp
               </a>
@@ -1008,7 +890,7 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                   </p>
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10 }}>
-                  {[["Category", CATS.find(c => c.key === product.cat)?.label || product.cat], ["Condition", "Brand New"], ["Delivery", "Nationwide Bangladesh"], ["Return policy", "7 days"], ["Payment", "bKash · Nagad · Rocket · COD"]].map(([k, v]) => (
+                  {[["Category", CATS.find(c => c.key === product.cat)?.label || product.cat], ["Condition", product.condition || "See product details"], ["Delivery", "Nationwide Bangladesh"], ["Returns", "Ask us to confirm the applicable conditions"], ["Payment", "Cash on delivery"]].map(([k, v]) => (
                     <div key={k} style={{ background: C.bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${C.border}` }}>
                       <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .4, marginBottom: 3 }}>{k}</div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{v}</div>
@@ -1024,11 +906,11 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                 <p style={{ fontSize: 13, color: C.muted, margin: "0 0 18px" }}>Five quick steps. No account needed.</p>
                 <ol style={{ listStyle: "none", padding: 0, margin: "0 0 20px", display: "grid", gap: 12 }}>
                   {[
-                    ["Choose your size" + (product.colors && product.colors.length > 1 ? " and colour" : ""), isHoodie ? "Check the size chart in the Description tab, then pick your size." : "Check the details in the Description tab."],
-                    ["Add to cart or Buy Now", "Add as many items as you like. Delivery is free on orders over ৳999."],
-                    ["Confirm your order", "Write, send a screenshot, or text us on WhatsApp to confirm your order and delivery charge."],
-                    ["Pay your way", "bKash, Nagad, Rocket, or Cash on Delivery."],
-                    ["Get your Order ID", "We confirm your order, then deliver it: inside Dhaka 1–2 days, outside Dhaka 2–4 days."],
+                    ["Choose your size" + (product.colors && product.colors.length > 1 ? " and colour" : ""), isHoodie ? "Check the size chart in the Description tab. You pick your size before you send the order." : "Check the details in the Description tab."],
+                    ["Add to cart or Buy Now", `Add as many items as you like. Delivery is free on orders of ${fmt(FREE_DELIVERY_FROM)} or more.`],
+                    ["Send your order on WhatsApp", "Checkout types your order into a WhatsApp message. Press Send there, and we reply to confirm it."],
+                    ["Pay cash on delivery", "You pay when your order arrives."],
+                    ["Delivery", `After we confirm your order on WhatsApp, we deliver it: ${DELIVERY_ZONES.map(z => `${z.name} ${z.days}`).join(", ")}.`],
                   ].map(([t, d], i) => (
                     <li key={t} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
                       <span style={{ flex: "none", width: 32, height: 32, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
@@ -1041,12 +923,12 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
                 </ol>
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", background: C.bg, fontSize: 12, fontWeight: 800, color: C.dark, padding: "10px 14px" }}><span>Location</span><span>Time</span><span>Charge</span></div>
-                  {[["Inside Dhaka", "1-2 days", "৳60"], ["Dhaka Sub Area", "1-2 days", "৳100"], ["Outside Dhaka", "2-4 days", "৳120"]].map(([a, b, c]) => (
+                  {DELIVERY_ZONES.map(z => [z.name, z.days, fmt(z.fee)]).map(([a, b, c]) => (
                     <div key={a} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", fontSize: 13, color: "var(--text-2)", padding: "10px 14px", borderTop: `1px solid ${C.border}` }}><span>{a}</span><span>{b}</span><span>{c}</span></div>
                   ))}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 16 }}>
-                  {[["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["🔄", "Easy returns", "7-day returns if it isn't right"]].map(([ic, t, d]) => (
+                  {[["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["⏱️", "Changed your mind?", "Cancel within 2 hours, before dispatch"], ["🔄", "Easy returns", "Returns — contact us for conditions if it isn't right"]].map(([ic, t, d]) => (
                     <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
                       <span style={{ fontSize: 20 }}>{ic}</span>
                       <div><div style={{ fontSize: 12, fontWeight: 800, color: C.dark }}>{t}</div><div style={{ fontSize: 12, color: C.muted }}>{d}</div></div>
@@ -1129,6 +1011,10 @@ function ProductCard({ p, onAdd, onView }) {
   const disc = p.old && p.price > 0 ? Math.round((1 - p.price / p.old) * 100) : 0;
   const catLabel = CATS.find(c => c.key === p.cat)?.label;
   const priced = p.price > 0;
+  // Quick-add skips any size/colour picker, so a product with real options
+  // (more than one size, or more than one colour) sends the shopper to the
+  // product page to choose instead of silently adding an unspecified variant.
+  const hasVariants = sizeChoices(p).length > 0 || colourChoices(p).length > 1;
   return (
     <article className="ocp-card">
       {(p.badge || disc > 0) && (
@@ -1152,7 +1038,7 @@ function ProductCard({ p, onAdd, onView }) {
         </button>
         {/* Action buttons */}
         <div className="ocp-btns">
-          <button className="ocp-add" onClick={() => priced ? onAdd(p) : onView(p)} style={{ opacity: priced ? 1 : .5 }}>Add to cart</button>
+          <button className="ocp-add" onClick={() => (priced && !hasVariants) ? onAdd(p) : onView(p)} style={{ opacity: priced ? 1 : .5 }}>{priced && hasVariants ? "Choose options" : "Add to cart"}</button>
           <button className="ocp-view" onClick={() => onView(p)}>View</button>
         </div>
       </div>
@@ -1163,13 +1049,15 @@ function ProductCard({ p, onAdd, onView }) {
 // ─────────────────────────────────────────────────────────────
 //  CART SIDEBAR
 // ─────────────────────────────────────────────────────────────
-// Delivery charge by zone (applies below ৳999; free above)
+// Delivery fee and time by area: the ONE place these numbers live. Checkout, the FAQ, the product
+// page, the help chat and the shop strip all read this table, so they can no longer disagree.
 const DELIVERY_ZONES = [
-  { k: "inside", label: "Inside Dhaka (1-2 days) — ৳60", fee: 60 },
-  { k: "sub", label: "Dhaka Sub Area (1-2 days) — ৳100", fee: 100 },
-  { k: "outside", label: "Outside Dhaka (2-4 days) — ৳120", fee: 120 },
+  { k: "inside", name: "Inside Dhaka", days: "Timing confirmed on order", fee: 60 },
+  { k: "sub", name: "Dhaka Sub Area", days: "Timing confirmed on order", fee: 100 },
+  { k: "outside", name: "Outside Dhaka", days: "Timing confirmed on order", fee: 120 },
 ];
-const zoneFee = k => (DELIVERY_ZONES.find(z => z.k === k) || {}).fee;
+const FREE_DELIVERY_FROM = 999; // a subtotal of this much or more gets free delivery
+const zoneLabel = z => `${z.name} (${z.days}) — ${fmt(z.fee)}`;
 
 function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
   const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), total = sub;
@@ -1183,80 +1071,256 @@ function CartSidebar({ cart, open, onClose, onQty, onRemove, onCheckout }) {
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
           {cart.length === 0 ? <div style={{ textAlign: "center", padding: "60px 20px", color: C.muted }}><div style={{ fontSize: 52, marginBottom: 12 }}>🛒</div><p>Your cart is empty!</p></div>
             : cart.map(item => (
-              <div key={item.id} style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+              <div key={item.cartKey || item.id} style={{ display: "flex", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
                 <div style={{ width: 58, height: 58, borderRadius: 12, background: "var(--dawn)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0, overflow: "hidden" }}>{item.img ? <img src={item.img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.icon}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, marginBottom: 3 }}>{item.name}</div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.hot }}>{fmt(item.price * item.qty)}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6 }}>
-                    <button onClick={() => onQty(item.id, -1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                    <button onClick={() => onQty(item.cartKey || item.id, -1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                     <span style={{ fontSize: 13, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{item.qty}</span>
-                    <button onClick={() => onQty(item.id, 1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                    <button onClick={() => onQty(item.cartKey || item.id, 1)} style={{ width: 24, height: 24, border: `2px solid ${C.border}`, background: "var(--surface)", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                   </div>
                 </div>
-                <button onClick={() => onRemove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, alignSelf: "flex-start", padding: 4 }}>🗑</button>
+                <button onClick={() => onRemove(item.cartKey || item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: C.muted, alignSelf: "flex-start", padding: 4 }}>🗑</button>
               </div>
             ))}
         </div>
         {cart.length > 0 && <div style={{ padding: "16px 20px", borderTop: `1px solid ${C.border}`, background: C.bg }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}><span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmt(sub)}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 10 }}><span>Delivery</span><span style={{ color: sub >= 999 ? C.okText : "inherit", fontWeight: 600 }}>{sub >= 999 ? "FREE ✅" : "Calculated at checkout"}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 17, fontWeight: 800, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginBottom: 14 }}><span>{sub < 999 ? "Total (before delivery)" : "Total"}</span><span style={{ color: C.hot }}>{fmt(total)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 10 }}><span>Delivery</span><span style={{ color: sub >= FREE_DELIVERY_FROM ? C.okText : "inherit", fontWeight: 600 }}>{sub >= FREE_DELIVERY_FROM ? "FREE ✅" : "Calculated at checkout"}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 17, fontWeight: 800, paddingTop: 10, borderTop: `1px solid ${C.border}`, marginBottom: 14 }}><span>{sub < FREE_DELIVERY_FROM ? "Total (before delivery)" : "Total"}</span><span style={{ color: C.hot }}>{fmt(total)}</span></div>
           <Btn onClick={onCheckout} style={{ width: "100%", padding: 14, fontSize: 15, borderRadius: 12 }}>Checkout →</Btn>
-          {sub < 999 && <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 7 }}>Add {fmt(999 - sub)} more for free delivery!</p>}
+          {sub < FREE_DELIVERY_FROM && <p style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 7 }}>Add {fmt(FREE_DELIVERY_FROM - sub)} more for free delivery!</p>}
         </div>}
       </div></>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-//  SSLCOMMERZ + CHECKOUT
+//  CHECKOUT — real order submission (cash on delivery)
 // ─────────────────────────────────────────────────────────────
-async function initiateSSL({ form, cart, total, orderId }) {
-  const payload = { store_id: CONFIG.SSL_STORE_ID, store_passwd: CONFIG.SSL_STORE_PASS, total_amount: total, currency: "BDT", tran_id: orderId, success_url: `${window.location.origin}/payment/success`, fail_url: `${window.location.origin}/payment/fail`, cancel_url: `${window.location.origin}/payment/cancel`, ipn_url: `${window.location.origin}/payment/ipn`, cus_name: form.name, cus_email: form.email || "customer@outbackcartel.com", cus_add1: form.address, cus_city: form.district, cus_country: "Bangladesh", cus_phone: form.phone, shipping_method: "Courier", product_name: cart.map(i => i.name).join(", ").substring(0, 200), product_category: "Mixed", product_profile: "general", ship_name: form.name, ship_add1: form.address, ship_city: form.district, ship_country: "Bangladesh" };
-  if (CONFIG.SSL_STORE_ID === "YOUR_STORE_ID") return { demo: true, payload };
-  try { const res = await fetch("/api/sslcommerz/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await res.json(); if (data.status === "SUCCESS" && data.GatewayPageURL) { window.location.href = data.GatewayPageURL; return { ok: true }; } return { error: data.failedreason || "Failed" }; } catch (e) { return { error: e.message }; }
+// Orders are POSTed to /api/orders, validated server-side against the trusted
+// catalogue, and persisted to the database. The customer receives a reference
+// number and can contact WhatsApp support with questions.
+const DISTRICTS = ["Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna", "Barisal", "Mymensingh", "Rangpur", "Comilla", "Gazipur", "Narayanganj", "Cox's Bazar", "Jessore", "Bogura", "Other"];
+const sizeChoices = i => (Array.isArray(i.sizes) ? i.sizes.filter(Boolean) : []);
+const colourChoices = i => (Array.isArray(i.colors) ? i.colors.filter(Boolean) : []);
+
+/** Generate a simple idempotency key: timestamp + random suffix */
+function makeIdempotencyKey() {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 14);
+  return `oc-${ts}-${rand}`.padEnd(16, "0");
 }
 
-function CheckoutModal({ cart, open, onClose, onSuccess, account }) {
-  const [form, setForm] = useState({ name: account?.name || "", email: account?.method === "email" ? account?.contact || "" : "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "" });
+const PAYMENT_METHODS = [
+  { k: "cod", label: "Cash on Delivery", icon: "💵", note: "Pay when your order arrives." },
+  { k: "bkash", label: "bKash", icon: "📱", note: "We'll WhatsApp you our bKash number." },
+  { k: "nagad", label: "Nagad", icon: "📱", note: "We'll WhatsApp you our Nagad number." },
+  { k: "rocket", label: "Rocket", icon: "📱", note: "We'll WhatsApp you our Rocket number." },
+];
+
+function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
+  const [form, setForm] = useState({ name: account?.name || "", phone: account?.method === "phone" ? account?.contact || "" : "", district: "", zone: "", area: "", address: "", payment: "cod" });
+  const [picks, setPicks] = useState({});    // size / colour chosen here, per cart line
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
-  const [demoPL, setDemoPL] = useState(null);
-  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0), del = sub >= 999 ? 0 : (zoneFee(form.zone) || 0), total = sub + del;
+  const [step, setStep] = useState("form");  // "form" → "submitting" → "confirmed" | "error"
+  const [orderResult, setOrderResult] = useState(null); // server response on success
+  const [submitError, setSubmitError] = useState("");
+  // One idempotency key per order attempt, not per request: regenerated each
+  // time the modal is freshly opened, but kept stable across "Try again"
+  // retries of the same attempt. Without this, a retry after a dropped
+  // response (order actually saved, but the confirmation never arrived)
+  // would get a new key and create a second, duplicate order.
+  const idempotencyKeyRef = useRef(null);
+  useEffect(() => {
+    if (open) idempotencyKeyRef.current = makeIdempotencyKey();
+  }, [open]);
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const zone = DELIVERY_ZONES.find(z => z.k === form.zone) || null;
+  const free = sub >= FREE_DELIVERY_FROM;
+  const del = free ? 0 : (zone ? zone.fee : 0), total = sub + del;
+  const delText = free ? "FREE" : zone ? fmt(del) : "choose your area";
+  const totalText = free || zone ? fmt(total) : `${fmt(sub)} + delivery`;
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
-  const validate = () => { const e = {}; if (!form.name.trim()) e.name = "Required"; if (!form.phone.trim()) e.phone = "Required"; if (!form.district) e.district = "Required"; if (!form.zone) e.zone = "Required"; if (!form.address.trim()) e.address = "Required"; setErrors(e); return Object.keys(e).length === 0; };
-  const pay = async () => { if (!validate()) return; setLoading(true); const id = "OC-" + Date.now().toString().slice(-8); const r = await initiateSSL({ form, cart, total, orderId: id }); setLoading(false); if (r.demo) { setDemoPL(r.payload); setDemoMode(true); } else if (r.ok) { onSuccess(id); } else { alert("Error: " + r.error); } };
+  const pick = (id, k, v) => { setPicks(p => ({ ...p, [id]: { ...p[id], [k]: v } })); setErrors(e => ({ ...e, [`${k}-${id}`]: "" })); };
+  const validate = () => {
+    const e = {};
+    if (!cart.length) e.cart = "Your cart is empty. Add a product before checkout.";
+    cart.forEach(i => {
+      if (!Number.isSafeInteger(Number(i.qty)) || Number(i.qty) < 1 || Number(i.qty) > 99 ||
+          !Number.isFinite(Number(i.price)) || Number(i.price) < 0 || !String(i.name || "").trim()) {
+        e.cart = "A cart item needs refreshing. Please remove it and add it again.";
+      }
+    });
+    if (!form.zone) e.zone = "Choose your delivery area";
+    cart.forEach(i => {
+      const lineKey = i.cartKey || i.id;
+      if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${lineKey}`] = "Choose a size";
+      if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${lineKey}`] = "Choose a colour";
+    });
+    if (form.name.trim().length < 2) e.name = "Enter your full name";
+    if (!form.phone.trim()) e.phone = "Required";
+    else if (!/^[+\d][\d\s()+-]{7,30}$/.test(form.phone.trim())) e.phone = "Enter a valid phone number (e.g. 01XXXXXXXXX)";
+    if (!form.district) e.district = "Required";
+    if (form.address.trim().length < 5) e.address = "Enter your full delivery address";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+  const close = () => { setStep("form"); setSubmitError(""); setOrderResult(null); onClose(); };
+
+  const submitOrder = async () => {
+    if (!validate()) return;
+    setStep("submitting");
+    setSubmitError("");
+    try {
+      const items = cart.map(i => {
+        const lineKey = i.cartKey || i.id, p = picks[lineKey] || {}, colours = colourChoices(i);
+        // Showroom/HoodieRail items resolve their size & colour at
+        // add-to-cart time (selectedSize/selectedColour) rather than via
+        // this modal's picker — prefer that when present.
+        const colour = i.selectedColour || p.color || (colours.length === 1 ? colours[0] : null);
+        const size = i.selectedSize || p.size || null;
+        // Build variantId the same way the server catalogue does
+        let variantId = null;
+        if (size && colour) variantId = `${size}-${colour}`.toLowerCase();
+        else if (colour) variantId = String(colour).toLowerCase();
+        else if (size) variantId = String(size).toLowerCase();
+        return { productId: i.id, variantId, quantity: i.qty };
+      });
+      const payload = {
+        customer: { name: form.name.trim(), phone: form.phone.trim(), district: form.district, area: form.area.trim(), address: form.address.trim() },
+        deliveryZone: form.zone,
+        paymentMethod: form.payment,
+        items,
+      };
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current || makeIdempotencyKey() },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setOrderResult(data);
+        setStep("confirmed");
+      } else {
+        // A 409 means this exact key was already used for a *different*
+        // order (e.g. the cart/details changed since the previous attempt).
+        // Retrying with the same key would just conflict forever, so start
+        // the next attempt fresh.
+        if (res.status === 409) idempotencyKeyRef.current = makeIdempotencyKey();
+        setSubmitError(data.error || `Something went wrong (${res.status}). Please try again.`);
+        setStep("error");
+      }
+    } catch (e) {
+      setSubmitError("Could not connect to the server. Check your internet and try again.");
+      setStep("error");
+    }
+  };
+
   const iS = k => ({ width: "100%", border: `2px solid ${errors[k] ? C.primary : C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", color: C.dark, background: "var(--surface)" });
+  const label = { fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .6, marginBottom: 10 };
+  const err = k => errors[k] && <span style={{ color: C.hot, fontSize: 11 }}>{errors[k]}</span>;
   if (!open) return null;
-  if (demoMode) return (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.75)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}><div style={{ background: "#1D2A6E", color: "#fff", padding: "18px 22px", borderRadius: "18px 18px 0 0" }}><div style={{ fontSize: 15, fontWeight: 800 }}>🏦 SSLCommerz Demo</div></div><div style={{ padding: "20px 22px" }}><div style={{ background: "var(--tint-gold)", border: `1px solid ${C.accent}`, borderRadius: 9, padding: 12, marginBottom: 14, fontSize: 12 }}><strong>⚠️</strong> Replace YOUR_STORE_ID in CONFIG to go live.</div><div style={{ background: "var(--deep)", borderRadius: 10, padding: 14, overflowX: "auto", marginBottom: 14 }}><pre style={{ margin: 0, fontSize: 11, color: "#7EE787", lineHeight: 1.6, fontFamily: "monospace" }}>{JSON.stringify(demoPL, null, 2)}</pre></div><div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={() => setDemoMode(false)} style={{ flex: 1 }}>← Back</Btn><Btn onClick={() => { setDemoMode(false); onSuccess("OC-DEMO"); }} style={{ flex: 2 }}>✅ Simulate Success</Btn></div></div></div></div>);
-  return (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.72)", zIndex: 660, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>
-    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "var(--surface)", zIndex: 1, borderRadius: "18px 18px 0 0" }}><span style={{ fontSize: 16, fontWeight: 800 }}>🧾 Checkout</span><button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.muted }}>✕</button></div>
+  const frame = body => (<div style={{ position: "fixed", inset: 0, background: "rgba(4,3,16,.72)", zIndex: 660, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div role="dialog" aria-modal="true" aria-label="Checkout" style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 500, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>{body}</div></div>);
+
+  // order confirmed
+  if (step === "confirmed" && orderResult) {
+    const methodLabel = PAYMENT_METHODS.find(m => m.k === orderResult.paymentMethod)?.label || "Cash on Delivery";
+    const isCod = orderResult.paymentMethod === "cod";
+    const waMsg = isCod
+      ? `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'll pay cash on delivery. Sending the ৳120 advance now to confirm my order.`
+      : `Hi! I just placed an order on Outback Cartel.\nReference: ${orderResult.publicReference}\nTotal: ${fmt(orderResult.totalBdt)}\n\nI'd like to pay via ${methodLabel} — please send me your ${methodLabel} number.`;
+    return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
+      <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">✅</div>
+      <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order placed!</h2>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Your order reference:</p>
+      <div style={{ fontFamily: "monospace", fontSize: 22, fontWeight: 900, color: C.hot, letterSpacing: 1, margin: "0 0 14px", background: C.bg, borderRadius: 10, padding: "12px 16px", border: `1px solid ${C.border}` }}>{orderResult.publicReference}</div>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 6px" }}>Total: <strong>{fmt(orderResult.totalBdt)}</strong> — {methodLabel}</p>
+      {isCod
+        ? <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>To confirm your order, please send a ৳120 advance over WhatsApp (deducted from your total — pay the rest on delivery). Orders without an advance may be cancelled.</p>
+        : <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "0 0 18px" }}>Message us on WhatsApp and we'll send you our {methodLabel} number to complete payment.</p>}
+      <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(waMsg)}`} target="_blank" rel="noopener noreferrer"
+        style={{ display: "block", textAlign: "center", background: "#25D366", color: "#05210F", textDecoration: "none", padding: 14, fontSize: 14, fontWeight: 800, borderRadius: 12, marginBottom: 8 }}>
+        💬 {isCod ? "Send ৳120 advance on WhatsApp" : `Message us for our ${methodLabel} number`}
+      </a>
+      <Btn onClick={() => { onClearCart(); setPicks({}); close(); }} variant="ghost" style={{ width: "100%", padding: 13, borderRadius: 12 }}>Done</Btn>
+    </div>);
+  }
+
+  // submitting
+  if (step === "submitting") return frame(<div style={{ padding: "50px 24px", textAlign: "center" }}>
+    <div style={{ fontSize: 36, marginBottom: 12, animation: "spin 1s linear infinite" }}>⏳</div>
+    <p style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>Placing your order…</p>
+    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+  </div>);
+
+  // error after submit
+  if (step === "error") return frame(<div style={{ padding: "30px 24px 24px", textAlign: "center" }}>
+    <div style={{ fontSize: 46, marginBottom: 8 }} aria-hidden="true">⚠️</div>
+    <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 10px", color: C.dark }}>Order could not be placed</h2>
+    <p style={{ fontSize: 13, color: C.hot, lineHeight: 1.7, margin: "0 0 14px" }}>{submitError}</p>
+    <Btn onClick={() => setStep("form")} style={{ width: "100%", padding: 13, borderRadius: 12, marginBottom: 8 }}>Try again</Btn>
+    <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: "6px 0 0" }}>Or WhatsApp us at {CONFIG.WHATSAPP_DISPLAY} to place your order.</p>
+  </div>);
+
+  return frame(<>
+    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "var(--surface)", zIndex: 1, borderRadius: "18px 18px 0 0" }}><span style={{ fontSize: 16, fontWeight: 800 }}>🧾 Checkout</span><button onClick={close} aria-label="Close checkout" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.muted }}>✕</button></div>
     <div style={{ padding: "18px 22px" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .6, marginBottom: 12 }}>📦 Delivery Info</div>
-      <div style={{ marginBottom: 11 }}><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Full Name *" style={iS("name")} />{errors.name && <span style={{ color: C.hot, fontSize: 11 }}>{errors.name}</span>}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 11 }}>
-        <div><input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Phone *" type="tel" style={iS("phone")} />{errors.phone && <span style={{ color: C.hot, fontSize: 11 }}>{errors.phone}</span>}</div>
-        <div><input value={form.email} onChange={e => set("email", e.target.value)} placeholder="Email (opt)" style={iS("email")} /></div>
+      <div style={label}>📦 Your order</div>
+      <div style={{ background: C.bg, borderRadius: 10, padding: "6px 12px 10px", marginBottom: 16, border: `1px solid ${C.border}` }}>
+        {cart.map(i => { const sizes = sizeChoices(i), colours = colourChoices(i); return (
+          <div key={i.cartKey || i.id} style={{ padding: "8px 0", borderBottom: `1px dashed ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5 }}><span>{i.icon} {i.name} × {i.qty}</span><span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(i.price * i.qty)}</span></div>
+            {(sizes.length > 0 || colours.length > 1) && <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+              {sizes.length > 0 && <select aria-label={`Size for ${i.name}`} value={picks[i.cartKey || i.id]?.size || ""} onChange={e => pick(i.cartKey || i.id, "size", e.target.value)} style={{ ...iS(`size-${i.cartKey || i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Size *</option>{sizes.map(s => <option key={s} value={s}>{s}</option>)}</select>}
+              {colours.length > 1 && <select aria-label={`Colour for ${i.name}`} value={picks[i.cartKey || i.id]?.color || ""} onChange={e => pick(i.cartKey || i.id, "color", e.target.value)} style={{ ...iS(`color-${i.cartKey || i.id}`), width: "auto", padding: "7px 10px", fontSize: 12, cursor: "pointer" }}><option value="">Colour *</option>{colours.map(c => <option key={c} value={c}>{c}</option>)}</select>}
+            </div>}
+            {err(`size-${i.cartKey || i.id}`)}{err(`color-${i.cartKey || i.id}`)}
+          </div>); })}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, paddingTop: 8 }}><span>Subtotal</span><span style={{ fontWeight: 600 }}>{fmt(sub)}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, paddingTop: 4 }}><span>Delivery</span><span style={{ color: free ? C.okText : "inherit", fontWeight: 600 }}>{free || zone ? delText : "Choose your area below"}</span></div>
       </div>
-      <div style={{ marginBottom: 11 }}><select value={form.zone} onChange={e => set("zone", e.target.value)} style={{ ...iS("zone"), cursor: "pointer" }}><option value="">Delivery zone *</option>{DELIVERY_ZONES.map(z => <option key={z.k} value={z.k}>{z.label}</option>)}</select>{errors.zone && <span style={{ color: C.hot, fontSize: 11 }}>{errors.zone}</span>}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 11 }}>
-        <div><select value={form.district} onChange={e => set("district", e.target.value)} style={{ ...iS("district"), cursor: "pointer" }}><option value="">District *</option>{["Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna", "Barisal", "Mymensingh", "Rangpur", "Comilla", "Gazipur", "Narayanganj", "Cox's Bazar", "Jessore", "Bogura", "Other"].map(d => <option key={d}>{d}</option>)}</select>{errors.district && <span style={{ color: C.hot, fontSize: 11 }}>{errors.district}</span>}</div>
-        <div><input value={form.area} onChange={e => set("area", e.target.value)} placeholder="Area" style={iS("area")} /></div>
+
+      {err("cart")}
+      <div style={label}>🚚 Delivery area</div>
+      <div style={{ marginBottom: 16 }}><select value={form.zone} onChange={e => set("zone", e.target.value)} aria-label="Delivery area" style={{ ...iS("zone"), cursor: "pointer" }}><option value="">Choose your delivery area *</option>{DELIVERY_ZONES.map(z => <option key={z.k} value={z.k}>{zoneLabel(z)}</option>)}</select>{err("zone")}{free && <div style={{ fontSize: 11, color: C.okText, marginTop: 4 }}>Free delivery: your order is {fmt(FREE_DELIVERY_FROM)} or more.</div>}</div>
+
+      <div style={label}>👤 Your details</div>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ marginBottom: 11 }}><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Full name *" aria-label="Full name" autoComplete="name" style={iS("name")} />{err("name")}</div>
+        <div style={{ marginBottom: 11 }}><input value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="Phone *" aria-label="Phone" type="tel" autoComplete="tel" style={iS("phone")} />{err("phone")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 11 }}>
+          <div><select value={form.district} onChange={e => set("district", e.target.value)} aria-label="District" style={{ ...iS("district"), cursor: "pointer" }}><option value="">District *</option>{DISTRICTS.map(d => <option key={d}>{d}</option>)}</select>{err("district")}</div>
+          <div><input value={form.area} onChange={e => set("area", e.target.value)} placeholder="Area" aria-label="Area" style={iS("area")} /></div>
+        </div>
+        <div style={{ marginBottom: 14 }}><input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Full address *" aria-label="Full address" autoComplete="street-address" style={iS("address")} />{err("address")}</div>
       </div>
-      <div style={{ marginBottom: 14 }}><input value={form.address} onChange={e => set("address", e.target.value)} placeholder="Full Address *" style={iS("address")} />{errors.address && <span style={{ color: C.hot, fontSize: 11 }}>{errors.address}</span>}</div>
-      <div style={{ background: C.bg, borderRadius: 10, padding: 12, marginBottom: 12, border: `1px solid ${C.border}` }}>
-        {cart.map(i => <div key={i.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}><span>{i.icon} {i.name.substring(0, 24)}{i.name.length > 24 ? "…" : ""}×{i.qty}</span><span style={{ fontWeight: 700 }}>{fmt(i.price * i.qty)}</span></div>)}
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 7, marginTop: 7, display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted }}><span>Delivery</span><span style={{ color: sub >= 999 ? C.okText : "inherit", fontWeight: 600 }}>{sub >= 999 ? "FREE" : form.zone ? fmt(del) : "Select zone"}</span></div>
+
+      <div style={label}>💳 Payment method</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 4 }}>
+        {PAYMENT_METHODS.map(m => (
+          <button key={m.k} type="button" onClick={() => set("payment", m.k)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, textAlign: "left", cursor: "pointer",
+              border: `2px solid ${form.payment === m.k ? "var(--earth)" : C.border}`,
+              background: form.payment === m.k ? "var(--tint-gold)" : "var(--surface)",
+              borderRadius: 10, padding: "10px 12px", fontFamily: "inherit",
+            }}>
+            <span style={{ fontSize: 18 }} aria-hidden="true">{m.icon}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: C.dark }}>{m.label}</span>
+          </button>
+        ))}
       </div>
-      <div style={{ background: "var(--tint-blue)", border: "1px solid var(--line-blue)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 22 }}>🔒</span><div><div style={{ fontSize: 12, fontWeight: 700, color: "var(--info)" }}>Secured by SSLCommerz</div><div style={{ fontSize: 11, color: "var(--muted)" }}>bKash · Nagad · Rocket · Cards · COD</div></div></div>
+      <p style={{ fontSize: 11, color: C.muted, margin: "4px 0 0", lineHeight: 1.5 }}>{PAYMENT_METHODS.find(m => m.k === form.payment)?.note}</p>
     </div>
     <div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, background: C.bg, borderRadius: "0 0 18px 18px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginBottom: 12 }}><span>Total</span><span style={{ color: C.hot }}>{fmt(total)}</span></div>
-      <Btn onClick={pay} style={{ width: "100%", padding: 15, fontSize: 15, borderRadius: 12, opacity: loading ? .7 : 1 }}>{loading ? "⏳ Connecting…" : "💳 Pay via SSLCommerz"}</Btn>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, marginBottom: 12 }}><span>Total</span><span style={{ color: C.hot }}>{totalText}</span></div>
+      <Btn onClick={submitOrder} style={{ width: "100%", padding: 15, fontSize: 15, borderRadius: 12 }}>Place order — {totalText}</Btn>
+      <p style={{ fontSize: 11.5, color: C.muted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>We'll confirm your order and delivery timing after you place it.</p>
     </div>
-  </div></div>);
+  </>);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1314,24 +1378,23 @@ function PageHero({ icon, title, subtitle }) { return <div className="oc-pageher
 function ICard({ children, style = {} }) { return <div style={{ background: "var(--surface)", borderRadius: 18, padding: "22px", boxShadow: "inset 0 0 0 1px var(--line)", marginBottom: 14, color: C.dark, ...style }}>{children}</div>; }
 function ITitle({ children }) { return <h2 style={{ fontSize: 19, fontWeight: 800, fontStretch: "112%", color: C.dark, margin: "0 0 14px", display: "flex", alignItems: "center", gap: 10 }}><span style={{ width: 16, height: 2, background: "var(--earth)", borderRadius: 2, display: "inline-block" }} />{children}</h2>; }
 
-function AboutPage() { return <div><PageHero icon="🏕️" title="About Outback Cartel" subtitle="Born in Bangladesh, built for Bangladesh." /><div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px" }}><ICard><ITitle>Our Story</ITitle><p style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.85 }}>Outback Cartel started with one idea: <strong>Bangladeshi shoppers deserve better.</strong> We curate electronics, beauty tech, travel gear, smart bags, gaming lifestyle products and more — all carefully selected for quality and value.</p></ICard><div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 14 }}>{[["5,000+", "Customers"], ["500+", "Products"], ["64", "Districts"], ["4.8★", "Rating"]].map(([v, l]) => <div key={l} style={{ background: "var(--surface)", borderRadius: 12, padding: "18px 12px", textAlign: "center", border: `1px solid ${C.border}` }}><div style={{ fontSize: 22, fontWeight: 900, color: C.hot }}>{v}</div><div style={{ fontSize: 11, color: C.muted }}>{l}</div></div>)}</div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{[["🎯", "Mission", "Quality products at fair prices for all Bangladeshis."], ["🔒", "Security", "SSLCommerz keeps your payment safe."], ["🚀", "Speed", "Dhaka 1-2d, Bangladesh-wide 3-5d."], ["🤝", "Honesty", "No hidden fees, no fake reviews."]].map(([icon, t, d]) => <ICard key={t} style={{ marginBottom: 0 }}><div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 5 }}>{t}</div><div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{d}</div></ICard>)}</div></div></div>; }
+function AboutPage() { return <div><PageHero icon="🏕️" title="About Outback Cartel" subtitle="Born in Bangladesh, built for Bangladesh." /><div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px" }}><ICard><ITitle>Our Story</ITitle><p style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.85 }}>Outback Cartel started with one idea: <strong>Bangladeshi shoppers deserve better.</strong> We curate electronics, beauty tech, travel gear, smart bags, gaming lifestyle products and more — all carefully selected for quality and value.</p></ICard><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{[["🎯", "Mission", "Quality products at fair prices for all Bangladeshis."], ["🤝", "Honesty", "No hidden fees, no fake reviews."]].map(([icon, t, d]) => <ICard key={t} style={{ marginBottom: 0 }}><div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 5 }}>{t}</div><div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{d}</div></ICard>)}</div></div></div>; }
 
-function TrackPage() { const [oid, setOid] = useState(""), [ph, setPh] = useState(""), [res, setRes] = useState(null), [loading, setLoading] = useState(false), [err, setErr] = useState(""); const DEMO = [{ id: "OC-12345678", phone: "01881816245", steps: 4 }, { id: "OC-87654321", phone: "01881816245", steps: 3 }, { id: "OC-11111111", phone: "01881816245", steps: 2 }]; const STEPS = [{ icon: "✔️", label: "Confirmed" }, { icon: "📦", label: "Processing" }, { icon: "🚚", label: "On the Way" }, { icon: "🎉", label: "Delivered" }]; const track = () => { setErr(""); setRes(null); if (!oid.trim() || !ph.trim()) { setErr("Enter Order ID and phone."); return; } setLoading(true); setTimeout(() => { setLoading(false); const f = DEMO.find(d => d.id === oid.trim() && d.phone === ph.trim()); f ? setRes(f) : setErr("Order not found. Check Order ID and phone."); }, 1000); }; return <div><PageHero icon="📦" title="Track Your Order" subtitle="Enter your Order ID and phone number." /><div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px" }}><ICard><ITitle>Order Lookup</ITitle><input value={oid} onChange={e => setOid(e.target.value)} placeholder="Order ID (e.g. OC-12345678)" style={{ width: "100%", border: `2px solid ${C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", marginBottom: 10 }} /><input value={ph} onChange={e => setPh(e.target.value)} placeholder="Phone (01XXXXXXXXX)" type="tel" style={{ width: "100%", border: `2px solid ${C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", marginBottom: 12 }} />{err && <div style={{ background: "var(--tint-earth)", color: "var(--danger)", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>⚠️ {err}</div>}<Btn onClick={track} style={{ width: "100%", padding: 13, borderRadius: 12 }}>{loading ? "🔍 Searching…" : "🔍 Track Order"}</Btn></ICard>{res && <ICard><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}><div style={{ fontSize: 16, fontWeight: 800 }}>{res.id}</div><span style={{ background: res.steps === 4 ? C.green : C.primary, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 50 }}>{STEPS[res.steps - 1].label}</span></div><div style={{ position: "relative" }}><div style={{ position: "absolute", top: 21, left: 22, right: 22, height: 3, background: "var(--track)", zIndex: 0 }} /><div style={{ position: "absolute", top: 21, left: 22, height: 3, background: C.green, zIndex: 1, width: `${Math.min(((res.steps - 1) / 3) * 100, 100)}%` }} /><div style={{ display: "flex", justifyContent: "space-between", position: "relative", zIndex: 2 }}>{STEPS.map((s, i) => { const done = i < res.steps, active = i === res.steps - 1; return <div key={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}><div style={{ width: 44, height: 44, borderRadius: "50%", background: done || active ? (active ? C.primary : C.green) : "var(--track)", color: (done || active) ? "#fff" : C.muted, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, boxShadow: "0 2px 8px rgba(0,0,0,.1)", marginBottom: 8 }}>{s.icon}</div><div style={{ fontSize: 11, fontWeight: 700, textAlign: "center", color: (done || active) ? C.dark : C.muted }}>{s.label}</div></div>; })}</div></div></ICard>}<ICard style={{ textAlign: "center" }}><div style={{ fontSize: 28, marginBottom: 8 }}>💬</div><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Can't find your order?</div><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "10px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700 }}>💬 WhatsApp Us</a></ICard></div></div>; }
+// Honest stand-in until orders are saved on the server: there is no order record to look up yet.
+function TrackNotice() { return <ICard style={{ textAlign: "center" }}><div style={{ fontSize: 28, marginBottom: 8 }} aria-hidden="true">💬</div><div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>Order tracking isn't on the website yet</div><p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7, margin: "0 0 14px" }}>For now, orders are placed by WhatsApp message, so there is no order number to look up here. Message us on WhatsApp for an update on your order.</p><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "10px 22px", borderRadius: 50, fontSize: 13, fontWeight: 700 }}>💬 WhatsApp {CONFIG.WHATSAPP_DISPLAY}</a></ICard>; }
 
-function ReturnsPage() { const ok = ["Damaged or broken on arrival", "Wrong item delivered", "Defective on arrival", "Missing parts"], no = ["After 7 days", "Used or altered items", "Change of mind"]; return <div><PageHero icon="🔄" title="Return Policy" subtitle="7-day hassle-free returns." /><div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px" }}><div style={{ background: `linear-gradient(135deg,${C.green},#1a5c35)`, borderRadius: 14, padding: "20px 22px", marginBottom: 14, color: "#fff", display: "flex", alignItems: "center", gap: 14 }}><span style={{ fontSize: 40 }}>✅</span><div><div style={{ fontSize: 16, fontWeight: 800, marginBottom: 3 }}>7-Day Easy Returns</div><div style={{ fontSize: 13, color: "rgba(255,255,255,.8)" }}>Hassle-free, no arguments.</div></div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}><ICard style={{ marginBottom: 0 }}><ITitle>✅ Eligible</ITitle>{ok.map(e => <div key={e} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}><span style={{ color: C.okText, fontWeight: 700 }}>✓</span>{e}</div>)}</ICard><ICard style={{ marginBottom: 0 }}><ITitle>❌ Not Eligible</ITitle>{no.map(e => <div key={e} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}><span style={{ color: C.hot, fontWeight: 700 }}>✕</span>{e}</div>)}</ICard></div><ICard style={{ textAlign: "center" }}><div style={{ fontSize: 28, marginBottom: 8 }}>💬</div><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Start a return on WhatsApp</div><a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20Return%20request.%20Order:%20`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "11px 24px", borderRadius: 50, fontSize: 14, fontWeight: 700 }}>💬 Start Return</a></ICard></div></div>; }
+function TrackPage() { return <div><PageHero icon="📦" title="Track Your Order" subtitle="Online order tracking is not available yet." /><div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px" }}><TrackNotice /></div></div>; }
 
-function FAQPage() { const [open, setOpen] = useState(null); const faqs = [{ cat: "🛒 Ordering", items: [{ q: "How do I place an order?", a: "Browse, add to cart, checkout. You'll get an Order ID instantly." }, { q: "Can I order by WhatsApp?", a: `Yes! Text us on ${CONFIG.WHATSAPP_DISPLAY}. (Text only — no calls.)` }, { q: "Is there a minimum order?", a: "No minimum. Free delivery above ৳999, else ৳70 charge." }, { q: "Can I cancel after placing?", a: "Yes, within 2 hours before dispatch. WhatsApp us immediately." }] }, { cat: "🚚 Delivery", items: [{ q: "How long does delivery take?", a: "Dhaka: 1–2 days. Outside Dhaka: 3–5 days." }, { q: "Do you deliver everywhere?", a: "Yes — all 64 districts of Bangladesh." }, { q: "What if I'm not home?", a: "Courier tries twice. After 2 attempts package returns — contact us to reschedule." }] }, { cat: "💳 Payment", items: [{ q: "What payment methods?", a: "bKash, Nagad, Rocket, Visa/MC, Net Banking, Cash on Delivery — via SSLCommerz." }, { q: "Is my payment safe?", a: "100%. SSLCommerz with full SSL encryption." }, { q: "Cash on Delivery available?", a: "Yes! Select COD at checkout." }] }, { cat: "📦 Products", items: [{ q: "Are products authentic?", a: "Sourced from verified suppliers. If it doesn't match, return for a full refund." }, { q: "Damaged product — what do I do?", a: "Take photos and WhatsApp us within 24 hours. We replace or refund fast." }, { q: "Out of stock — can I pre-order?", a: "Yes! WhatsApp us the product name and we'll source it." }] }]; return <div><PageHero icon="❓" title="FAQ" subtitle="Quick answers." /><div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px" }}>{faqs.map((sec, si) => <div key={sec.cat} style={{ marginBottom: 24 }}><h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 18, background: C.primary, borderRadius: 4, display: "inline-block" }} />{sec.cat}</h2>{sec.items.map((item, ii) => { const k = `${si}-${ii}`, isO = open === k; return <div key={ii} style={{ background: "var(--surface)", borderRadius: 11, marginBottom: 7, border: `1px solid ${isO ? C.primary : C.border}`, overflow: "hidden" }}><button onClick={() => setOpen(isO ? null : k)} style={{ width: "100%", background: "none", border: "none", padding: "14px 18px", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}><span style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{item.q}</span><span style={{ fontSize: 18, color: isO ? C.hot : C.muted, transform: isO ? "rotate(45deg)" : "none", transition: "transform .2s" }}>+</span></button>{isO && <div style={{ padding: "0 18px 14px", fontSize: 13, color: "var(--text-2)", lineHeight: 1.75, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>{item.a}</div>}</div>; })} </div>)}<ICard style={{ textAlign: "center", background: "var(--grad-deep)", border: "none" }}><div style={{ color: "#fff" }}><div style={{ fontSize: 32, marginBottom: 8 }}>🤔</div><div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Still have a question?</div><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "11px 24px", borderRadius: 50, fontSize: 14, fontWeight: 700 }}>💬 {CONFIG.WHATSAPP_DISPLAY}</a></div></ICard></div></div>; }
+function ReturnsPage() { const ok = ["Damaged or broken on arrival", "Wrong item delivered", "Defective on arrival", "Missing parts"], no = ["After 7 days", "Used or altered items", "Change of mind"]; return <div><PageHero icon="🔄" title="Return Policy" subtitle="Returns — contact us for conditions." /><div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px" }}><div style={{ background: `linear-gradient(135deg,${C.green},#1a5c35)`, borderRadius: 14, padding: "20px 22px", marginBottom: 14, color: "#fff", display: "flex", alignItems: "center", gap: 14 }}><span style={{ fontSize: 40 }}>✅</span><div><div style={{ fontSize: 16, fontWeight: 800, marginBottom: 3 }}>Returns — contact us for conditions</div><div style={{ fontSize: 13, color: "rgba(255,255,255,.8)" }}>Please contact us to confirm the applicable return conditions.</div></div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}><ICard style={{ marginBottom: 0 }}><ITitle>✅ Eligible</ITitle>{ok.map(e => <div key={e} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}><span style={{ color: C.okText, fontWeight: 700 }}>✓</span>{e}</div>)}</ICard><ICard style={{ marginBottom: 0 }}><ITitle>❌ Not Eligible</ITitle>{no.map(e => <div key={e} style={{ display: "flex", gap: 8, padding: "8px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}><span style={{ color: C.hot, fontWeight: 700 }}>✕</span>{e}</div>)}</ICard></div><ICard style={{ textAlign: "center" }}><div style={{ fontSize: 28, marginBottom: 8 }}>💬</div><div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Start a return on WhatsApp</div><a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20Return%20request.%20Order:%20`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "11px 24px", borderRadius: 50, fontSize: 14, fontWeight: 700 }}>💬 Start Return</a></ICard></div></div>; }
+
+function FAQPage() { const [open, setOpen] = useState(null); const faqs = [{ cat: "🛒 Ordering", items: [{ q: "How do I place an order?", a: "Add items to your cart and open checkout. For now, checkout types your order into a WhatsApp message: we receive it only when you press Send in WhatsApp, and we reply there to confirm it." }, { q: "Can I order by WhatsApp?", a: `Yes! Text us on ${CONFIG.WHATSAPP_DISPLAY}. (Text only — no calls.)` }, { q: "Is there a minimum order?", a: `No minimum. Orders of ${fmt(FREE_DELIVERY_FROM)} or more get free delivery; below that, the fee for your area is shown at checkout.` }, { q: "Can I cancel after placing?", a: "Yes, within 2 hours before dispatch. WhatsApp us immediately." }] }, { cat: "🚚 Delivery", items: [{ q: "How long does delivery take?", a: DELIVERY_ZONES.map(z => `${z.name}: ${z.days}`).join(". ") + "." }, { q: "Do you deliver everywhere?", a: "Yes — all 64 districts of Bangladesh." }, { q: "What if I'm not home?", a: "Courier tries twice. After 2 attempts package returns — contact us to reschedule." }] }, { cat: "💳 Payment", items: [{ q: "What payment methods?", a: "Cash on delivery: you pay when your order arrives. Online payment isn't available yet." }, { q: "Cash on Delivery available?", a: "Yes. For now it's the only way to pay." }] }, { cat: "📦 Products", items: [{ q: "Are products authentic?", a: "Sourced from verified suppliers. If it doesn't match, return for a full refund." }, { q: "Damaged product — what do I do?", a: "Take photos and WhatsApp us within 24 hours. We replace or refund fast." }, { q: "Out of stock — can I pre-order?", a: "Yes! WhatsApp us the product name and we'll source it." }] }]; return <div><PageHero icon="❓" title="FAQ" subtitle="Quick answers." /><div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px" }}>{faqs.map((sec, si) => <div key={sec.cat} style={{ marginBottom: 24 }}><h2 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 4, height: 18, background: C.primary, borderRadius: 4, display: "inline-block" }} />{sec.cat}</h2>{sec.items.map((item, ii) => { const k = `${si}-${ii}`, isO = open === k; return <div key={ii} style={{ background: "var(--surface)", borderRadius: 11, marginBottom: 7, border: `1px solid ${isO ? C.primary : C.border}`, overflow: "hidden" }}><button onClick={() => setOpen(isO ? null : k)} style={{ width: "100%", background: "none", border: "none", padding: "14px 18px", textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}><span style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{item.q}</span><span style={{ fontSize: 18, color: isO ? C.hot : C.muted, transform: isO ? "rotate(45deg)" : "none", transition: "transform .2s" }}>+</span></button>{isO && <div style={{ padding: "0 18px 14px", fontSize: 13, color: "var(--text-2)", lineHeight: 1.75, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>{item.a}</div>}</div>; })} </div>)}<ICard style={{ textAlign: "center", background: "var(--grad-deep)", border: "none" }}><div style={{ color: "#fff" }}><div style={{ fontSize: 32, marginBottom: 8 }}>🤔</div><div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Still have a question?</div><a href={`https://wa.me/${CONFIG.WHATSAPP}`} target="_blank" rel="noreferrer" style={{ display: "inline-block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "11px 24px", borderRadius: 50, fontSize: 14, fontWeight: 700 }}>💬 {CONFIG.WHATSAPP_DISPLAY}</a></div></ICard></div></div>; }
 
 // ─────────────────────────────────────────────────────────────
-//  ADMIN LOGIN + PANEL
+//  ADMIN — switched off
 // ─────────────────────────────────────────────────────────────
-function AdminLogin({ onLogin, onCancel }) { const [pw, setPw] = useState(""), [err, setErr] = useState(false); const go = () => { if (pw === CONFIG.ADMIN_PASSWORD) { onLogin(); } else { setErr(true); setTimeout(() => setErr(false), 1600); } }; return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ background: "var(--surface)", borderRadius: 18, padding: "34px 28px", width: "100%", maxWidth: 320, textAlign: "center" }}><div style={{ fontSize: 44, marginBottom: 10 }}>🔐</div><h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 18 }}>Admin Login</h2><input type="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === "Enter" && go()} placeholder="Password" style={{ width: "100%", border: `2px solid ${err ? C.primary : C.border}`, borderRadius: 9, padding: "11px 14px", fontSize: 15, outline: "none", fontFamily: "inherit", textAlign: "center", letterSpacing: 2, marginBottom: 10 }} />{err && <p style={{ color: C.hot, fontSize: 12, marginBottom: 8 }}>❌ Wrong password</p>}<div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={onCancel} style={{ flex: 1 }}>Cancel</Btn><Btn onClick={go} style={{ flex: 1 }}>Login</Btn></div><p style={{ fontSize: 11, color: "var(--muted)", marginTop: 12 }}>Default: outback2024</p></div></div>; }
-
-const BLANK = { name: "", cat: "electronics", price: "", old: "", icon: "📦", badge: "", img: "" };
-const ICONS = ["📱", "🔌", "⚡", "🎧", "🔋", "📺", "💻", "⌚", "🎮", "⌨️", "🖱️", "🧴", "✨", "💄", "🪒", "😷", "💨", "🌀", "🧳", "😴", "🎒", "💼", "👜", "🖥️", "🪑", "🗂️", "💡", "👗", "👘", "👟", "🍶", "🧘", "🏏", "🧱", "🚗", "📦", "🎁"];
-function ProductForm({ initial, onSave, onCancel }) { const [f, setF] = useState(initial || BLANK), [errors, setErrors] = useState({}); const set = (k, v) => { setF(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); }; const validate = () => { const e = {}; if (!f.name.trim()) e.name = "Required"; if (!f.price || isNaN(f.price) || Number(f.price) <= 0) e.price = "Enter valid price"; setErrors(e); return Object.keys(e).length === 0; }; const submit = () => { if (validate()) onSave({ ...f, price: Number(f.price), old: f.old ? Number(f.old) : null }); }; const iS = field => ({ width: "100%", border: `2px solid ${errors[field] ? C.primary : C.border}`, borderRadius: 9, padding: "10px 14px", fontSize: 14, outline: "none", fontFamily: "inherit", color: C.dark, background: "var(--surface)" }); return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 910, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 540, maxHeight: "92vh", overflowY: "auto" }}><div style={{ padding: "16px 22px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "var(--surface)", zIndex: 1, borderRadius: "18px 18px 0 0" }}><span style={{ fontSize: 16, fontWeight: 800 }}>{initial ? "✏️ Edit" : "➕ Add Product"}</span><button onClick={onCancel} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: C.muted }}>✕</button></div><div style={{ padding: "20px 22px" }}><div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, display: "block", color: C.muted, textTransform: "uppercase" }}>Name *</label><input value={f.name} onChange={e => set("name", e.target.value)} placeholder="Product name" style={iS("name")} />{errors.name && <span style={{ color: C.hot, fontSize: 11 }}>{errors.name}</span>}</div><div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, display: "block", color: C.muted, textTransform: "uppercase" }}>Category *</label><select value={f.cat} onChange={e => set("cat", e.target.value)} style={{ ...iS("cat"), cursor: "pointer" }}>{CATS.filter(c => c.key !== "all").map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}</select></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}><div><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, display: "block", color: C.muted, textTransform: "uppercase" }}>Sale Price *</label><input value={f.price} onChange={e => set("price", e.target.value)} placeholder="1999" type="number" style={iS("price")} />{errors.price && <span style={{ color: C.hot, fontSize: 11 }}>{errors.price}</span>}</div><div><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, display: "block", color: C.muted, textTransform: "uppercase" }}>Original Price</label><input value={f.old} onChange={e => set("old", e.target.value)} placeholder="2500" type="number" style={iS("old")} /></div></div><div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 7, display: "block", color: C.muted, textTransform: "uppercase" }}>Badge</label><div style={{ display: "flex", gap: 7 }}>{["", "Hot", "New", "Sale"].map(b => <button key={b} onClick={() => set("badge", b)} style={{ padding: "6px 14px", borderRadius: 50, border: "2px solid", borderColor: f.badge === b ? C.primary : C.border, background: f.badge === b ? C.primary : "var(--surface)", color: f.badge === b ? "#fff" : C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{b || "None"}</button>)}</div></div><div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 7, display: "block", color: C.muted, textTransform: "uppercase" }}>Icon <span style={{ fontSize: 18 }}>{f.icon}</span></label><div style={{ display: "flex", flexWrap: "wrap", gap: 5, background: C.bg, borderRadius: 9, padding: 8, maxHeight: 110, overflowY: "auto" }}>{ICONS.map(ic => <button key={ic} onClick={() => set("icon", ic)} style={{ width: 34, height: 34, fontSize: 18, border: `2px solid ${f.icon === ic ? C.primary : "transparent"}`, borderRadius: 7, cursor: "pointer", background: f.icon === ic ? "var(--surface)" : "transparent" }}>{ic}</button>)}</div></div><div><label style={{ fontSize: 12, fontWeight: 600, marginBottom: 5, display: "block", color: C.muted, textTransform: "uppercase" }}>Image URL</label><input value={f.img} onChange={e => set("img", e.target.value)} placeholder="https://…" style={iS("img")} />{f.img && <div style={{ marginTop: 7, width: 70, height: 70, borderRadius: 8, overflow: "hidden", border: `2px solid ${C.border}` }}><img src={f.img} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>}</div></div><div style={{ padding: "14px 22px", borderTop: `1px solid ${C.border}`, display: "flex", gap: 10, background: C.bg, borderRadius: "0 0 18px 18px" }}><Btn variant="ghost" onClick={onCancel} style={{ flex: 1 }}>Cancel</Btn><Btn onClick={submit} style={{ flex: 2 }}>{initial ? "💾 Save" : "➕ Add"}</Btn></div></div></div>; }
-
-function AdminPanel({ products, onSave, onLogout }) { const [search, setSearch] = useState(""), [catF, setCatF] = useState("all"), [showForm, setShowForm] = useState(false), [editItem, setEditItem] = useState(null), [deleteId, setDeleteId] = useState(null); const filtered = products.filter(p => (catF === "all" || p.cat === catF) && (!search || p.name.toLowerCase().includes(search.toLowerCase()))); const add = d => { onSave([...products, { ...d, id: uid() }]); setShowForm(false); }; const edit = d => { onSave(products.map(p => p.id === editItem.id ? { ...d, id: p.id } : p)); setEditItem(null); }; const del = id => { onSave(products.filter(p => p.id !== id)); setDeleteId(null); }; return <div style={{ minHeight: "100vh", background: "var(--inset)", fontFamily: "inherit" }}><div style={{ background: C.deep, color: "#fff", padding: "14px 22px", display: "flex", alignItems: "center", justifyContent: "space-between" }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18, fontWeight: 900, color: C.accent, letterSpacing: 1, textTransform: "uppercase" }}>OUTBACK<span style={{ color: "#fff" }}> CARTEL</span></span><span style={{ background: "rgba(255,255,255,.1)", fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 50 }}>⚙️ Admin</span></div><Btn variant="ghost" onClick={onLogout} style={{ fontSize: 12, padding: "7px 14px" }}>🚪 Logout</Btn></div><div style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 18px" }}><div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 18 }}>{[{ l: "Products", v: products.length, icon: "📦", col: C.primary }, { l: "Categories", v: [...new Set(products.map(p => p.cat))].length, icon: "🗂️", col: C.green }, { l: "Avg Price", v: products.length ? fmt(Math.round(products.reduce((s, p) => s + p.price, 0) / products.length)) : "৳0", icon: "💰", col: C.accent }].map(s => <div key={s.l} style={{ background: "var(--surface)", borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 2px 10px rgba(0,0,0,.07)", border: `1px solid ${C.border}` }}><span style={{ fontSize: 28 }}>{s.icon}</span><div><div style={{ fontSize: 22, fontWeight: 800, color: s.col }}>{s.v}</div><div style={{ fontSize: 11, color: C.muted }}>{s.l}</div></div></div>)}</div>{CONFIG.SSL_STORE_ID === "YOUR_STORE_ID" && <div style={{ background: "var(--tint-gold)", border: `2px solid ${C.accent}`, borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 12 }}>⚠️ <strong>SSLCommerz not configured.</strong> <a href="https://dashboard.sslcommerz.com" target="_blank" rel="noreferrer" style={{ color: C.hot, fontWeight: 700 }}>Get credentials →</a></div>}<div style={{ background: "var(--surface)", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", border: `1px solid ${C.border}` }}><input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search…" style={{ flex: 1, minWidth: 160, border: `2px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, outline: "none", fontFamily: "inherit" }} /><select value={catF} onChange={e => setCatF(e.target.value)} style={{ border: `2px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, outline: "none", fontFamily: "inherit", cursor: "pointer" }}>{CATS.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}</select><Btn onClick={() => setShowForm(true)} style={{ whiteSpace: "nowrap", padding: "9px 16px", fontSize: 13 }}>➕ Add</Btn></div><div style={{ background: "var(--surface)", borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}` }}><div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}` }}><span style={{ fontSize: 13, fontWeight: 700 }}>Products ({filtered.length})</span></div>{filtered.length === 0 ? <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}><div style={{ fontSize: 44, marginBottom: 10 }}>📦</div><p style={{ fontSize: 14 }}>No products. <span style={{ color: C.hot, cursor: "pointer", fontWeight: 600 }} onClick={() => setShowForm(true)}>Add first →</span></p></div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr style={{ background: C.bg }}>{["Product", "Cat", "Price", "Old", "Badge", ""].map(h => <th key={h} style={{ padding: "9px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: .4, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead><tbody>{filtered.map((p, i) => <tr key={p.id} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? "var(--surface)" : "var(--inset)" }}><td style={{ padding: "11px 14px" }}><div style={{ display: "flex", alignItems: "center", gap: 9 }}><div style={{ width: 38, height: 38, borderRadius: 7, background: "var(--inset)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{p.icon}</div><div style={{ fontSize: 12, fontWeight: 600, maxWidth: 160 }}>{p.name}</div></div></td><td style={{ padding: "11px 14px" }}><span style={{ background: C.bg, color: C.dark, fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 50 }}>{CATS.find(c => c.key === p.cat)?.icon} {p.cat}</span></td><td style={{ padding: "11px 14px", fontWeight: 800, color: C.hot, fontSize: 13 }}>{fmt(p.price)}</td><td style={{ padding: "11px 14px", color: C.muted, fontSize: 12, textDecoration: "line-through" }}>{p.old ? fmt(p.old) : "—"}</td><td style={{ padding: "11px 14px" }}>{p.badge ? <span style={{ background: p.badge === "New" ? C.green : p.badge === "Hot" ? C.accent : C.primary, color: p.badge === "Hot" ? "#1C1C1C" : "#fff", fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 50 }}>{p.badge}</span> : <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>}</td><td style={{ padding: "11px 14px" }}><div style={{ display: "flex", gap: 6 }}><button onClick={() => setEditItem(p)} style={{ background: "var(--tint-blue)", color: "var(--info)", border: "none", padding: "6px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✏️</button><button onClick={() => setDeleteId(p.id)} style={{ background: "var(--tint-earth)", color: "var(--danger)", border: "none", padding: "6px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🗑</button></div></td></tr>)}</tbody></table></div>}</div></div>{showForm && <ProductForm onSave={add} onCancel={() => setShowForm(false)} />}{editItem && <ProductForm initial={editItem} onSave={edit} onCancel={() => setEditItem(null)} />}{deleteId && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 910, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ background: "var(--surface)", borderRadius: 14, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center" }}><div style={{ fontSize: 42, marginBottom: 10 }}>⚠️</div><h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Delete Product?</h3><p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Cannot be undone.</p><div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={() => setDeleteId(null)} style={{ flex: 1 }}>Cancel</Btn><Btn variant="danger" onClick={() => del(deleteId)} style={{ flex: 1 }}>Delete</Btn></div></div></div>}</div>; }
+// The old admin screen checked a password inside the browser, where anyone could read it, and saved
+// edits only in that one browser. It is removed until staff sign-in is checked on the server
+// (Phase 1, Task 2). The old code is in git history (commit d8b3737) if it is ever needed.
 
 // ─────────────────────────────────────────────────────────────
 //  AI CHATBOT — Smart built-in engine (no backend needed)
@@ -1348,24 +1411,24 @@ const KB = [
   { tags: ["bye", "goodbye", "see you", "tata", "later"], reply: "Goodbye! 👋 Thanks for shopping at Outback Cartel. Come back soon! 🛍️" },
 
   // Payment
-  { tags: ["payment", "pay", "bkash", "nagad", "rocket", "card", "cash", "cod", "deliver on", "দেওয়া", "পেমেন্ট", "পেমেন্ট করব", "কীভাবে পেমেন্ট"], reply: "We accept multiple payment methods via **SSLCommerz** 🔒\n\n• 📱 bKash\n• 💳 Nagad\n• 🚀 Rocket\n• 💳 Visa / Mastercard\n• 🏦 Net Banking\n• 💵 Cash on Delivery (COD)\n\nAll payments are 100% secure! ✅" },
+  { tags: ["payment", "pay", "bkash", "nagad", "rocket", "card", "cash", "cod", "deliver on", "দেওয়া", "পেমেন্ট", "পেমেন্ট করব", "কীভাবে পেমেন্ট"], reply: "💵 For now we take **cash on delivery** only: you pay when your order arrives.\n\nOnline payment is not available yet." },
 
   // Delivery
-  { tags: ["delivery", "deliver", "shipping", "ship", "কতদিন", "কতদিনে", "কবে পাব", "পৌঁছাবে", "দিন"], reply: "🚚 Delivery times:\n\n• **Dhaka city**: 1–2 business days\n• **Outside Dhaka**: 3–5 business days\n• **Remote areas**: up to 7 days\n\nWe deliver to all **64 districts** of Bangladesh! 🇧🇩" },
-  { tags: ["free delivery", "free shipping", "free", "মুফত", "বিনামূল্যে", "ফ্রি ডেলিভারি"], reply: "🎉 **Free delivery** on all orders above ৳999!\n\nOrders below ৳999 have a delivery charge of ৳60 (inside Dhaka), ৳100 (Dhaka sub area) or ৳120 (outside Dhaka). So add a bit more to your cart and save! 😉" },
-  { tags: ["delivery charge", "delivery cost", "shipping cost", "ডেলিভারি চার্জ", "খরচ"], reply: "📦 For orders below ৳999, delivery is **৳60** inside Dhaka, **৳100** Dhaka sub area and **৳120** outside Dhaka.\n\nOrders above ৳999 get **FREE delivery** 🎉 across all of Bangladesh!" },
+  { tags: ["delivery", "deliver", "shipping", "ship", "কতদিন", "কতদিনে", "কবে পাব", "পৌঁছাবে", "দিন"], reply: "🚚 Delivery times:\n\n" + DELIVERY_ZONES.map(z => `• **${z.name}**: ${z.days}`).join("\n") + "\n\nWe deliver to all **64 districts** of Bangladesh! 🇧🇩" },
+  { tags: ["free delivery", "free shipping", "free", "মুফত", "বিনামূল্যে", "ফ্রি ডেলিভারি"], reply: `🎉 **Free delivery** on orders of ${fmt(FREE_DELIVERY_FROM)} or more!\n\nBelow that, delivery costs ${DELIVERY_ZONES.map(z => `${fmt(z.fee)} (${z.name})`).join(", ")}. So add a bit more to your cart and save! 😉` },
+  { tags: ["delivery charge", "delivery cost", "shipping cost", "ডেলিভারি চার্জ", "খরচ"], reply: `📦 For orders below ${fmt(FREE_DELIVERY_FROM)}, delivery is ${DELIVERY_ZONES.map(z => `**${fmt(z.fee)}** ${z.name}`).join(", ")}.\n\nOrders of ${fmt(FREE_DELIVERY_FROM)} or more get **FREE delivery** 🎉` },
 
   // Return & Refund
-  { tags: ["return", "refund", "ফেরত", "রিটার্ন", "money back", "ফেরত দেওয়া"], reply: "🔄 We have a **7-day easy return policy**!\n\nEligible for return if:\n✅ Item is damaged or defective\n✅ Wrong item delivered\n✅ Missing parts\n\nJust WhatsApp us within 7 days with photos 📸\n👉 01881816245" },
+  { tags: ["return", "refund", "ফেরত", "রিটার্ন", "money back", "ফেরত দেওয়া"], reply: "🔄 We have a **return policy — contact us for current conditions**!\n\nEligible for return if:\n✅ Item is damaged or defective\n✅ Wrong item delivered\n✅ Missing parts\n\nJust WhatsApp us within 7 days with photos 📸\n👉 01881816245" },
 
   // Tracking
-  { tags: ["track", "tracking", "order status", "where is", "কোথায়", "ট্র্যাক", "অর্ডার কোথায়"], reply: "📦 To track your order:\n\n1️⃣ Click **Track Order** in the menu\n2️⃣ Enter your **Order ID** + phone number\n3️⃣ See live status!\n\nOr WhatsApp us your Order ID at **01881816245** 💬" },
+  { tags: ["track", "tracking", "order status", "where is", "কোথায়", "ট্র্যাক", "অর্ডার কোথায়"], reply: `📦 Order tracking is not on the website yet. Orders are placed by WhatsApp message for now, so message us there for an update: **${CONFIG.WHATSAPP_DISPLAY}** 💬` },
 
   // How to order
-  { tags: ["how to order", "place order", "how order", "order kori", "অর্ডার করব", "কিভাবে অর্ডার", "order দেব"], reply: "🛒 Ordering is super easy!\n\n1️⃣ Browse & add items to cart\n2️⃣ Click **Checkout**\n3️⃣ Enter delivery address\n4️⃣ Pay via SSLCommerz\n5️⃣ Get your Order ID ✅\n\nNeed help? WhatsApp: **01881816245**" },
+  { tags: ["how to order", "place order", "how order", "order kori", "অর্ডার করব", "কিভাবে অর্ডার", "order দেব"], reply: `🛒 How to order:\n\n1️⃣ Add items to your cart\n2️⃣ Open **Checkout** and choose your delivery area\n3️⃣ Tap **Open WhatsApp**: your order is typed in for you\n4️⃣ Press **Send** in WhatsApp\n5️⃣ We reply there to confirm it. You pay cash on delivery ✅\n\nNeed help? WhatsApp: **${CONFIG.WHATSAPP_DISPLAY}**` },
 
   // Cancel order
-  { tags: ["cancel", "cancel order", "অর্ডার বাতিল", "বাতিল করব"], reply: "⚠️ You can cancel your order within **2 hours** of placing it — before it's dispatched.\n\nJust WhatsApp us immediately at **01881816245** with your Order ID 📲" },
+  { tags: ["cancel", "cancel order", "অর্ডার বাতিল", "বাতিল করব"], reply: "⚠️ You can cancel your order within **2 hours** of placing it — before it's dispatched.\n\nJust WhatsApp us immediately at **01881816245** with your order details 📲" },
 
   // Products — Electronics
   { tags: ["phone", "mobile", "samsung", "realme", "iphone", "smartphone", "ফোন", "মোবাইল"], reply: "📱 We have great smartphones!\n\nCheck the **Electronics** category for all phones 🔍" },
@@ -1396,7 +1459,7 @@ const KB = [
   { tags: ["whatsapp", "contact", "support", "help", "সাহায্য", "যোগাযোগ", "কথা বলতে"], reply: "💬 Reach us on WhatsApp anytime!\n\n📱 **01881816245**\n\n⚠️ Text only — no calls please.\nWe usually reply within **30 minutes**! ⚡" },
 
   // About
-  { tags: ["about", "who are you", "outback cartel", "তোমরা কে", "আপনারা কে", "store"], reply: "🏕️ **Outback Cartel** is Bangladesh's trusted online dropshipping store!\n\nWe sell:\n📱 Electronics · Phone Accessories\n✨ Beauty Tech · Smartwatches\n🎮 Gaming · Travel · Smart Bags\n👗 Clothing · Home & Living\n\n🔒 Secure payments · Fast delivery · 7-day returns" },
+  { tags: ["about", "who are you", "outback cartel", "তোমরা কে", "আপনারা কে", "store"], reply: "🏕️ **Outback Cartel** is Bangladesh's trusted online dropshipping store!\n\nWe sell:\n📱 Electronics · Phone Accessories\n✨ Beauty Tech · Smartwatches\n🎮 Gaming · Travel · Smart Bags\n👗 Clothing · Home & Living\n\n🔒 Secure payments · Fast delivery · Returns — contact us for conditions" },
 
   // Price / discount
   { tags: ["price", "cost", "দাম", "কত", "কতটাকা", "discount", "offer", "ছাড়"], reply: "💰 We offer competitive prices across all categories!\n\nYou can find sale items with **Hot 🔥**, **New ✨**, and **Sale** badges on the product cards.\n\nFor specific product prices, browse our categories or WhatsApp us: **01881816245**" },
@@ -1428,7 +1491,7 @@ function getCarlaReply(input) {
 function AIChatbot({ products }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! 👋 I'm **Carla**, your Outback Cartel shopping assistant. How can I help you today?\n\nYou can ask me about:\n• 🛍️ Products & categories\n• 🚚 Delivery & tracking\n• 💳 Payments & returns\n• 📦 Your order status" }
+    { role: "assistant", content: "Hi! 👋 I'm **Carla**, your Outback Cartel shopping assistant. How can I help you today?\n\nYou can ask me about:\n• 🛍️ Products & categories\n• 🚚 Delivery\n• 💳 Payment & returns\n• 🛒 How to order" }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1534,7 +1597,7 @@ function AIChatbot({ products }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 38, height: 38, borderRadius: "50%", background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0, border: "2px solid rgba(255,255,255,.25)" }}>🤖</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>Carla — AI Assistant</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>Carla — Quick answers</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ADE80", display: "inline-block" }} />
                   <span style={{ fontSize: 11, color: "rgba(255,255,255,.6)" }}>Online · Outback Cartel</span>
@@ -1641,7 +1704,6 @@ const PAGE_SIZE = 48; // products shown before "Show more"
 const Icon = ({ children, size = 18 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>;
 const SearchIcon = () => <Icon><circle cx="11" cy="11" r="7" /><path d="m20 20-3.6-3.6" /></Icon>;
 const PersonIcon = () => <Icon size={17}><circle cx="12" cy="8" r="4" /><path d="M4 21c1.4-4 4.4-6 8-6s6.6 2 8 6" /></Icon>;
-const GearIcon = () => <Icon size={19}><circle cx="12" cy="12" r="3.2" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></Icon>;
 const BagIcon = () => <Icon size={18}><path d="M5 8h14l-1.2 12.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z" /><path d="M9 10V7a3 3 0 0 1 6 0v3" /></Icon>;
 
 const hasWebGL = () => {
@@ -1668,6 +1730,48 @@ function ShowroomSlot({ fallback, ...props }) {
   );
 }
 
+// Homepage hero — the first thing a visitor sees. Text and motion only (no
+// new photography/video), scrolls straight into the shop below.
+function HomeHero() {
+  const explore = () => {
+    const el = document.getElementById("oc-shop");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <section className="oc-hero">
+      <div className="oc-hero-in">
+        <p className="oc-hero-kicker">{CONFIG.STORE_NAME}</p>
+        <p className="oc-hero-sub">Discover the collection. Find your style.</p>
+        <button className="oc-hero-cta" onClick={explore}>Explore Collection <span aria-hidden="true">→</span></button>
+      </div>
+    </section>
+  );
+}
+
+// Honest trust section — only claims we can actually stand behind (no fake
+// reviews, no invented guarantees). Expands the old inline .oc-trust strip.
+function WhyShopWithUs() {
+  const items = [
+    { t: "Nationwide delivery", d: "All 64 districts of Bangladesh — timing is confirmed with you on WhatsApp right after you order." },
+    { t: "Cash on delivery", d: "Pay when your order arrives at your door — mobile wallets also accepted." },
+    { t: "Real product photos", d: "What you see is what you get — our own photos, not stock images." },
+    { t: "WhatsApp support", d: `${CONFIG.WHATSAPP_DISPLAY} — text only, answered by a real person.` },
+  ];
+  return (
+    <section className="oc-why">
+      <div className="oc-sec"><h2>Why shop with us</h2><i aria-hidden="true" /></div>
+      <div className="oc-why-grid">
+        {items.map(it => (
+          <div className="oc-why-card" key={it.t}>
+            <div className="oc-why-t">{it.t}</div>
+            <div className="oc-why-d">{it.d}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, search, setSearch }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => { setVisible(PAGE_SIZE); }, [activeCat, search]);
@@ -1678,14 +1782,15 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
   const left = filtered.length - visible;
   return (
     <div>
+      <HomeHero />
       <ShowroomSlot hoodies={HOUSE_HOODIES} onAdd={onAdd} onBuyNow={onBuyNow}
         onDetails={id => { const p = products.find(x => x.id === id); if (p) onView(p); }}
         onShopAll={() => scrollTo("oc-shop")}
-        fallback={<div id="oc-rack" style={{ scrollMarginTop: 64 }}><HoodieRail key={railHoodies.length} extra={railHoodies} onAdd={onAdd} onBrowse={() => { onCatChange("hoodies"); scrollTo("oc-shop"); }} /></div>} />
+        fallback={<div id="oc-rack" style={{ scrollMarginTop: 64 }}><HoodieRail key={railHoodies.length} extra={railHoodies} houseHoodies={HOUSE_HOODIES} onAdd={onAdd} onBrowse={() => { onCatChange("hoodies"); scrollTo("oc-shop"); }} /></div>} />
       <div id="oc-shop" className="oc-shop">
         <div className="oc-trust">
-          <span><b>Fast delivery</b>Dhaka 1–2 days, rest of Bangladesh 3–5</span>
-          <span><b>7-day returns</b>If it isn't right, send it back</span>
+          <span><b>Fast delivery</b>{DELIVERY_ZONES.filter(z => z.k !== "sub").map(z => `${z.name} ${z.days}`).join(", ")}</span>
+          <span><b>Returns — contact us for conditions</b>If it isn't right, send it back</span>
           <span><b>WhatsApp support</b>{CONFIG.WHATSAPP_DISPLAY}, text only</span>
         </div>
         <div className="oc-chips" role="toolbar" aria-label="Categories">
@@ -1710,6 +1815,7 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
           </>
         )}
       </div>
+      <WhyShopWithUs />
     </div>
   );
 }
@@ -1724,29 +1830,64 @@ export default function OutbackCartel() {
     if (clean.length !== saved.length) ls.set("oc_products", clean); // also clears old copies saved in this browser
     return [...HOUSE_HOODIES, ...clean];
   });
-  const [page, setPage] = useState("shop");
+  const [page, setPage] = useState(() => resolveRoute().page);
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    const saved = ls.get("oc_cart");
+    if (!Array.isArray(saved)) return [];
+    return saved.filter(item =>
+      item && typeof item === "object" &&
+      (typeof item.id === "string" || typeof item.id === "number") &&
+      typeof item.name === "string" &&
+      Number.isFinite(Number(item.price)) && Number(item.price) >= 0
+    ).slice(0, 100).map((item, index) => ({
+      ...item,
+      cartKey: typeof item.cartKey === "string" && item.cartKey
+        ? item.cartKey
+        : `restored-${String(item.id)}-${index}`,
+      qty: Math.max(1, Math.min(99, Math.floor(Number(item.qty) || 1))),
+      price: Number(item.price),
+    }));
+  });
   const [cartOpen, setCartOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [successOpen, setSuccessOpen] = useState(false);
-  const [orderId, setOrderId] = useState("");
   const [toast, setToast] = useState("");
-  const [view, setView] = useState("site");
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [adminAuthed, setAdminAuthed] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [showDash, setShowDash] = useState(false);
-  const [account, setAccount] = useState(() => ls.get("oc_account"));
+  // Real account state comes from the Supabase Auth session, not localStorage — see AuthModal.
+  const [account, setAccount] = useState(null);
+  const sessionToAccount = session => {
+    const u = session?.user;
+    if (!u) return null;
+    return {
+      name: u.user_metadata?.name || u.email || "Customer",
+      contact: u.email,
+      method: "email",
+      joined: new Date(u.created_at).toLocaleDateString("en-BD"),
+      avatar: u.user_metadata?.avatar || "",
+      orders: [],
+    };
+  };
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    supabase.auth.getSession().then(({ data }) => setAccount(sessionToAccount(data.session)));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAccount(sessionToAccount(session));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   const [shopQ, setShopQ] = useState("");     // the shop's search box
   const [headerQ, setHeaderQ] = useState(""); // the header's search box
 
-  const upd = list => { const own = list.filter(p => !p.remote); setProducts(list); ls.set("oc_products", own); };
+  // Supplier products loaded through our own server function /api/products,
+  // so supplier API keys never reach the browser.
+  useEffect(() => {
+    // Browser persistence improves convenience; it is never an authority for price or stock.
+    ls.set("oc_cart", cart);
+  }, [cart]);
 
-  // Supplier products (dropshipping.com.bd) loaded through our own server function /api/products,
-  // so the API key and secret key never reach the browser.
   useEffect(() => {
     let alive = true;
     fetch("/api/products")
@@ -1760,25 +1901,67 @@ export default function OutbackCartel() {
   }, []);
   const toast_ = msg => { setToast(msg); setTimeout(() => setToast(""), 2600); };
 
-  const nav = (p, cat) => { setPage(p); setSelectedProd(null); if (cat) setActiveCat(cat); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const nav = (p, cat) => {
+    setPage(p); setSelectedProd(null);
+    if (cat) setActiveCat(cat);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const path = PAGE_TO_PATH[p] || "/";
+    if (window.location.pathname !== path) window.history.pushState({ page: p }, "", path);
+  };
+  // Keep the page in sync with the browser's own Back/Forward buttons.
+  useEffect(() => {
+    const onPop = () => {
+      const r = resolveRoute();
+      setPage(r.page); setSelectedProd(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
-  const addToCart = p => {
-    setCart(prev => { const ex = prev.find(c => c.id === p.id); return ex ? prev.map(c => c.id === p.id ? { ...c, qty: c.qty + 1 } : c) : [...prev, { ...p, qty: 1 }]; });
-    toast_(`✅ ${p.name.substring(0, 26)}… added!`);
+  // ── Basic campaign tracking (see src/lib/analytics.js) ──
+  // Page views: fires on first load and on every page/product-view change.
+  // Product views don't always have a real URL change (e.g. opening a
+  // product detail), so "view" carries a human label while "path" stays
+  // the real browser path.
+  useEffect(() => {
+    const view = selectedProd ? `product:${selectedProd.id}` : page;
+    track("page_view", { view });
+  }, [page, selectedProd]);
+
+  // WhatsApp clicks: one delegated listener instead of instrumenting every
+  // wa.me link individually (there are ~18 across the app) — covers all of
+  // them, including any added later.
+  useEffect(() => {
+    const onClick = e => {
+      const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (a && /^https:\/\/wa\.me\//.test(a.href)) {
+        track("whatsapp_click", { href: a.href });
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
+  const addToCart = (p, quantity = 1) => {
+    const amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
+    // Keep each add as its own line so customers can choose different sizes/colours
+    // for the same product during checkout.
+    const cartKey = `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setCart(prev => [...prev, { ...p, cartKey, qty: amount }]);
+    toast_(`✅ ${amount} × ${p.name.substring(0, 26)}… added!`);
+    track("add_to_cart", { productId: p.id, name: p.name, price: p.price });
   };
   const runSearch = () => {
     setShopQ(headerQ.trim()); setActiveCat("all"); setPage("shop"); setSelectedProd(null);
     setTimeout(() => { const el = document.getElementById("oc-shop"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
   };
   const viewProduct = p => { setSelectedProd(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
-  const changeQty = (id, d) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: c.qty + d } : c).filter(c => c.qty > 0));
-  const removeItem = id => setCart(prev => prev.filter(c => c.id !== id));
+  const changeQty = (key, d) => setCart(prev => prev.map(c => (c.cartKey || c.id) === key ? { ...c, qty: Math.min(99, c.qty + d) } : c).filter(c => c.qty > 0));
+  const removeItem = key => setCart(prev => prev.filter(c => (c.cartKey || c.id) !== key));
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
-  const handleLogout = () => { setAccount(null); ls.del("oc_account"); setShowDash(false); toast_("👋 Logged out"); };
+  const handleLogout = async () => { if (supabaseConfigured) await supabase.auth.signOut(); setAccount(null); setShowDash(false); toast_("👋 Logged out"); };
   const handleAccountClick = () => account ? setShowDash(true) : setShowAuth(true);
-
-  if (view === "admin" && adminAuthed) return <AdminPanel products={products} onSave={upd} onLogout={() => { setView("site"); setAdminAuthed(false); }} />;
 
   const pageContent = () => {
     // Product detail page takes priority
@@ -1821,7 +2004,6 @@ export default function OutbackCartel() {
             </span>
             <span className="oc-acc-name">{account ? account.name.split(" ")[0].substring(0, 10) : "Sign in"}</span>
           </button>
-          <button className="oc-iconbtn oc-gear" onClick={() => adminAuthed ? setView("admin") : setShowAdminLogin(true)} aria-label="Store admin" title="Store admin"><GearIcon /></button>
           <button className="oc-cartbtn" onClick={() => setCartOpen(true)} aria-label={`Open cart, ${cartCount} item${cartCount !== 1 ? "s" : ""}`}>
             <BagIcon /><span className="oc-cart-word">Cart</span><b>{cartCount}</b>
           </button>
@@ -1829,7 +2011,10 @@ export default function OutbackCartel() {
         {page !== "shop" && (
           <nav className="oc-subnav" aria-label="Pages">
             <div className="oc-subnav-in">
-              {[["shop", "Shop"], ["about", "About"], ["track", "Track order"], ["returns", "Returns"], ["faq", "FAQ"]].map(([k, l]) => <button key={k} onClick={() => nav(k)} aria-current={page === k ? "page" : undefined}>{l}</button>)}
+              {[["shop", "Shop"], ["about", "About"], ["track", "Track order"], ["returns", "Returns"], ["faq", "FAQ"]].map(([k, l]) => {
+                const current = page === k;
+                return <button key={k} onClick={() => nav(k)} aria-current={current ? "page" : undefined}>{l}</button>;
+              })}
             </div>
           </nav>
         )}
@@ -1859,7 +2044,7 @@ export default function OutbackCartel() {
             </div>
             <div>
               <h4>Pay with</h4>
-              <div className="oc-pay">{[["bKash", "#E2136E"], ["Nagad", "#F05A28"], ["Rocket", "#A25CF0"], ["Cards", "#7A8CFF"], ["Cash on delivery", "#2BC48A"]].map(([l, c]) => <span key={l}><i style={{ background: c }} />{l}</span>)}</div>
+              <div className="oc-pay">{[["Cash on delivery", "#2BC48A"]].map(([l, c]) => <span key={l}><i style={{ background: c }} />{l}</span>)}</div>
             </div>
           </div>
           <div className="oc-foot-base"><span>© 2026 Outback Cartel</span><span>Made in Bangladesh 🇧🇩</span></div>
@@ -1867,10 +2052,8 @@ export default function OutbackCartel() {
       </footer>
 
       {/* MODALS */}
-      {showAdminLogin && <AdminLogin onLogin={() => { setAdminAuthed(true); setShowAdminLogin(false); setView("admin"); }} onCancel={() => setShowAdminLogin(false)} />}
-
       <AuthModal open={showAuth} onClose={() => setShowAuth(false)}
-        onSuccess={acc => { setAccount(acc); setShowAuth(false); toast_(`🎉 Welcome, ${acc.name}!`); setTimeout(() => setShowDash(true), 400); }} />
+        onSuccess={name => { setShowAuth(false); toast_(`🎉 Welcome, ${name}!`); setTimeout(() => setShowDash(true), 400); }} />
 
       {showDash && account && <UserDashboard account={account} onClose={() => setShowDash(false)}
         onUpdate={acc => setAccount(acc)} onLogout={handleLogout} />}
@@ -1879,18 +2062,7 @@ export default function OutbackCartel() {
         onCheckout={() => { setCartOpen(false); setCheckoutOpen(true); }} />
 
       <CheckoutModal cart={cart} open={checkoutOpen} onClose={() => setCheckoutOpen(false)} account={account}
-        onSuccess={id => { setCheckoutOpen(false); setOrderId(id); setSuccessOpen(true); }} />
-
-      {successOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.65)", zIndex: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div style={{ background: "var(--surface)", borderRadius: 18, width: "100%", maxWidth: 360, padding: "36px 28px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.28)" }}>
-          <div style={{ fontSize: 64, marginBottom: 10 }}>🎉</div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 7 }}>Order Placed!</h2>
-          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>ধন্যবাদ! We'll confirm your delivery soon.</p>
-          <div style={{ background: C.bg, borderRadius: 9, padding: "10px 16px", marginBottom: 12, fontSize: 12, color: C.muted }}>Order ID: <strong style={{ color: C.dark, fontSize: 14 }}>{orderId}</strong></div>
-          <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20Order:%20${orderId}`} target="_blank" rel="noreferrer" style={{ display: "block", background: "#25D366", color: "#05210F", textDecoration: "none", padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 700, marginBottom: 9 }}>💬 Confirm on WhatsApp</a>
-          <Btn onClick={() => { setSuccessOpen(false); setCart([]); }} style={{ width: "100%", borderRadius: 10, padding: "11px", fontSize: 13 }}>Continue Shopping</Btn>
-        </div>
-      </div>}
+        onClearCart={() => { setCart([]); toast_("🛒 Order placed! Cart emptied."); }} />
 
       {/* AI CHATBOT */}
       <AIChatbot products={products} />

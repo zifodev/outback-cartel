@@ -1,0 +1,247 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { validateOrderPayload, priceValidatedOrder, DELIVERY_FEES_BDT } from "../api/_lib/order-validation.js";
+
+const payload = (overrides = {}) => ({
+  deliveryZone: "inside",
+  paymentMethod: "cod",
+  customer: { name: "Test Buyer", phone: "+8801712345678", district: "Dhaka", area: "Dhanmondi", address: "Road 4, House 10" },
+  items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 1 }],
+  ...overrides,
+});
+const catalogue = new Map([["hoodie-1", {
+  approved: true, active: true, priceBdt: 1199,
+  variants: [{ id: "large-black", available: true }],
+}]]);
+
+test("rejects client-supplied price and malformed order structure", () => {
+  assert.equal(validateOrderPayload({ ...payload(), total: 1 }).ok, true);
+  assert.equal(validateOrderPayload({ ...payload(), items: [] }).ok, false);
+  assert.equal(validateOrderPayload({ ...payload(), deliveryZone: "free" }).ok, false);
+});
+test("rejects invalid phone, address and quantities", () => {
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "123" } })).ok, false);
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, address: "x" } })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1000 }] })).ok, false);
+});
+test("recomputes trusted price and delivery instead of trusting browser totals", () => {
+  const validated = validateOrderPayload(payload());
+  const priced = priceValidatedOrder(validated, catalogue);
+  assert.equal(priced.ok, true);
+  assert.equal(priced.value.subtotalBdt, 1199);
+  assert.equal(priced.value.deliveryBdt, 0);
+  assert.equal(priced.value.totalBdt, 1199);
+});
+test("charges the configured delivery fee below free-delivery threshold", () => {
+  const validated = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 1 }] }));
+  const lowPrice = new Map([["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: 500 }]]);
+  const priced = priceValidatedOrder(validated, lowPrice);
+  assert.equal(priced.value.deliveryBdt, 60);
+  assert.equal(priced.value.totalBdt, 560);
+});
+test("requires a variant when the trusted product has variants", () => {
+  const noVariant = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1 }] }));
+  assert.equal(priceValidatedOrder(noVariant, catalogue).ok, false);
+});
+test("rejects unapproved, inactive and unavailable variants", () => {
+  const validated = validateOrderPayload(payload());
+  assert.equal(priceValidatedOrder(validated, new Map()).ok, false);
+  assert.equal(priceValidatedOrder(validated, new Map([["hoodie-1", { ...catalogue.get("hoodie-1"), approved: false }]])).ok, false);
+  assert.equal(priceValidatedOrder(validated, new Map([["hoodie-1", { ...catalogue.get("hoodie-1"), variants: [{ id: "large-black", available: false }] }]])).ok, false);
+});
+
+test("combines repeated cart lines for the same product variant", () => {
+  const result = validateOrderPayload(payload({
+    items: [
+      { productId: "hoodie-1", variantId: "large-black", quantity: 2 },
+      { productId: "hoodie-1", variantId: "large-black", quantity: 3 },
+    ],
+  }));
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.value.items, [
+    { productId: "hoodie-1", variantId: "large-black", quantity: 5 },
+  ]);
+});
+test("rejects combined repeated-line quantities above the limit", () => {
+  const result = validateOrderPayload(payload({
+    items: [
+      { productId: "hoodie-1", variantId: "large-black", quantity: 60 },
+      { productId: "hoodie-1", variantId: "large-black", quantity: 40 },
+    ],
+  }));
+  assert.equal(result.ok, false);
+});
+
+test("applies each delivery-zone fee and the free-delivery threshold consistently", () => {
+  const cases = [
+    ["inside", 60],
+    ["sub", 100],
+    ["outside", 120],
+  ];
+  for (const [deliveryZone, expectedFee] of cases) {
+    const validated = validateOrderPayload(payload({ deliveryZone }));
+    const priced = priceValidatedOrder(validated, new Map([
+      ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: 998 }],
+    ]));
+    assert.equal(priced.ok, true);
+    assert.equal(priced.value.deliveryBdt, expectedFee);
+  }
+  const atThreshold = validateOrderPayload(payload());
+  const free = priceValidatedOrder(atThreshold, new Map([
+    ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: 999 }],
+  ]));
+  assert.equal(free.value.deliveryBdt, 0);
+  assert.equal(free.value.totalBdt, 999);
+});
+
+test("rejects malformed customer and cart item objects", () => {
+  assert.equal(validateOrderPayload(null).ok, false);
+  assert.equal(validateOrderPayload(payload({ customer: [] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [null] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1.5 }] })).ok, false);
+  const blankVariant = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 1, variantId: " " }] }));
+  assert.equal(blankVariant.ok, true);
+  assert.equal(blankVariant.value.items[0].variantId, null);
+});
+
+test("rejects unsafe integer totals from the trusted catalogue", () => {
+  const validated = validateOrderPayload(payload({ items: [{ productId: "hoodie-1", variantId: "large-black", quantity: 99 }] }));
+  const hugePrice = new Map([
+    ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: Number.MAX_SAFE_INTEGER }],
+  ]);
+  assert.equal(priceValidatedOrder(validated, hugePrice).ok, false);
+});
+
+// ── Additional edge-case coverage ──
+
+test("strips control characters from customer name and address", () => {
+  const result = validateOrderPayload(payload({
+    customer: { ...payload().customer, name: "Test\x00\x01Buyer", address: "Road 4\x0D\x0AHouse 10" },
+  }));
+  assert.equal(result.ok, true);
+  assert.ok(!result.value.customer.name.includes("\x00"));
+  assert.ok(!result.value.customer.address.includes("\x0D"));
+});
+
+test("rejects quantity zero and negative quantities", () => {
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 0 }] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: -1 }] })).ok, false);
+});
+
+test("rejects NaN and Infinity quantities", () => {
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: NaN }] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: Infinity }] })).ok, false);
+});
+
+test("rejects more than 30 unique cart lines", () => {
+  const items = Array.from({ length: 31 }, (_, i) => ({ productId: `p-${i}`, quantity: 1 }));
+  assert.equal(validateOrderPayload(payload({ items })).ok, false);
+});
+
+test("accepts exactly 30 unique cart lines", () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ productId: `p-${i}`, quantity: 1 }));
+  assert.equal(validateOrderPayload(payload({ items })).ok, true);
+});
+
+test("rejects phone numbers that are too short or contain letters", () => {
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "+880171" } })).ok, false);
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "abc12345678901" } })).ok, false);
+});
+
+test("accepts valid Bangladesh phone numbers in various formats", () => {
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "+8801712345678" } })).ok, true);
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "01712345678" } })).ok, true);
+});
+
+test("truncates extremely long customer names and addresses", () => {
+  const result = validateOrderPayload(payload({
+    customer: { ...payload().customer, name: "A".repeat(200), address: "B".repeat(500) },
+  }));
+  assert.equal(result.ok, true);
+  assert.ok(result.value.customer.name.length <= 100);
+  assert.ok(result.value.customer.address.length <= 300);
+});
+
+test("priceValidatedOrder rejects inactive and non-integer priced products", () => {
+  const validated = validateOrderPayload(payload());
+  const inactive = new Map([["hoodie-1", { approved: true, active: false, priceBdt: 1199, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, inactive).ok, false);
+  const floatPrice = new Map([["hoodie-1", { approved: true, active: true, priceBdt: 11.99, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, floatPrice).ok, false);
+  const zeroPrice = new Map([["hoodie-1", { approved: true, active: true, priceBdt: 0, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, zeroPrice).ok, false);
+});
+
+test("priceValidatedOrder rejects non-Map catalogue input", () => {
+  const validated = validateOrderPayload(payload());
+  assert.equal(priceValidatedOrder(validated, {}).ok, false);
+  assert.equal(priceValidatedOrder(validated, null).ok, false);
+  assert.equal(priceValidatedOrder(validated, []).ok, false);
+});
+
+test("priceValidatedOrder passes through the customer's chosen payment method", () => {
+  for (const method of ["cod", "bkash", "nagad", "rocket"]) {
+    const validated = validateOrderPayload(payload({ paymentMethod: method }));
+    const priced = priceValidatedOrder(validated, catalogue);
+    assert.equal(priced.ok, true);
+    assert.equal(priced.value.paymentMethod, method);
+  }
+});
+
+test("rejects an unrecognised payment method", () => {
+  assert.equal(validateOrderPayload(payload({ paymentMethod: "cash-app" })).ok, false);
+  assert.equal(validateOrderPayload(payload({ paymentMethod: "" })).ok, false);
+});
+
+test("delivery fee constants are frozen and cannot be modified", () => {
+  assert.throws(() => { DELIVERY_FEES_BDT.inside = 0; }, TypeError);
+  assert.throws(() => { DELIVERY_FEES_BDT.newZone = 50; }, TypeError);
+});
+
+test("client-supplied fields beyond the schema are not carried through", () => {
+  const result = validateOrderPayload({ ...payload(), total: 9999, discount: 50, coupon: "HACK" });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.total, undefined);
+  assert.equal(result.value.discount, undefined);
+  assert.equal(result.value.coupon, undefined);
+});
+
+test("draft order schema enables RLS and revokes browser-role table access", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { fileURLToPath } = await import("node:url");
+  const schemaUrl = new URL("../supabase/migrations/202610310001_orders_schema.sql", import.meta.url);
+  const sql = await readFile(fileURLToPath(schemaUrl), "utf8");
+  for (const table of ["oc_products", "oc_product_variants", "oc_orders", "oc_order_items", "oc_order_events"]) {
+    assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security;`));
+    assert.match(sql, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated;`));
+  }
+  assert.equal(sql.includes("foreign key (variant_id, product_id)") &&
+    sql.includes("references public.oc_product_variants(id, product_id)"), true);
+  assert.equal(sql.includes("price_bdt integer not null check (price_bdt > 0)"), true);
+  assert.ok(sql.includes("idempotency_key text not null check (length(idempotency_key) between 16 and 200)"));
+  assert.ok(sql.includes("idempotency_scope_hash text not null check"));
+  assert.ok(sql.includes("request_fingerprint text not null check"));
+  assert.ok(sql.includes("unique (idempotency_scope_hash, idempotency_key)"));
+  assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
+  assert.match(sql, /to_status text not null check/);
+  assert.ok(sql.includes("create or replace function public.oc_guard_order_status_change()"));
+  assert.ok(sql.includes("current_setting('app.actor_id', true)"));
+  assert.ok(sql.includes("Invalid order status transition"));
+  assert.ok(sql.includes("insert into public.oc_order_events"));
+  assert.ok(sql.includes("before update of status on public.oc_orders"));
+  assert.ok(sql.includes("create or replace function public.oc_record_order_creation()"));
+  assert.ok(sql.includes("create or replace function public.oc_reject_order_event_mutation()"));
+  assert.ok(sql.includes("Order audit events are append-only"));
+  assert.ok(sql.includes("before update or delete on public.oc_order_events"));
+  assert.ok(sql.includes("values (new.id, 'system', null, new.status, 'Order created')"));
+  assert.ok(sql.includes("after insert on public.oc_orders"));
+  assert.match(sql, /subtotal_bdt bigint not null/);
+  assert.match(sql, /total_bdt bigint not null/);
+  assert.match(sql, /line_total_bdt bigint not null/);
+  assert.match(sql, /public_reference text not null unique check \(length\(public_reference\) between 8 and 64\)/);
+  assert.match(sql, /lookup_token_hash text not null check \(lookup_token_hash ~/);
+  assert.match(sql, /customer_name text not null check/);
+  assert.match(sql, /phone text not null check/);
+  assert.match(sql, /constraint oc_orders_delivery_fee_matches_zone check/);
+  assert.match(sql, /subtotal_bdt >= 999 and delivery_bdt = 0/);
+});

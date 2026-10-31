@@ -1,0 +1,64 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, task-2-cloudflare-test]
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    # Spins up a throwaway local Postgres for test/migration-db.test.js —
+    # schema, trigger, constraint, RLS and the atomic-order-RPC tests that
+    # were previously always skipped here (no database to connect to), so
+    # they never actually ran in CI. This container is wiped when the job
+    # ends; it is never the real Supabase project.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: localtest
+          POSTGRES_DB: outback_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:localtest@127.0.0.1:5432/outback_test
+      PGPASSWORD: localtest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations to the test database
+        run: |
+          set -eu
+          # anon/authenticated are Supabase-managed roles that exist in the
+          # real project but not in a vanilla Postgres image — the
+          # migrations' revoke statements need them to exist first.
+          psql -h 127.0.0.1 -U postgres -d outback_test -v ON_ERROR_STOP=1 -c "
+            DO \$\$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+                CREATE ROLE anon NOLOGIN;
+              END IF;
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+                CREATE ROLE authenticated NOLOGIN;
+              END IF;
+            END
+            \$\$;
+          "
+          for f in supabase/migrations/*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -U postgres -d outback_test -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
