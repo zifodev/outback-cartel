@@ -18,4 +18,14 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Server-side and tooling code (Vercel/Cloudflare functions, the test
+    // suite, the Worker) runs under Node, not the browser — it needs
+    // Node's globals (process, Buffer, etc.) alongside the fetch/Response
+    // globals the browser config already provides.
+    files: ['api/**/*.{js,jsx}', 'test/**/*.{js,jsx}', 'worker/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
 ])

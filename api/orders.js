@@ -146,7 +146,6 @@ export default async function handler(req, res) {
   }
 
   // ── Load trusted catalogue ──
-  // eslint-disable-next-line no-undef -- process.env is provided by Vercel's Node runtime
   const env = process.env;
   const catalogueResult = await loadTrustedCatalogue(env);
   if (!catalogueResult.ok) {

@@ -18,7 +18,6 @@ const json = (res, status, body) => {
 const err = (res, status, message) => json(res, status, { error: message });
 
 function authenticate(req) {
-  // eslint-disable-next-line no-undef
   const password = process.env.ADMIN_PASSWORD;
   if (!password || password.length < 12) return false;
   const auth = req.headers.authorization || "";
@@ -44,7 +43,6 @@ export default async function handler(req, res) {
   }
   if (!authenticate(req)) return err(res, 401, "Unauthorized");
 
-  // eslint-disable-next-line no-undef
   const env = process.env;
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return err(res, 503, "Database is not configured");
 

@@ -30,7 +30,6 @@ export default async function handler(req, res) {
     return done();
   }
 
-  // eslint-disable-next-line no-undef -- process.env is provided by Vercel's Node runtime
   const env = process.env;
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return done(); // no database configured — drop silently
 

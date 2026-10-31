@@ -1,4 +1,3 @@
-/* global process */
 // /api/products on Vercel: a thin wrapper. All the feed logic lives in api/_lib/products-core.js,
 // which the Cloudflare Worker (worker/index.js) also uses, so both hosts behave the same.
 import { productsResponse } from "./_lib/products-core.js";
