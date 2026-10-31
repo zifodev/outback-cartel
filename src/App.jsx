@@ -64,36 +64,15 @@ const HOUSE_HOODIES = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-//  COLLECTIONS — shareable landing pages for ad campaigns.
-//  Each one gets its own real URL (/collections/<slug>) so a Facebook/
-//  Instagram ad can send people straight into a themed page instead of the
-//  generic homepage. Add a new collection here; everything else (routing,
-//  the page template, sharing) follows automatically.
-// ─────────────────────────────────────────────────────────────
-const COLLECTIONS = [
-  {
-    slug: "the-hoodie-edit",
-    kicker: "Collection",
-    title: "The Hoodie Edit",
-    tagline: "Every house-made hoodie in one place — graphic prints, plain essentials and everything between.",
-    hoodieIds: HOUSE_HOODIES.map(h => h.id),
-  },
-];
-
-// ─────────────────────────────────────────────────────────────
 //  ROUTING — a handful of real URLs the browser actually shows (so pages
 //  are shareable/bookmarkable), on top of the existing in-app page switch.
 // ─────────────────────────────────────────────────────────────
 const PATH_TO_PAGE = { "/": "shop", "/shop": "shop", "/about": "about", "/track": "track", "/returns": "returns", "/faq": "faq" };
 const PAGE_TO_PATH = { shop: "/", about: "/about", track: "/track", returns: "/returns", faq: "/faq" };
 function resolveRoute() {
-  if (typeof window === "undefined") return { page: "shop", collectionSlug: null };
+  if (typeof window === "undefined") return { page: "shop" };
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
-  const collMatch = /^\/collections\/([a-z0-9-]+)$/i.exec(path);
-  if (collMatch && COLLECTIONS.some(c => c.slug === collMatch[1])) {
-    return { page: "collection", collectionSlug: collMatch[1] };
-  }
-  return { page: PATH_TO_PAGE[path] || "shop", collectionSlug: null };
+  return { page: PATH_TO_PAGE[path] || "shop" };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1333,7 +1312,7 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
 // ─────────────────────────────────────────────────────────────
 //  SIDE DRAWER
 // ─────────────────────────────────────────────────────────────
-function SideDrawer({ open, onClose, activeCat, onCat, onNav, onCollection, account, onAccountOpen, onLogout }) {
+function SideDrawer({ open, onClose, activeCat, onCat, onNav, account, onAccountOpen, onLogout }) {
   return (
     <>{open && <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 400 }} />}
       <div style={{ position: "fixed", top: 0, left: open ? 0 : -320, bottom: 0, width: 290, background: "var(--surface)", zIndex: 401, display: "flex", flexDirection: "column", boxShadow: "6px 0 32px rgba(0,0,0,.18)", transition: "left .3s cubic-bezier(.4,0,.2,1)", overflowY: "auto" }}>
@@ -1358,11 +1337,6 @@ function SideDrawer({ open, onClose, activeCat, onCat, onNav, onCollection, acco
           )}
         </div>
         <div style={{ padding: "10px 0", flex: 1 }}>
-          {onCollection && (
-            <button onClick={() => { onCollection("the-hoodie-edit"); onClose(); }} style={{ width: "100%", background: "transparent", border: "none", borderLeft: "3px solid var(--earth)", padding: "11px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "inherit", color: C.hot, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ fontSize: 18, width: 26, textAlign: "center" }}>🧥</span>The Hoodie Edit
-            </button>
-          )}
           <div style={{ fontSize: 13, fontWeight: 600, color: C.muted, padding: "8px 18px 8px" }}>Categories</div>
           {CATS.map(c => (
             <button key={c.key} onClick={() => { onCat(c.key); onClose(); }} style={{ width: "100%", background: activeCat === c.key ? `color-mix(in srgb, ${c.color} 7%, transparent)` : "transparent", border: "none", borderLeft: activeCat === c.key ? `3px solid ${c.color}` : "3px solid transparent", padding: "11px 18px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "inherit", transition: "all .15s", color: activeCat === c.key ? c.color : C.dark }}
@@ -1744,7 +1718,7 @@ function ShowroomSlot({ fallback, ...props }) {
 
 // Homepage hero — the first thing a visitor sees. Text and motion only (no
 // new photography/video), scrolls straight into the shop below.
-function HomeHero({ onGoToCollection }) {
+function HomeHero() {
   const explore = () => {
     const el = document.getElementById("oc-shop");
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1753,14 +1727,8 @@ function HomeHero({ onGoToCollection }) {
     <section className="oc-hero">
       <div className="oc-hero-in">
         <p className="oc-hero-kicker">{CONFIG.STORE_NAME}</p>
-        <h1>Wear Your Identity.</h1>
         <p className="oc-hero-sub">Discover the collection. Find your style.</p>
         <button className="oc-hero-cta" onClick={explore}>Explore Collection <span aria-hidden="true">→</span></button>
-        {onGoToCollection && (
-          <div className="oc-hero-link">
-            <button onClick={() => onGoToCollection("the-hoodie-edit")}>New: The Hoodie Edit <span aria-hidden="true">→</span></button>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -1790,39 +1758,7 @@ function WhyShopWithUs() {
   );
 }
 
-// A themed landing page for one collection — the template for ad-campaign
-// links (see COLLECTIONS above). Reuses the same hero and product-grid
-// styling as the homepage, so new collections only need a data entry.
-function CollectionPage({ collection, onAdd, onView }) {
-  const items = HOUSE_HOODIES.filter(h => collection.hoodieIds.includes(h.id));
-  const scrollToGrid = () => {
-    const el = document.getElementById("oc-coll-grid");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  return (
-    <div>
-      <section className="oc-hero">
-        <div className="oc-hero-in">
-          <p className="oc-hero-kicker">{collection.kicker}</p>
-          <h1>{collection.title}</h1>
-          <p className="oc-hero-sub">{collection.tagline}</p>
-          <button className="oc-hero-cta" onClick={scrollToGrid}>Shop the edit <span aria-hidden="true">→</span></button>
-        </div>
-      </section>
-      <div id="oc-coll-grid" className="oc-shop">
-        <div className="oc-sec"><h2>{collection.title}</h2><i aria-hidden="true" /><span>{items.length} item{items.length !== 1 ? "s" : ""}</span></div>
-        {items.length === 0 ? (
-          <div className="oc-empty">Nothing in this collection yet — check back soon.</div>
-        ) : (
-          <div className="ocp-grid">{items.map(p => <ProductCard key={p.id} p={p} onAdd={onAdd} onView={onView} />)}</div>
-        )}
-      </div>
-      <WhyShopWithUs />
-    </div>
-  );
-}
-
-function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, search, setSearch, onGoToCollection }) {
+function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, search, setSearch }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => { setVisible(PAGE_SIZE); }, [activeCat, search]);
   const filtered = products.filter(p => (activeCat === "all" || p.cat === activeCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase())));
@@ -1832,7 +1768,7 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
   const left = filtered.length - visible;
   return (
     <div>
-      <HomeHero onGoToCollection={onGoToCollection} />
+      <HomeHero />
       <ShowroomSlot hoodies={HOUSE_HOODIES} onAdd={onAdd} onBuyNow={onBuyNow}
         onDetails={id => { const p = products.find(x => x.id === id); if (p) onView(p); }}
         onShopAll={() => scrollTo("oc-shop")}
@@ -1881,7 +1817,6 @@ export default function OutbackCartel() {
     return [...HOUSE_HOODIES, ...clean];
   });
   const [page, setPage] = useState(() => resolveRoute().page);
-  const [collectionSlug, setCollectionSlug] = useState(() => resolveRoute().collectionSlug);
   const [activeCat, setActiveCat] = useState("all");
   const [selectedProd, setSelectedProd] = useState(null); // product detail page
   const [cart, setCart] = useState(() => {
@@ -1932,8 +1867,8 @@ export default function OutbackCartel() {
   const [shopQ, setShopQ] = useState("");     // the shop's search box
   const [headerQ, setHeaderQ] = useState(""); // the header's search box
 
-  // Supplier products (dropshipping.com.bd) loaded through our own server function /api/products,
-  // so the API key and secret key never reach the browser.
+  // Supplier products loaded through our own server function /api/products,
+  // so supplier API keys never reach the browser.
   useEffect(() => {
     // Browser persistence improves convenience; it is never an authority for price or stock.
     ls.set("oc_cart", cart);
@@ -1953,40 +1888,31 @@ export default function OutbackCartel() {
   const toast_ = msg => { setToast(msg); setTimeout(() => setToast(""), 2600); };
 
   const nav = (p, cat) => {
-    setPage(p); setCollectionSlug(null); setSelectedProd(null);
+    setPage(p); setSelectedProd(null);
     if (cat) setActiveCat(cat);
     window.scrollTo({ top: 0, behavior: "smooth" });
     const path = PAGE_TO_PATH[p] || "/";
     if (window.location.pathname !== path) window.history.pushState({ page: p }, "", path);
   };
-  // Give one collection (see COLLECTIONS) a real, shareable URL for ad links.
-  const navCollection = slug => {
-    setPage("collection"); setCollectionSlug(slug); setSelectedProd(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    const path = `/collections/${slug}`;
-    if (window.location.pathname !== path) window.history.pushState({ page: "collection", slug }, "", path);
-  };
   // Keep the page in sync with the browser's own Back/Forward buttons.
   useEffect(() => {
     const onPop = () => {
       const r = resolveRoute();
-      setPage(r.page); setCollectionSlug(r.collectionSlug); setSelectedProd(null);
+      setPage(r.page); setSelectedProd(null);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   // ── Basic campaign tracking (see src/lib/analytics.js) ──
-  // Page views: fires on first load and on every page/collection/product-view
-  // change. Product and collection views don't always have a real URL change
-  // (e.g. opening a product detail), so "view" carries a human label while
-  // "path" stays the real browser path.
+  // Page views: fires on first load and on every page/product-view change.
+  // Product views don't always have a real URL change (e.g. opening a
+  // product detail), so "view" carries a human label while "path" stays
+  // the real browser path.
   useEffect(() => {
-    const view = selectedProd ? `product:${selectedProd.id}`
-      : page === "collection" ? `collection:${collectionSlug}`
-      : page;
+    const view = selectedProd ? `product:${selectedProd.id}` : page;
     track("page_view", { view });
-  }, [page, collectionSlug, selectedProd]);
+  }, [page, selectedProd]);
 
   // WhatsApp clicks: one delegated listener instead of instrumenting every
   // wa.me link individually (there are ~18 across the app) — covers all of
@@ -2037,13 +1963,8 @@ export default function OutbackCartel() {
     if (page === "track") return <TrackPage />;
     if (page === "returns") return <ReturnsPage />;
     if (page === "faq") return <FAQPage />;
-    if (page === "collection") {
-      const collection = COLLECTIONS.find(c => c.slug === collectionSlug);
-      if (collection) return <CollectionPage collection={collection} onAdd={addToCart} onView={viewProduct} />;
-      // Unknown/old slug: fall through to the regular shop rather than a dead end.
-    }
     return <ShopPage products={products} onAdd={addToCart} onView={viewProduct} activeCat={activeCat} onCatChange={cat => { setActiveCat(cat); setPage("shop"); }} search={shopQ} setSearch={setShopQ}
-      onBuyNow={() => { setSelectedProd(null); setCartOpen(false); setCheckoutOpen(true); }} onGoToCollection={navCollection} />;
+      onBuyNow={() => { setSelectedProd(null); setCartOpen(false); setCheckoutOpen(true); }} />;
   };
 
   return (
@@ -2076,11 +1997,9 @@ export default function OutbackCartel() {
         {page !== "shop" && (
           <nav className="oc-subnav" aria-label="Pages">
             <div className="oc-subnav-in">
-              {[["shop", "Shop"], ["collection:the-hoodie-edit", "The Hoodie Edit"], ["about", "About"], ["track", "Track order"], ["returns", "Returns"], ["faq", "FAQ"]].map(([k, l]) => {
-                const isColl = k.startsWith("collection:");
-                const slug = isColl ? k.slice("collection:".length) : null;
-                const current = isColl ? page === "collection" && collectionSlug === slug : page === k;
-                return <button key={k} onClick={() => (isColl ? navCollection(slug) : nav(k))} aria-current={current ? "page" : undefined}>{l}</button>;
+              {[["shop", "Shop"], ["about", "About"], ["track", "Track order"], ["returns", "Returns"], ["faq", "FAQ"]].map(([k, l]) => {
+                const current = page === k;
+                return <button key={k} onClick={() => nav(k)} aria-current={current ? "page" : undefined}>{l}</button>;
               })}
             </div>
           </nav>
@@ -2088,7 +2007,7 @@ export default function OutbackCartel() {
       </header>
 
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} activeCat={activeCat}
-        onCat={cat => { setActiveCat(cat); setPage("shop"); }} onNav={nav} onCollection={navCollection}
+        onCat={cat => { setActiveCat(cat); setPage("shop"); }} onNav={nav}
         account={account} onAccountOpen={() => setShowAuth(true)} onLogout={handleLogout} />
 
       <main style={{ background: "var(--night)", minHeight: "100vh", color: C.dark }}>
