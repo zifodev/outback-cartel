@@ -62,15 +62,7 @@ The public product feed is served from `GET /api/products`. Supplier credentials
 - `BUSINESSKORO_MARKUP_PERCENT` — optional percentage markup.
 - `BUSINESSKORO_MARKUP_FLAT` — optional fixed BDT markup.
 
-### Mohasagor / Dropshipping
-
-- `DROPSHIP_API_KEY` and `DROPSHIP_SECRET_KEY` — both required to enable the supplier.
-- `DROPSHIP_MARKUP_PERCENT` and `DROPSHIP_MARKUP_FLAT` — optional price adjustments.
-- `DROPSHIP_IMAGE_BASE` — optional base URL for relative image paths.
-- `DROPSHIP_CATEGORY_MAP` — optional JSON mapping of supplier categories.
-- `DROPSHIP_MAX_PAGES` — optional page limit.
-- `DROPSHIP_PRICE_FIELD` — `price` by default, or `sale_price`.
-- `DROPSHIP_IN_STOCK_ONLY` — set to `1` to include only explicitly available products.
+(Mohasagor / dropshipping.com.bd was removed as a supplier — that account's API key stopped working and is no longer in use.)
 
 ### Shared feed settings
 

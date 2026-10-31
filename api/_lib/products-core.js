@@ -6,37 +6,22 @@
 //    - Cloudflare:  worker/index.js passes in the Worker's env (secrets + settings)
 //  Files in folders starting with "_" are not turned into Vercel functions.
 //
-//  Merges products from TWO suppliers into one feed for the site:
+//  Fetches products from one supplier — the Business Koro storefront API —
+//  and turns them into the site's feed.
 //
-//   1) Mohasagor / dropshipping.com.bd reseller API
-//   2) Business Koro storefront API
+//  The supplier's key NEVER reaches the browser: it is read from
+//  Vercel → Project → Settings → Environment Variables.
 //
-//  Both suppliers' keys NEVER reach the browser: they are read from
-//  Vercel → Project → Settings → Environment Variables. Each supplier
-//  is fetched independently — if one is down or misconfigured, the
-//  other's products still show, instead of the whole feed failing.
-//
-//  ── Mohasagor ──
-//    DROPSHIP_API_KEY        (required to enable) your API key
-//    DROPSHIP_SECRET_KEY     (required to enable) your secret key
-//    DROPSHIP_MARKUP_PERCENT (optional)  e.g. 20 → add 20% to every price
-//    DROPSHIP_MARKUP_FLAT    (optional)  e.g. 100 → add ৳100 to every price
-//    DROPSHIP_IMAGE_BASE     (optional)  where product images live,
-//                                        default https://mohasagor.com.bd/
-//    DROPSHIP_CATEGORY_MAP   (optional)  JSON mapping supplier category_id
-//                                        to your site's category keys,
-//                                        e.g. {"1":"clothing","5":"home"}
-//    DROPSHIP_MAX_PAGES      (optional)  page safety limit, default 100 (all)
+//  (Mohasagor / dropshipping.com.bd was removed as a supplier — that
+//  account's API key stopped working and is no longer in use.)
 //
 //  ── Supplier call limit ──
-//    SUPPLIER_CALL_LIMIT     (optional)  most supplier requests one feed request may make, shared
-//                                        by the suppliers. Cloudflare's free plan allows 50
-//                                        outgoing calls per request, so the Worker sets 40.
+//    SUPPLIER_CALL_LIMIT     (optional)  most supplier requests one feed request may make.
+//                                        Cloudflare's free plan allows 50 outgoing calls per
+//                                        request, so the Worker sets 40.
 //                                        Not set (Vercel) = no extra limit, as before.
 //                                        If a catalogue needs more pages than this, the feed shows
 //                                        what it could fetch and the debug report says "truncated".
-//    DROPSHIP_PRICE_FIELD    (optional)  "price" (default) or "sale_price"
-//    DROPSHIP_IN_STOCK_ONLY  (optional)  1 = only items marked "available"
 //
 //  ── Business Koro ──
 //    BUSINESSKORO_API_KEY       (required to enable) your x-api-key
@@ -47,8 +32,7 @@
 //    BUSINESSKORO_MARKUP_FLAT   (optional) added on top of their suggestedPrice
 //
 //  ── Combined ──
-//    DROPSHIP_MAX_PRODUCTS   (optional)  total products shown across BOTH
-//                                        suppliers, default = all
+//    DROPSHIP_MAX_PRODUCTS   (optional)  total products shown, default = all
 //                                        (clothing/winter listed first)
 //
 //  ── Protected debug report ──
@@ -61,14 +45,10 @@
 // ─────────────────────────────────────────────────────────────
 import { createHash, timingSafeEqual } from "node:crypto";
 
-const MOHASAGOR_URL = "https://mohasagor.com.bd/api/reseller/product";
 const BUSINESSKORO_URL = "https://api.businesskoro.com/api/v1/storefront/products";
-// MOHASAGOR_API_URL / BUSINESSKORO_API_URL (optional settings) point the feed at a local stand-in
-// supplier for automated tests. Leave them unset everywhere else.
-const mohasagorUrl = env => clean(env.MOHASAGOR_API_URL) || MOHASAGOR_URL;
+// BUSINESSKORO_API_URL (optional setting) points the feed at a local stand-in
+// supplier for automated tests. Leave it unset everywhere else.
 const businessKoroUrl = env => clean(env.BUSINESSKORO_API_URL) || BUSINESSKORO_URL;
-
-const BATCH = 3; // pages fetched in parallel per batch (the supplier limits how fast we can ask)
 
 // Request settings are passed explicitly; never store per-request secrets in module-global state.
 
@@ -252,122 +232,6 @@ const debugAllowed = (given, env) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-//  Mohasagor
-// ─────────────────────────────────────────────────────────────
-async function fetchMohasagor(debug, budget, env) {
-  const key = clean(env.DROPSHIP_API_KEY);
-  const secret = clean(env.DROPSHIP_SECRET_KEY);
-  if (!key || !secret) return { configured: false, products: [], raw: [], error: null };
-
-  const imageBase = (env.DROPSHIP_IMAGE_BASE || "https://mohasagor.com.bd/").replace(/\/*$/, "/");
-  const markupPct = num(env.DROPSHIP_MARKUP_PERCENT);
-  const markupFlat = num(env.DROPSHIP_MARKUP_FLAT);
-  const maxPages = Math.max(1, num(env.DROPSHIP_MAX_PAGES) || 100);
-  let catMap = {};
-  try { catMap = JSON.parse(env.DROPSHIP_CATEGORY_MAP || "{}"); } catch { catMap = {}; }
-
-  const url = path => {
-    if (!path) return "";
-    if (/^https?:\/\//i.test(path)) return path;
-    // Do not reinterpret javascript:, data:, or other explicit schemes as relative image paths.
-    if (/^[a-z][a-z0-9+.-]*:/i.test(String(path))) return "";
-    return imageBase + String(path).replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
-  };
-
-  const fetchPage = async pg => {
-    if (!budget.take()) throw outOfCalls();
-    const r = await fetch(`${mohasagorUrl(env)}?page=${pg}`, {
-      headers: { "api-key": key, "secret-key": secret, Accept: "application/json" },
-    });
-    if (!r.ok) {
-      // keep the supplier's own message (shown only in the protected debug report) so a rejected key is easy to diagnose
-      const e = new Error(`Mohasagor API answered ${r.status}`);
-      try { e.body = (await r.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400); } catch { /* ignore */ }
-      throw e;
-    }
-    return r.json();
-  };
-
-  try {
-    // page 1 tells us how many pages there are; fetch the rest in parallel batches
-    const first = await fetchPage(1);
-    const raw = pickList(first);
-    const trueLastPage = pickLastPage(first);
-    // never plan more pages than the call allowance can pay for
-    const lastPage = Math.min(trueLastPage, maxPages, 1 + Math.max(0, budget.left));
-    let fetched = 1;
-    for (let start = 2; start <= lastPage; start += BATCH) {
-      const pages = [];
-      for (let pg = start; pg < start + BATCH && pg <= lastPage; pg++) pages.push(pg);
-      const batch = await Promise.all(pages.map(pg => fetchPage(pg).catch(() => null)));
-      batch.forEach(d => { if (d) { raw.push(...pickList(d)); fetched++; } });
-    }
-    const truncated = lastPage < Math.min(trueLastPage, maxPages);
-
-    // Show everything except products explicitly marked inactive or out of stock.
-    // Most of this supplier's catalog has a blank stock_status, which we treat as sellable.
-    // Set DROPSHIP_IN_STOCK_ONLY=1 to list ONLY items explicitly marked "available".
-    const inStockOnly = /^(1|true|yes)$/i.test(String(env.DROPSHIP_IN_STOCK_ONLY || ""));
-    const INACTIVE = new Set(["0", "inactive", "draft", "disabled", "unpublished", "pending", "false"]);
-    const OUT = new Set(["stock_out", "out_of_stock", "out of stock", "unavailable", "sold_out", "sold out", "0", "no"]);
-    const products = raw
-      .filter(p => !INACTIVE.has(String(p.status).toLowerCase()) &&
-                   (inStockOnly
-                     ? String(p.stock_status || "").trim().toLowerCase() === "available"
-                     : !OUT.has(String(p.stock_status || "").toLowerCase())))
-      .map(p => {
-        // Which supplier number to sell at. DROPSHIP_PRICE_FIELD can be "price" (default: the
-        // supplier's regular price, the higher number) or "sale_price" (their discounted price).
-        // reselling_price, when the API sends it, is always preferred.
-        const field = (env.DROPSHIP_PRICE_FIELD || "price").trim();
-        const base = num(p.reselling_price) || num(p[field]) || num(p.price) || num(p.sale_price);
-        const price = Math.round(base * (1 + markupPct / 100) + markupFlat);
-        const regular = field === "sale_price" && num(p.price) > price ? num(p.price) : null;
-        const imgList = Array.isArray(p.product_images) ? p.product_images : Array.isArray(p.product_image) ? p.product_image : [];
-        const images = imgList
-          .map(im => safeImageUrl(url(im && im.product_image)))
-          .filter(Boolean)
-          .slice(0, 4); // keep the payload small across thousands of products
-        return {
-          id: `ds-${p.id}`,
-          remote: true,
-          supplier: "mohasagor",
-          supplierId: p.id,
-          code: p.product_code ?? null,
-          slug: p.slug || "",
-          name: String(p.name || "Product").trim(),
-          cat: catMap[String(p.category_id)] || catMap[String(p.category)] || (/hoodie|hoody/i.test(p.name || "") ? "hoodies" : guessCategory(p.category || p.category_name)),
-          supplierCategory: p.category || null,
-          colors: (Array.isArray(p.product_variants) ? p.product_variants : [])
-            .filter(v => /colou?r/i.test(v.attribute || "")).map(v => v.variant).filter(Boolean),
-          sizes: (Array.isArray(p.product_variants) ? p.product_variants : [])
-            .filter(v => /size/i.test(v.attribute || "")).map(v => v.variant).filter(Boolean),
-          price,
-          old: regular,
-          icon: "📦",
-          badge: null,
-          img: images[0] || safeImageUrl(url(p.thumbnail_img)),
-          images,
-          details: detailLines(p.details),
-        };
-      }).filter(p => p.price > 0 && p.img);
-
-    return { configured: true, products, raw, error: null, pagesFetched: fetched, lastPage: trueLastPage, truncated };
-  } catch (err) {
-    const error = { message: String(err && err.message || err) };
-    if (debug && err && err.body) error.supplierSays = err.body;
-    if (debug) {
-      const rawVals = { apiKey: String(env.DROPSHIP_API_KEY || ""), secretKey: String(env.DROPSHIP_SECRET_KEY || "") };
-      error.keyCheck = { apiKeyLength: key.length, secretKeyLength: secret.length, hadExtraSpacesOrQuotes: rawVals.apiKey !== key || rawVals.secretKey !== secret };
-      const fp = v => (v.length > 6 ? `${v.slice(0, 2)}…${v.slice(-2)} (${v.length})` : `(${v.length})`);
-      const h = v => createHash("sha256").update(v).digest("hex").slice(0, 16);
-      console.log(`[products] mohasagor key check api=${fp(key)} #${h(key)} secret=${fp(secret)} #${h(secret)}`);
-    }
-    return { configured: true, products: [], raw: [], error };
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
 //  Business Koro
 // ─────────────────────────────────────────────────────────────
 async function fetchBusinessKoro(debug, budget, env) {
@@ -482,25 +346,20 @@ export async function productsResponse({ method, url, env }) {
     }, null);
   }
 
-  // one shared allowance of supplier calls for this request. Both suppliers ask for their first
-  // page straight away; extra pages then use whatever is left, so the total can't pass the limit.
+  // an allowance of supplier calls for this request — the supplier's first page is fetched
+  // straight away; extra pages then use whatever is left, so the total can't pass the limit.
   const limit = num(config.SUPPLIER_CALL_LIMIT) > 0 ? Math.floor(num(config.SUPPLIER_CALL_LIMIT)) : Infinity;
   const calls = makeBudget(limit);
-  const [mohasagor, businessKoro] = await Promise.all([
-    fetchMohasagor(debug, calls, config),
-    fetchBusinessKoro(debug, calls, config),
-  ]);
+  const businessKoro = await fetchBusinessKoro(debug, calls, config);
 
-  if (!mohasagor.configured && !businessKoro.configured) {
-    return reply(500, {}, { error: "No supplier is configured. Set DROPSHIP_API_KEY/DROPSHIP_SECRET_KEY and/or BUSINESSKORO_API_KEY in the host's settings." });
+  if (!businessKoro.configured) {
+    return reply(500, {}, { error: "No supplier is configured. Set BUSINESSKORO_API_KEY in the host's settings." });
   }
 
   if (debug) {
-    const summarize = (label, result) => {
+    const summarize = result => {
       if (!result.configured) return { configured: false };
       if (result.error) return { configured: true, error: result.error };
-      const categories = {};
-      result.raw.forEach(p => { const c = p.category || p.category_name || p.category_id || "?"; categories[c] = (categories[c] || 0) + 1; });
       return {
         configured: true,
         count: result.raw.length,
@@ -508,16 +367,13 @@ export async function productsResponse({ method, url, env }) {
         pagesFetched: result.pagesFetched,
         lastPage: result.lastPage,
         truncated: !!result.truncated,
-        categories: label === "mohasagor" ? categories : undefined,
       };
     };
-    const review = reviewProducts([...mohasagor.products, ...businessKoro.products]);
+    const review = reviewProducts(businessKoro.products);
     return reply(200, { "Cache-Control": "no-store" }, {
       ok: true,
       supplierCalls: { limit: Number.isFinite(limit) ? limit : null, used: calls.used },
-      mohasagor: summarize("mohasagor", mohasagor),
-      businessKoro: summarize("businesskoro", businessKoro),
-      combinedUsableCount: mohasagor.products.length + businessKoro.products.length,
+      businessKoro: summarize(businessKoro),
       review: {
         published: review.published.length,
         pendingCount: review.pending.length,
@@ -528,20 +384,18 @@ export async function productsResponse({ method, url, env }) {
     });
   }
 
-  if (mohasagor.error && businessKoro.error) {
-    // both configured suppliers failed — surface it like before
+  if (businessKoro.error) {
     return reply(502, { "Cache-Control": "s-maxage=60" }, {
       error: "Could not load supplier products.",
-      mohasagor: mohasagor.error,
       businessKoro: businessKoro.error,
     });
   }
 
   // only reviewed supplier products reach the shop (see APPROVED_SUPPLIER_PRODUCTS)
-  const all = reviewProducts([...mohasagor.products, ...businessKoro.products]).published;
+  const all = reviewProducts(businessKoro.products).published;
 
   // Show all products by default, fashion (men/women/winter/kids) listed first.
-  // Set DROPSHIP_MAX_PRODUCTS to a number to cap the combined total (fashion is
+  // Set DROPSHIP_MAX_PRODUCTS to a number to cap the total shown (fashion is
   // always kept in full, then other categories fill the rest up to that number).
   const maxEnv = num(config.DROPSHIP_MAX_PRODUCTS);
   const maxProducts = maxEnv > 0 ? maxEnv : Infinity;
@@ -551,14 +405,13 @@ export async function productsResponse({ method, url, env }) {
   const products = fashion.concat(others).slice(0, Math.max(maxProducts, fashion.length));
 
   // cache at the edge for an hour and keep serving it for a day while it refreshes in the
-  // background, so each supplier is asked rarely (they rate-limit / may block keys that call too often)
+  // background, so the supplier is asked rarely (they rate-limit / may block keys that call too often)
   return reply(200, { "Cache-Control": "s-maxage=3600, stale-while-revalidate=86400" }, {
     products,
     count: products.length,
     fashionCount: fashion.length,
     updatedAt: new Date().toISOString(),
     suppliers: {
-      mohasagor: mohasagor.error ? { ok: false, error: mohasagor.error.message } : { ok: mohasagor.configured, count: mohasagor.products.length },
       businessKoro: businessKoro.error ? { ok: false, error: businessKoro.error.message } : { ok: businessKoro.configured, count: businessKoro.products.length },
     },
   });

@@ -128,44 +128,31 @@ test("Business Koro products with unavailable or unknown stock are not published
   }
 });
 
-test("one supplier outage does not take down the other supplier's feed", async () => {
+test("a supplier outage is reported rather than crashing the feed", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async url => {
-    if (String(url).startsWith("https://businesskoro-down.test/")) {
-      throw new Error("Business Koro unavailable");
-    }
-    return new Response(JSON.stringify({ products: [] }), {
-      status: 200, headers: { "Content-Type": "application/json" },
-    });
-  };
+  globalThis.fetch = async () => { throw new Error("Business Koro unavailable"); };
   try {
     const result = await productsResponse({
       method: "GET",
       url: "https://shop.test/api/products",
       env: {
-        DROPSHIP_API_KEY: "mohasagor-key",
-        DROPSHIP_SECRET_KEY: "mohasagor-secret",
-        MOHASAGOR_API_URL: "https://mohasagor.test/products",
         BUSINESSKORO_API_KEY: "businesskoro-key",
         BUSINESSKORO_API_URL: "https://businesskoro-down.test/products",
       },
     });
-    assert.equal(result.status, 200);
-    assert.deepEqual(result.body.products, []);
-    assert.equal(result.body.suppliers.mohasagor.ok, true);
-    assert.equal(result.body.suppliers.businessKoro.ok, false);
-    assert.match(result.body.suppliers.businessKoro.error, /unavailable/);
+    assert.equal(result.status, 502);
+    assert.match(result.body.businessKoro.message, /unavailable/);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("shared supplier call budget is never exceeded", async () => {
+test("supplier call budget limits how many pages are fetched", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async url => {
     calls.push(String(url));
-    return new Response(JSON.stringify({ products: [], data: [] }), {
+    return new Response(JSON.stringify({ data: [], meta: { last_page: 5 } }), {
       status: 200, headers: { "Content-Type": "application/json" },
     });
   };
@@ -175,9 +162,6 @@ test("shared supplier call budget is never exceeded", async () => {
       method: "GET",
       url: `https://shop.test/api/products?debug=${token}`,
       env: {
-        DROPSHIP_API_KEY: "mohasagor-key",
-        DROPSHIP_SECRET_KEY: "mohasagor-secret",
-        MOHASAGOR_API_URL: "https://mohasagor.test/products",
         BUSINESSKORO_API_KEY: "businesskoro-key",
         BUSINESSKORO_API_URL: "https://businesskoro.test/products",
         SUPPLIER_CALL_LIMIT: "1",
@@ -185,10 +169,9 @@ test("shared supplier call budget is never exceeded", async () => {
       },
     });
     assert.equal(result.status, 200);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 1); // the budget stopped it fetching page 2 even though last_page says 5
     assert.equal(result.body.supplierCalls.limit, 1);
     assert.equal(result.body.supplierCalls.used, 1);
-    assert.ok(result.body.mohasagor.error || result.body.businessKoro.error);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -267,152 +250,3 @@ test("supplier product images must use absolute HTTPS URLs", async () => {
   }
 });
 
-test("Mohasagor image paths are normalized and unsafe protocols are not published", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    products: [
-      {
-        id: "safe-relative-image",
-        name: "Test Hoodie",
-        status: "active",
-        stock_status: "available",
-        reselling_price: 500,
-        thumbnail_img: "uploads/hoodie.jpg",
-      },
-      {
-        id: "unsafe-image",
-        name: "Test Shirt",
-        status: "active",
-        stock_status: "available",
-        reselling_price: 400,
-        thumbnail_img: "javascript:alert(1)",
-      },
-      {
-        id: "http-image",
-        name: "Test Cap",
-        status: "active",
-        stock_status: "available",
-        reselling_price: 300,
-        thumbnail_img: "http://cdn.example.test/cap.jpg",
-      },
-    ],
-    last_page: 1,
-  }), { status: 200, headers: { "Content-Type": "application/json" } });
-  try {
-    const token = "mohasagor-image-debug-token-123";
-    const result = await productsResponse({
-      method: "GET",
-      url: `https://shop.test/api/products?debug=${token}`,
-      env: {
-        DROPSHIP_API_KEY: "test-api-key",
-        DROPSHIP_SECRET_KEY: "test-secret-key",
-        PRODUCTS_DEBUG_TOKEN: token,
-      },
-    });
-    assert.equal(result.status, 200);
-    assert.equal(result.body.mohasagor.usableCount, 1);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Mohasagor reselling price takes precedence and configured markup is applied", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    products: [{
-      id: "pricing-test-item",
-      name: "Test Hoodie",
-      status: "active",
-      stock_status: "available",
-      reselling_price: 500,
-      price: 900,
-      sale_price: 450,
-      thumbnail_img: "uploads/hoodie.jpg",
-    }],
-    last_page: 1,
-  }), { status: 200, headers: { "Content-Type": "application/json" } });
-  try {
-    const result = await productsResponse({
-      method: "GET",
-      url: "https://shop.test/api/products?debug=mohasagor-pricing-debug-token",
-      env: {
-        DROPSHIP_API_KEY: "test-api-key",
-        DROPSHIP_SECRET_KEY: "test-secret-key",
-        DROPSHIP_MARKUP_PERCENT: "10",
-        DROPSHIP_MARKUP_FLAT: "25",
-        PRODUCTS_DEBUG_TOKEN: "mohasagor-pricing-debug-token",
-      },
-    });
-    assert.equal(result.status, 200);
-    assert.equal(result.body.mohasagor.usableCount, 1);
-    assert.equal(result.body.review.pending[0].price, 575);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Mohasagor stock-only mode accepts normalized available labels only", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    products: [
-      { id: "stock-lower", name: "Lowercase", status: "active", stock_status: "available", reselling_price: 500, thumbnail_img: "lower.jpg" },
-      { id: "stock-upper", name: "Uppercase", status: "active", stock_status: " AVAILABLE ", reselling_price: 500, thumbnail_img: "upper.jpg" },
-      { id: "stock-blank", name: "Unknown", status: "active", stock_status: "", reselling_price: 500, thumbnail_img: "unknown.jpg" },
-      { id: "stock-out", name: "Out", status: "active", stock_status: "out_of_stock", reselling_price: 500, thumbnail_img: "out.jpg" },
-    ],
-    last_page: 1,
-  }), { status: 200, headers: { "Content-Type": "application/json" } });
-  try {
-    const token = "mohasagor-stock-mode-token-123";
-    const result = await productsResponse({
-      method: "GET",
-      url: `https://shop.test/api/products?debug=${token}`,
-      env: {
-        DROPSHIP_API_KEY: "test-api-key",
-        DROPSHIP_SECRET_KEY: "test-secret-key",
-        DROPSHIP_IN_STOCK_ONLY: "1",
-        PRODUCTS_DEBUG_TOKEN: token,
-      },
-    });
-    assert.equal(result.status, 200);
-    assert.equal(result.body.mohasagor.usableCount, 2);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Mohasagor sale_price mode uses discounted price when no reseller price exists", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    products: [{
-      id: "sale-price-test-item",
-      name: "Test Winter Hoodie",
-      status: "active",
-      stock_status: "available",
-      price: 900,
-      sale_price: 450,
-      thumbnail_img: "uploads/hoodie.jpg",
-    }],
-    last_page: 1,
-  }), { status: 200, headers: { "Content-Type": "application/json" } });
-  try {
-    const token = "mohasagor-sale-price-debug-token";
-    const result = await productsResponse({
-      method: "GET",
-      url: `https://shop.test/api/products?debug=${token}`,
-      env: {
-        DROPSHIP_API_KEY: "test-api-key",
-        DROPSHIP_SECRET_KEY: "test-secret-key",
-        DROPSHIP_PRICE_FIELD: "sale_price",
-        DROPSHIP_MARKUP_PERCENT: "10",
-        DROPSHIP_MARKUP_FLAT: "25",
-        PRODUCTS_DEBUG_TOKEN: token,
-      },
-    });
-    assert.equal(result.status, 200);
-    assert.equal(result.body.mohasagor.usableCount, 1);
-    assert.equal(result.body.review.pending[0].price, 520);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
