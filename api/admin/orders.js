@@ -6,6 +6,7 @@
 
 import { supabaseGet, supabaseHeaders, supabaseUrl } from "../_lib/supabase.js";
 import { canTransitionOrderStatus, getAllowedOrderTransitions } from "../_lib/order-status.js";
+import { isAdminAuthenticated } from "../_lib/admin-auth.js";
 
 export const config = { maxDuration: 15 };
 
@@ -17,24 +18,13 @@ const json = (res, status, body) => {
 
 const err = (res, status, message) => json(res, status, { error: message });
 
-function authenticate(req) {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password || password.length < 12) return false;
-  const auth = req.headers.authorization || "";
-  if (auth.startsWith("Bearer ")) {
-    return auth.slice(7) === password;
-  }
-  // Also accept X-Admin-Password header for simple fetch usage
-  return req.headers["x-admin-password"] === password;
-}
-
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Allow", "GET, POST, OPTIONS");
     return res.status(204).end();
   }
 
-  if (!authenticate(req)) {
+  if (!isAdminAuthenticated(req)) {
     return err(res, 401, "Unauthorized");
   }
 

@@ -6,6 +6,7 @@
 // This file runs as a Vercel serverless function.
 
 import { supabaseGet } from "../_lib/supabase.js";
+import { isAdminAuthenticated } from "../_lib/admin-auth.js";
 
 export const config = { maxDuration: 15 };
 
@@ -16,14 +17,6 @@ const json = (res, status, body) => {
 };
 
 const err = (res, status, message) => json(res, status, { error: message });
-
-function authenticate(req) {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password || password.length < 12) return false;
-  const auth = req.headers.authorization || "";
-  if (auth.startsWith("Bearer ")) return auth.slice(7) === password;
-  return req.headers["x-admin-password"] === password;
-}
 
 // Bound how far back we look — oc_events has no index that would make an
 // unbounded scan cheap, and nobody needs more than a few months of this on
@@ -41,7 +34,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "GET, OPTIONS");
     return err(res, 405, "Method not allowed");
   }
-  if (!authenticate(req)) return err(res, 401, "Unauthorized");
+  if (!isAdminAuthenticated(req)) return err(res, 401, "Unauthorized");
 
   const env = process.env;
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return err(res, 503, "Database is not configured");
