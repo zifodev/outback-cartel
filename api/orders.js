@@ -16,9 +16,8 @@ import {
   isValidIdempotencyKey,
   hashOrderRequest,
   hashIdempotencyScope,
-  classifyIdempotencyRecord,
 } from "./_lib/order-security.js";
-import { supabasePost, supabaseGet } from "./_lib/supabase.js";
+import { supabaseRpc, supabaseGet } from "./_lib/supabase.js";
 
 export const config = { maxDuration: 30 };
 
@@ -184,75 +183,60 @@ export default async function handler(req, res) {
     });
   }
 
-  // ── Idempotency check ──
-  try {
-    const existing = await supabaseGet(env, "oc_orders",
-      `idempotency_scope_hash=eq.${encodeURIComponent(scopeHash)}&idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id,public_reference,request_fingerprint,subtotal_bdt,delivery_bdt,total_bdt,status&limit=1`
-    );
-    if (existing?.length > 0) {
-      const classification = classifyIdempotencyRecord(existing[0].request_fingerprint, requestFingerprint);
-      if (classification === "replay") {
-        return json(res, 200, {
-          status: existing[0].status,
-          publicReference: existing[0].public_reference,
-          subtotalBdt: existing[0].subtotal_bdt,
-          deliveryBdt: existing[0].delivery_bdt,
-          totalBdt: existing[0].total_bdt,
-          replay: true,
-        });
-      }
-      if (classification === "conflict") {
-        return error(res, 409, "This Idempotency-Key has already been used with a different order.");
-      }
-    }
-  } catch {
-    // If the idempotency check fails, proceed with insertion —
-    // the unique constraint will catch true duplicates.
+  // ── Build line-item rows (variant UUID lookups) ──
+  const itemRows = [];
+  for (const line of priced.value.lines) {
+    const product = catalogueResult.value.get(line.productId);
+    const variantUuid = await resolveVariantUuid(env, line.productId, line.variantId, catalogueResult.value);
+    const variant = line.variantId ? product?.variants?.find(v => v.id === line.variantId) : null;
+    itemRows.push({
+      product_id: line.productId,
+      variant_id: variantUuid || "",
+      product_title_snapshot: product?.title || "Product",
+      variant_snapshot: variant ? { size: variant.size, colour: variant.colour } : {},
+      unit_price_bdt: line.unitPriceBdt,
+      quantity: line.quantity,
+      line_total_bdt: line.lineTotalBdt,
+    });
   }
 
-  // ── Persist order ──
+  // ── Persist order + items atomically ──
+  // oc_create_order_with_items does the idempotency lookup and both inserts
+  // inside a single database transaction (see its migration for why): either
+  // the whole order is saved with every line item, or nothing is, and a
+  // replay of the same Idempotency-Key is detected without a separate lookup
+  // step that could fail open.
   try {
-    const orderRow = {
-      public_reference: ids.publicReference,
-      idempotency_scope_hash: scopeHash,
-      idempotency_key: idempotencyKey,
-      request_fingerprint: requestFingerprint,
-      lookup_token_hash: ids.lookupTokenHash,
-      customer_name: priced.value.customer.name,
-      phone: priced.value.customer.phone,
-      district: priced.value.customer.district,
-      area: priced.value.customer.area || null,
-      address: priced.value.customer.address,
-      delivery_zone: priced.value.deliveryZone,
-      subtotal_bdt: priced.value.subtotalBdt,
-      delivery_bdt: priced.value.deliveryBdt,
-      total_bdt: priced.value.totalBdt,
-      payment_method: priced.value.paymentMethod,
-    };
+    const result = await supabaseRpc(env, "oc_create_order_with_items", {
+      p_order: {
+        public_reference: ids.publicReference,
+        idempotency_scope_hash: scopeHash,
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        lookup_token_hash: ids.lookupTokenHash,
+        customer_name: priced.value.customer.name,
+        phone: priced.value.customer.phone,
+        district: priced.value.customer.district,
+        area: priced.value.customer.area || null,
+        address: priced.value.customer.address,
+        delivery_zone: priced.value.deliveryZone,
+        subtotal_bdt: priced.value.subtotalBdt,
+        delivery_bdt: priced.value.deliveryBdt,
+        total_bdt: priced.value.totalBdt,
+        payment_method: priced.value.paymentMethod,
+      },
+      p_items: itemRows,
+    });
 
-    const [orderResult] = await supabasePost(env, "oc_orders", orderRow);
-    const orderId = orderResult.id;
-
-    // ── Persist line items ──
-    const itemRows = [];
-    for (const line of priced.value.lines) {
-      const product = catalogueResult.value.get(line.productId);
-      const variantUuid = await resolveVariantUuid(env, line.productId, line.variantId, catalogueResult.value);
-      const variant = line.variantId ? product?.variants?.find(v => v.id === line.variantId) : null;
-      itemRows.push({
-        order_id: orderId,
-        product_id: line.productId,
-        variant_id: variantUuid,
-        product_title_snapshot: product?.title || "Product",
-        variant_snapshot: variant ? { size: variant.size, colour: variant.colour } : {},
-        unit_price_bdt: line.unitPriceBdt,
-        quantity: line.quantity,
-        line_total_bdt: line.lineTotalBdt,
+    if (result.replay) {
+      return json(res, 200, {
+        status: result.status,
+        publicReference: result.public_reference,
+        subtotalBdt: result.subtotal_bdt,
+        deliveryBdt: result.delivery_bdt,
+        totalBdt: result.total_bdt,
+        replay: true,
       });
-    }
-
-    if (itemRows.length > 0) {
-      await supabasePost(env, "oc_order_items", itemRows);
     }
 
     return json(res, 201, {
@@ -266,9 +250,8 @@ export default async function handler(req, res) {
       paymentMethod: priced.value.paymentMethod,
     });
   } catch (err) {
-    // Handle unique constraint violation (idempotency race)
-    if (err.code === "23505") {
-      return error(res, 409, "Duplicate order detected. Please retry with a new Idempotency-Key.");
+    if (err.code === "23505" || /IDEMPOTENCY_CONFLICT/.test(err.message || "")) {
+      return error(res, 409, "This Idempotency-Key has already been used with a different order.");
     }
     console.error("Order persistence error:", err.message);
     return error(res, 500, "Order could not be saved. Please try again.");

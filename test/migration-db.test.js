@@ -690,6 +690,118 @@ describe("oc_order_items foreign keys", () => {
   });
 });
 
+// ── Atomic order-creation RPC ──────────────────────────────────
+// oc_create_order_with_items (see supabase/migrations/202611010001_*.sql)
+// replaces two separate inserts from api/orders.js with one atomic call,
+// so an order can never end up saved with missing line items, and so a
+// failed idempotency lookup can't "fail open" into an unchecked insert.
+
+describe("oc_create_order_with_items RPC", () => {
+  function orderArg(overrides = {}) {
+    return {
+      public_reference: "OC-RPC-TEST-DEFAULT01",
+      idempotency_scope_hash: "9".repeat(64),
+      idempotency_key: "rpc-test-key-default-01",
+      request_fingerprint: "8".repeat(64),
+      lookup_token_hash: "7".repeat(64),
+      customer_name: "RPC Test Customer",
+      phone: "+8801234567890",
+      district: "Dhaka",
+      area: null,
+      address: "RPC Test Street, Area 9",
+      delivery_zone: "inside",
+      subtotal_bdt: 500,
+      delivery_bdt: 60,
+      total_bdt: 560,
+      payment_method: "cod",
+      ...overrides,
+    };
+  }
+
+  const itemArg = () => [{
+    product_id: "test-house-ok",
+    variant_id: "",
+    product_title_snapshot: "House Product",
+    variant_snapshot: {},
+    unit_price_bdt: 500,
+    quantity: 1,
+    line_total_bdt: 500,
+  }];
+
+  test("creates the order and its line item atomically", async (t) => {
+    if (!requireDb(t)) return;
+    const { rows } = await query(
+      `select public.oc_create_order_with_items($1, $2) as result`,
+      [orderArg(), JSON.stringify(itemArg())]
+    );
+    const result = rows[0].result;
+    assert.equal(result.replay, false);
+    assert.equal(result.public_reference, "OC-RPC-TEST-DEFAULT01");
+
+    const items = await query(
+      `select count(*) as cnt from oc_order_items where order_id = $1`,
+      [result.id]
+    );
+    assert.equal(Number(items.rows[0].cnt), 1, "line item should be saved with the order");
+  });
+
+  test("rolls back the order if an item insert fails (no orphaned order)", async (t) => {
+    if (!requireDb(t)) return;
+    const badItem = [{ ...itemArg()[0], product_id: "nonexistent-product" }];
+    await assert.rejects(() =>
+      query(
+        `select public.oc_create_order_with_items($1, $2) as result`,
+        [orderArg({
+          public_reference: "OC-RPC-TEST-ROLLBACK1",
+          idempotency_key: "rpc-test-key-rollback-1",
+        }), JSON.stringify(badItem)]
+      )
+    );
+    const orphan = await query(
+      `select count(*) as cnt from oc_orders where public_reference = 'OC-RPC-TEST-ROLLBACK1'`
+    );
+    assert.equal(Number(orphan.rows[0].cnt), 0, "order must not exist when its item insert failed");
+  });
+
+  test("replays an identical request instead of creating a duplicate", async (t) => {
+    if (!requireDb(t)) return;
+    const arg = orderArg({
+      public_reference: "OC-RPC-TEST-REPLAY001",
+      idempotency_key: "rpc-test-key-replay-01",
+    });
+    const first = await query(`select public.oc_create_order_with_items($1, $2) as result`, [arg, JSON.stringify(itemArg())]);
+    const second = await query(`select public.oc_create_order_with_items($1, $2) as result`, [arg, JSON.stringify(itemArg())]);
+
+    assert.equal(first.rows[0].result.replay, false);
+    assert.equal(second.rows[0].result.replay, true);
+    assert.equal(second.rows[0].result.id, first.rows[0].result.id);
+
+    const count = await query(
+      `select count(*) as cnt from oc_orders where idempotency_key = 'rpc-test-key-replay-01'`
+    );
+    assert.equal(Number(count.rows[0].cnt), 1, "a replay must not create a second order row");
+  });
+
+  test("rejects a reused idempotency key with a different order (conflict)", async (t) => {
+    if (!requireDb(t)) return;
+    const arg = orderArg({
+      public_reference: "OC-RPC-TEST-CONFLICT1",
+      idempotency_key: "rpc-test-key-conflict-1",
+    });
+    await query(`select public.oc_create_order_with_items($1, $2) as result`, [arg, JSON.stringify(itemArg())]);
+
+    const differentFingerprint = orderArg({
+      public_reference: "OC-RPC-TEST-CONFLICT2",
+      idempotency_key: "rpc-test-key-conflict-1", // same key
+      request_fingerprint: "6".repeat(64), // different fingerprint
+    });
+    await assert.rejects(
+      () => query(`select public.oc_create_order_with_items($1, $2) as result`, [differentFingerprint, JSON.stringify(itemArg())]),
+      { message: /IDEMPOTENCY_CONFLICT/ }
+    );
+  });
+});
+
 // ── Cleanup ───────────────────────────────────────────────────
 
 describe("cleanup test data", () => {

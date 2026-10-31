@@ -66,7 +66,25 @@ export async function supabaseGet(env, table, query = "") {
 }
 
 /**
- * Execute raw SQL via Supabase's /rest/v1/rpc endpoint.
- * Requires `rpc` function on the database — but since we can't create those
- * without a migration, we'll use the PostgREST insert approach instead.
+ * Call a Postgres function (stored procedure) via Supabase's /rest/v1/rpc
+ * endpoint. PostgREST runs the whole function call as one transaction, so
+ * this is how multi-table writes that must succeed or fail together (e.g.
+ * creating an order and its line items) are kept atomic.
  */
+export async function supabaseRpc(env, functionName, params) {
+  const url = `${supabaseUrl(env)}/rest/v1/rpc/${functionName}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = data?.message || data?.error || `Supabase ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.code = data?.code;
+    throw err;
+  }
+  return data;
+}
