@@ -124,3 +124,57 @@ test("never returns a 200 'order placed' response when the database isn't config
     if (hadServiceRoleKey) process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey; else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   }
 });
+
+test("a replayed order still returns a usable lookupToken and the paymentMethod", async () => {
+  // oc_create_order_with_items (see its migration) rotates the stored
+  // lookup_token_hash to the current request's hash on every replay and
+  // now also returns payment_method, so a customer who retries after a
+  // lost response can still look their order up later and the checkout
+  // UI's confirmation screen shows the right payment instructions. This
+  // tests that api/orders.js actually forwards both fields from the RPC
+  // result rather than only doing so on a fresh (non-replay) order.
+  const originalFetch = globalThis.fetch;
+  const hadBusinessKoroKey = Object.hasOwn(process.env, "BUSINESSKORO_API_KEY");
+  const originalBusinessKoroKey = process.env.BUSINESSKORO_API_KEY;
+  const hadServiceRoleKey = Object.hasOwn(process.env, "SUPABASE_SERVICE_ROLE_KEY");
+  const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.BUSINESSKORO_API_KEY = "test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.includes("/rpc/oc_create_order_with_items")) {
+      return new Response(JSON.stringify({
+        replay: true,
+        id: "11111111-1111-1111-1111-111111111111",
+        public_reference: "OC-REPLAYED1",
+        subtotal_bdt: 1199,
+        delivery_bdt: 60,
+        total_bdt: 1259,
+        status: "pending_review",
+        payment_method: "bkash",
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    // Business Koro feed call
+    return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    const res = makeRes();
+    const req = makeReq({
+      body: {
+        ...makeReq().body,
+        paymentMethod: "bkash",
+        items: [{ productId: "hoodie-meow", variantId: "m-pink", quantity: 1 }],
+      },
+    });
+    await handler(req, res);
+    assert.equal(res._status, 200);
+    assert.equal(res._body.replay, true);
+    assert.equal(res._body.publicReference, "OC-REPLAYED1");
+    assert.equal(res._body.paymentMethod, "bkash");
+    assert.ok(res._body.lookupToken, "a replay must still hand back a usable lookup token");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (hadBusinessKoroKey) process.env.BUSINESSKORO_API_KEY = originalBusinessKoroKey; else delete process.env.BUSINESSKORO_API_KEY;
+    if (hadServiceRoleKey) process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey; else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+});

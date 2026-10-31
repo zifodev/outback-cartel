@@ -224,12 +224,19 @@ export default async function handler(req, res) {
     });
 
     if (result.replay) {
+      // The RPC just rotated this order's stored lookup token to the one
+      // generated for *this* request (ids.lookupToken) — see its migration
+      // for why. Hand that one back, exactly like a fresh success, so a
+      // customer retrying after a lost response doesn't end up unable to
+      // look their order up later.
       return json(res, 200, {
         status: result.status,
         publicReference: result.public_reference,
+        lookupToken: ids.lookupToken,
         subtotalBdt: result.subtotal_bdt,
         deliveryBdt: result.delivery_bdt,
         totalBdt: result.total_bdt,
+        paymentMethod: result.payment_method,
         replay: true,
       });
     }
