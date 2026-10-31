@@ -22,9 +22,8 @@ function withEnv(vars, fn) {
     if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
   return (async () => {
-    try {
-      return await fn();
-    } finally {
+    try { return await fn(); }
+    finally {
       for (const [k, { had, value }] of Object.entries(saved)) {
         if (had) process.env[k] = value; else delete process.env[k];
       }
@@ -32,45 +31,48 @@ function withEnv(vars, fn) {
   })();
 }
 
-test("rejects status updates without the admin password", async () => {
-  await withEnv({ ADMIN_PASSWORD: "a-long-enough-admin-password" }, async () => {
+const sameOrigin = { origin: "https://shop.example", host: "shop.example" };
+
+test("rejects status updates without a verified Supabase admin session", async () => {
+  await withEnv({ ADMIN_EMAILS: "owner@example.com", SUPABASE_ANON_KEY: "test-public-key" }, async () => {
     const res = makeRes();
-    await handler({ method: "POST", headers: {}, body: {} }, res);
+    await handler({ method: "POST", headers: sameOrigin, body: {} }, res);
     assert.equal(res._status, 401);
   });
 });
 
-test("never forwards a client-supplied actorId to the audit trail — always records a fixed server identity", async () => {
-  // There is only one shared ADMIN_PASSWORD today, not per-admin accounts,
-  // so the actor recorded in the permanent oc_order_events audit trail must
-  // never be whatever the request body claims — see api/admin/orders.js
-  // and the admin_update_order_status migration for why.
-  await withEnv({ ADMIN_PASSWORD: "a-long-enough-admin-password", SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key" }, async () => {
+test("never forwards a client-supplied actorId — audit identity comes from verified Supabase user", async () => {
+  await withEnv({
+    ADMIN_EMAILS: "owner@example.com",
+    SUPABASE_URL: "https://project.supabase.co",
+    SUPABASE_ANON_KEY: "test-public-key",
+    SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
+  }, async () => {
     const originalFetch = globalThis.fetch;
     let rpcBody = null;
     globalThis.fetch = async (url, options = {}) => {
       const href = String(url);
+      if (href.endsWith("/auth/v1/user")) {
+        assert.equal(options.headers.Authorization, "Bearer " + "a".repeat(80));
+        return new Response(JSON.stringify({ id: "admin-1", email: "owner@example.com" }), { status: 200 });
+      }
       if (href.includes("/rpc/admin_update_order_status")) {
         rpcBody = JSON.parse(options.body);
-        return new Response(JSON.stringify([{ id: "order-1", status: "confirmed" }]), {
-          status: 200, headers: { "Content-Type": "application/json" },
-        });
+        return new Response(JSON.stringify([{ id: "order-1", status: "confirmed" }]), { status: 200 });
       }
-      // The pre-check lookup of the order's current status.
-      return new Response(JSON.stringify([{ id: "order-1", status: "pending_review" }]), {
-        status: 200, headers: { "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify([{ id: "order-1", status: "pending_review" }]), { status: 200 });
     };
     try {
       const res = makeRes();
       await handler({
         method: "POST",
-        headers: { authorization: "Bearer a-long-enough-admin-password" },
+        headers: { ...sameOrigin, cookie: "oc_admin_session=" + "a".repeat(80) },
         body: { orderId: "order-1", newStatus: "confirmed", actorId: "attacker-chosen-name" },
       }, res);
       assert.equal(res._status, 200);
       assert.ok(rpcBody, "the RPC must have been called");
-      assert.equal(rpcBody.p_actor_id, "admin", "a client-supplied actorId must never reach the audit trail");
+      assert.equal(rpcBody.p_actor_id, "admin:owner@example.com");
+      assert.notEqual(rpcBody.p_actor_id, "attacker-chosen-name");
     } finally {
       globalThis.fetch = originalFetch;
     }

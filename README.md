@@ -88,6 +88,19 @@ The Supabase migration under `supabase/migrations/` is a draft only. Do not appl
 
 GitHub Actions runs dependency installation, automated tests and a Vite production build for the configured branches and pull requests targeting `main`.
 
+## Admin authentication
+
+The admin panel at `/admin` uses Supabase email OTP and an explicit server-side email allowlist. It does not use a shared admin password or browser storage for credentials.
+
+Configure these Vercel environment variables for the relevant preview/production environments:
+- `ADMIN_EMAILS` — comma-separated list of authorised admin email addresses. Only existing Supabase Auth users on this list can sign in.
+- `SUPABASE_ANON_KEY` — the project's publishable/anon key used by the server-side Auth OTP endpoints (not the service-role key).
+- `SUPABASE_URL` — optional; defaults to this project's URL.
+
+The admin API verifies the HttpOnly session cookie against Supabase Auth on every request. The cookie is Secure on HTTPS, HttpOnly, SameSite=Strict and scoped to `/api/admin`. It contains only the short-lived access token; the refresh token is never placed in browser storage. Admins must request a new email code after the access token expires. Order status audit events use the verified admin email, never a client-supplied actor ID.
+
+Before enabling this on a deployment, add the intended admin email(s) to `ADMIN_EMAILS` and ensure those accounts already exist in Supabase Auth. Configure the Supabase Magic Link/OTP email template to send the six-digit `{{ .Token }}` code.
+
 ## Deployment safety
 
 - Work on a development branch and use preview deployments for verification.

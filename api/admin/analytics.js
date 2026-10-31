@@ -2,11 +2,11 @@
 // table (page views, add-to-carts, WhatsApp clicks, campaign/product
 // breakdowns) for the admin panel's Analytics tab.
 //
-// Protected by ADMIN_PASSWORD env var, same as api/admin/orders.js.
+// Protected by the same verified Supabase Auth session as the orders API.
 // This file runs as a Vercel serverless function.
 
 import { supabaseGet } from "../_lib/supabase.js";
-import { isAdminAuthenticated } from "../_lib/admin-auth.js";
+import { getAdminSession } from "../_lib/admin-auth.js";
 
 export const config = { maxDuration: 15 };
 
@@ -34,7 +34,14 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "GET, OPTIONS");
     return err(res, 405, "Method not allowed");
   }
-  if (!isAdminAuthenticated(req)) return err(res, 401, "Unauthorized");
+  let admin;
+  try {
+    admin = await getAdminSession(req);
+  } catch (e) {
+    console.error("Admin session verification failed:", e.message);
+    return err(res, 503, "Authentication service unavailable");
+  }
+  if (!admin) return err(res, 401, "Unauthorized");
 
   const env = process.env;
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return err(res, 503, "Database is not configured");
