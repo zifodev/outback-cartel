@@ -119,6 +119,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
   }
 
   function headers() { return { "Content-Type": "application/json" }; }
+  const esc = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("\\'","&#39;");
   async function authRequest(body) {
     const res = await fetch("/api/admin/auth", { method:"POST", credentials:"same-origin", headers:headers(), body:JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
@@ -200,9 +201,9 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
       <div class="login">
         <h1>🔒 Admin</h1>
         <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Outback Cartel order management</p>
-        ${error ? `<div class="error">${error}</div>` : ""}
+        ${error ? `<div class="error">${esc(error)}</div>` : ""}
         ${otpRequested ? `
-          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Enter the six-digit code sent to ${adminEmail}.</p>
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Enter the six-digit code sent to ${esc(adminEmail)}.</p>
           <form id="verifyForm">
             <input type="text" id="otpInput" placeholder="6-digit email code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
             <button type="submit" class="btn btn-primary" style="width:100%" ${authBusy?"disabled":""}>${authBusy?"Verifying…":"Verify and sign in"}</button>
