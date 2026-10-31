@@ -8,6 +8,7 @@
 // This file runs as a Vercel serverless function.
 
 import { productsResponse } from "./_lib/products-core.js";
+import { HOUSE_PRODUCTS } from "./_lib/house-products.js";
 import { validateOrderPayload, priceValidatedOrder } from "./_lib/order-validation.js";
 import {
   createOrderIdentifiers,
@@ -29,8 +30,30 @@ const json = (res, status, body) => {
 
 const error = (res, status, message) => json(res, status, { error: message });
 
+/** Build the { id, available, size, colour } variant list for a product's colors × sizes. */
+function buildVariants(colors, sizes) {
+  const variants = [];
+  if (colors.length > 0 && sizes.length > 0) {
+    for (const color of colors) {
+      for (const size of sizes) {
+        variants.push({ id: `${size}-${color}`.toLowerCase(), available: true, size, colour: color });
+      }
+    }
+  } else if (colors.length > 0) {
+    for (const color of colors) {
+      variants.push({ id: String(color).toLowerCase(), available: true, size: null, colour: color });
+    }
+  } else if (sizes.length > 0) {
+    for (const size of sizes) {
+      variants.push({ id: String(size).toLowerCase(), available: true, size, colour: null });
+    }
+  }
+  return variants;
+}
+
 /**
- * Build a trusted product Map from the live approved catalogue.
+ * Build a trusted product Map from the live approved supplier catalogue plus our own
+ * house-brand products (HOUSE_PRODUCTS — not part of the supplier feed; see house-products.js).
  * Includes product titles for order-item snapshots.
  * Returns { ok, value?, reason? }.
  */
@@ -41,33 +64,26 @@ async function loadTrustedCatalogue(env) {
   }
 
   const catalogue = new Map();
+
+  for (const product of HOUSE_PRODUCTS) {
+    catalogue.set(product.id, {
+      approved: true,
+      active: true,
+      priceBdt: product.price,
+      title: product.name,
+      variants: buildVariants(product.colors || [], product.sizes || []),
+    });
+  }
+
   for (const product of feed.body.products) {
     const colors = Array.isArray(product.colors) ? product.colors : [];
     const sizes = Array.isArray(product.sizes) ? product.sizes : [];
-    const variants = [];
-    if (colors.length > 0 || sizes.length > 0) {
-      if (colors.length > 0 && sizes.length > 0) {
-        for (const color of colors) {
-          for (const size of sizes) {
-            variants.push({ id: `${size}-${color}`.toLowerCase(), available: true, size, colour: color });
-          }
-        }
-      } else if (colors.length > 0) {
-        for (const color of colors) {
-          variants.push({ id: String(color).toLowerCase(), available: true, size: null, colour: color });
-        }
-      } else {
-        for (const size of sizes) {
-          variants.push({ id: String(size).toLowerCase(), available: true, size, colour: null });
-        }
-      }
-    }
     catalogue.set(product.id, {
       approved: true,
       active: true,
       priceBdt: product.price,
       title: product.name || product.title || "Product",
-      variants,
+      variants: buildVariants(colors, sizes),
     });
   }
   return { ok: true, value: catalogue };
