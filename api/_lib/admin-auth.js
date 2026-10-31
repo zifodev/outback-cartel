@@ -125,7 +125,7 @@ export async function revokeAdminSession(req, env = process.env) {
 
 export function isSameOriginRequest(req) {
   const origin = req.headers?.origin;
-  const host = req.headers?.["x-forwarded-host"] || req.headers?.host;
+  const host = req.headers?.host || req.headers?.["x-forwarded-host"];
   if (!origin || !host) return false;
   try {
     const parsed = new URL(origin);
