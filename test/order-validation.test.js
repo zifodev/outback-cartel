@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateOrderPayload, priceValidatedOrder } from "../api/_lib/order-validation.js";
+import { validateOrderPayload, priceValidatedOrder, DELIVERY_FEES_BDT } from "../api/_lib/order-validation.js";
 
 const payload = (overrides = {}) => ({
   deliveryZone: "inside",
@@ -109,6 +109,93 @@ test("rejects unsafe integer totals from the trusted catalogue", () => {
     ["hoodie-1", { ...catalogue.get("hoodie-1"), priceBdt: Number.MAX_SAFE_INTEGER }],
   ]);
   assert.equal(priceValidatedOrder(validated, hugePrice).ok, false);
+});
+
+// ── Additional edge-case coverage ──
+
+test("strips control characters from customer name and address", () => {
+  const result = validateOrderPayload(payload({
+    customer: { ...payload().customer, name: "Test\x00\x01Buyer", address: "Road 4\x0D\x0AHouse 10" },
+  }));
+  assert.equal(result.ok, true);
+  assert.ok(!result.value.customer.name.includes("\x00"));
+  assert.ok(!result.value.customer.address.includes("\x0D"));
+});
+
+test("rejects quantity zero and negative quantities", () => {
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: 0 }] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: -1 }] })).ok, false);
+});
+
+test("rejects NaN and Infinity quantities", () => {
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: NaN }] })).ok, false);
+  assert.equal(validateOrderPayload(payload({ items: [{ productId: "hoodie-1", quantity: Infinity }] })).ok, false);
+});
+
+test("rejects more than 30 unique cart lines", () => {
+  const items = Array.from({ length: 31 }, (_, i) => ({ productId: `p-${i}`, quantity: 1 }));
+  assert.equal(validateOrderPayload(payload({ items })).ok, false);
+});
+
+test("accepts exactly 30 unique cart lines", () => {
+  const items = Array.from({ length: 30 }, (_, i) => ({ productId: `p-${i}`, quantity: 1 }));
+  assert.equal(validateOrderPayload(payload({ items })).ok, true);
+});
+
+test("rejects phone numbers that are too short or contain letters", () => {
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "+880171" } })).ok, false);
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "abc12345678901" } })).ok, false);
+});
+
+test("accepts valid Bangladesh phone numbers in various formats", () => {
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "+8801712345678" } })).ok, true);
+  assert.equal(validateOrderPayload(payload({ customer: { ...payload().customer, phone: "01712345678" } })).ok, true);
+});
+
+test("truncates extremely long customer names and addresses", () => {
+  const result = validateOrderPayload(payload({
+    customer: { ...payload().customer, name: "A".repeat(200), address: "B".repeat(500) },
+  }));
+  assert.equal(result.ok, true);
+  assert.ok(result.value.customer.name.length <= 100);
+  assert.ok(result.value.customer.address.length <= 300);
+});
+
+test("priceValidatedOrder rejects inactive and non-integer priced products", () => {
+  const validated = validateOrderPayload(payload());
+  const inactive = new Map([["hoodie-1", { approved: true, active: false, priceBdt: 1199, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, inactive).ok, false);
+  const floatPrice = new Map([["hoodie-1", { approved: true, active: true, priceBdt: 11.99, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, floatPrice).ok, false);
+  const zeroPrice = new Map([["hoodie-1", { approved: true, active: true, priceBdt: 0, variants: [{ id: "large-black", available: true }] }]]);
+  assert.equal(priceValidatedOrder(validated, zeroPrice).ok, false);
+});
+
+test("priceValidatedOrder rejects non-Map catalogue input", () => {
+  const validated = validateOrderPayload(payload());
+  assert.equal(priceValidatedOrder(validated, {}).ok, false);
+  assert.equal(priceValidatedOrder(validated, null).ok, false);
+  assert.equal(priceValidatedOrder(validated, []).ok, false);
+});
+
+test("priceValidatedOrder always sets paymentMethod to cod", () => {
+  const validated = validateOrderPayload(payload());
+  const priced = priceValidatedOrder(validated, catalogue);
+  assert.equal(priced.ok, true);
+  assert.equal(priced.value.paymentMethod, "cod");
+});
+
+test("delivery fee constants are frozen and cannot be modified", () => {
+  assert.throws(() => { DELIVERY_FEES_BDT.inside = 0; }, TypeError);
+  assert.throws(() => { DELIVERY_FEES_BDT.newZone = 50; }, TypeError);
+});
+
+test("client-supplied fields beyond the schema are not carried through", () => {
+  const result = validateOrderPayload({ ...payload(), total: 9999, discount: 50, coupon: "HACK" });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.total, undefined);
+  assert.equal(result.value.discount, undefined);
+  assert.equal(result.value.coupon, undefined);
 });
 
 test("draft order schema enables RLS and revokes browser-role table access", async () => {

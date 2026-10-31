@@ -92,3 +92,120 @@ test("rejects malformed idempotency fingerprints", () => {
   assert.throws(() => classifyIdempotencyRecord(null, "bad"), TypeError);
   assert.throws(() => classifyIdempotencyRecord("bad", "a".repeat(64)), TypeError);
 });
+
+// ── Additional edge-case coverage ──
+
+test("public references are exactly OC- followed by 16 uppercase hex chars", () => {
+  for (let i = 0; i < 20; i++) {
+    const ids = createOrderIdentifiers();
+    assert.match(ids.publicReference, /^OC-[A-F0-9]{16}$/);
+    assert.equal(ids.publicReference.length, 19);
+  }
+});
+
+test("lookup tokens are exactly 43 base64url characters with no padding", () => {
+  for (let i = 0; i < 20; i++) {
+    const ids = createOrderIdentifiers();
+    assert.match(ids.lookupToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.ok(!ids.lookupToken.includes("="), "token must not include padding");
+    assert.ok(!ids.lookupToken.includes("+"), "token must not include + (base64 not base64url)");
+    assert.ok(!ids.lookupToken.includes("/"), "token must not include / (base64 not base64url)");
+  }
+});
+
+test("lookup token hash is irreversible and deterministic", () => {
+  const ids = createOrderIdentifiers();
+  const hash1 = hashLookupToken(ids.lookupToken);
+  const hash2 = hashLookupToken(ids.lookupToken);
+  assert.equal(hash1, hash2, "same token must produce the same hash");
+  assert.notEqual(hash1, ids.lookupToken, "hash must differ from the token");
+  assert.equal(hash1.length, 64, "SHA-256 hex digest is 64 chars");
+});
+
+test("hashLookupToken rejects tokens with base64 standard alphabet characters", () => {
+  // 43 chars but using + and / which are base64, not base64url
+  assert.throws(() => hashLookupToken("AAAAAAAAAAAAAAAAAAA+AAAAAAAAAAAAAAAAAAA/AAAA"), TypeError);
+});
+
+test("idempotency key validation boundary values", () => {
+  assert.equal(isValidIdempotencyKey("x".repeat(15)), false, "15 chars is too short");
+  assert.equal(isValidIdempotencyKey("x".repeat(16)), true, "16 chars is the minimum");
+  assert.equal(isValidIdempotencyKey("x".repeat(200)), true, "200 chars is the maximum");
+  assert.equal(isValidIdempotencyKey("x".repeat(201)), false, "201 chars is too long");
+});
+
+test("idempotency key rejects control characters, whitespace and special chars", () => {
+  assert.equal(isValidIdempotencyKey("valid-key_with.dots:colons"), true);
+  assert.equal(isValidIdempotencyKey("key\twith\ttabs1234"), false);
+  assert.equal(isValidIdempotencyKey("key\nwith\nnewlines1"), false);
+  assert.equal(isValidIdempotencyKey("key with spaces 123"), false);
+  assert.equal(isValidIdempotencyKey("key/with/slashes123"), false);
+  assert.equal(isValidIdempotencyKey("key@with@at@signs1"), false);
+  assert.equal(isValidIdempotencyKey("key=with=equals123"), false);
+});
+
+test("readIdempotencyKey rejects non-object header inputs", () => {
+  assert.equal(readIdempotencyKey(undefined), null);
+  assert.equal(readIdempotencyKey(42), null);
+  assert.equal(readIdempotencyKey("string"), null);
+  assert.equal(readIdempotencyKey(true), null);
+  assert.equal(readIdempotencyKey([{ "idempotency-key": "valid-key-1234567890" }]), null);
+});
+
+test("hashOrderRequest rejects BigInt values", () => {
+  assert.throws(() => hashOrderRequest({ value: BigInt(42) }), TypeError);
+});
+
+test("hashOrderRequest rejects Symbol values", () => {
+  assert.throws(() => hashOrderRequest({ value: Symbol("test") }), TypeError);
+});
+
+test("hashOrderRequest rejects function values", () => {
+  assert.throws(() => hashOrderRequest({ callback: () => {} }), TypeError);
+});
+
+test("hashOrderRequest handles deeply nested objects consistently", () => {
+  const deep = { a: { b: { c: { d: { e: "value" } } } } };
+  const hash1 = hashOrderRequest(deep);
+  const hash2 = hashOrderRequest(deep);
+  assert.equal(hash1, hash2);
+  assert.match(hash1, /^[0-9a-f]{64}$/);
+});
+
+test("hashOrderRequest handles empty objects and arrays", () => {
+  const emptyObj = hashOrderRequest({});
+  const emptyArr = hashOrderRequest([]);
+  assert.match(emptyObj, /^[0-9a-f]{64}$/);
+  assert.match(emptyArr, /^[0-9a-f]{64}$/);
+  assert.notEqual(emptyObj, emptyArr, "empty object and array must produce different hashes");
+});
+
+test("hashOrderRequest rejects objects with non-plain prototypes", () => {
+  class Custom { constructor() { this.x = 1; } }
+  assert.throws(() => hashOrderRequest(new Custom()), TypeError);
+});
+
+test("hashIdempotencyScope rejects leading and trailing whitespace", () => {
+  assert.throws(() => hashIdempotencyScope("  valid-scope-id-12345  "), TypeError);
+  assert.throws(() => hashIdempotencyScope("\tvalid-scope-id-12345\t"), TypeError);
+  assert.throws(() => hashIdempotencyScope("\nvalid-scope-id-12345\n"), TypeError);
+});
+
+test("hashIdempotencyScope produces different hashes for different scopes", () => {
+  const scope1 = hashIdempotencyScope("customer-session-aaa");
+  const scope2 = hashIdempotencyScope("customer-session-bbb");
+  assert.notEqual(scope1, scope2);
+});
+
+test("classifyIdempotencyRecord treats undefined existing as new", () => {
+  assert.equal(classifyIdempotencyRecord(undefined, "a".repeat(64)), "new");
+});
+
+test("classifyIdempotencyRecord rejects empty string as existing fingerprint", () => {
+  assert.throws(() => classifyIdempotencyRecord("", "a".repeat(64)), TypeError);
+});
+
+test("classifyIdempotencyRecord rejects uppercase hex as fingerprint", () => {
+  assert.throws(() => classifyIdempotencyRecord(null, "A".repeat(64)), TypeError);
+  assert.throws(() => classifyIdempotencyRecord("A".repeat(64), "a".repeat(64)), TypeError);
+});
