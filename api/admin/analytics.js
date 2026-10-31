@@ -2,7 +2,7 @@
 // table (page views, add-to-carts, WhatsApp clicks, campaign/product
 // breakdowns) for the admin panel's Analytics tab.
 //
-// Protected by ADMIN_PASSWORD env var, same as api/admin/orders.js.
+// Protected by the same verified Supabase Auth session as the orders API.
 // This file runs as a Vercel serverless function.
 
 import { supabaseGet } from "../_lib/supabase.js";
