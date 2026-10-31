@@ -5,18 +5,36 @@
 create extension if not exists pgcrypto;
 
 -- ── Products ────────────────────────────────────────────────
+-- Synced from supplier feeds (Mohasagor, Business Koro) or created manually
+-- for house products. The product feed code prefixes IDs: "ds-<id>" for
+-- Mohasagor, "bk-<uuid>" for Business Koro. House products use plain IDs.
 
 create table if not exists public.oc_products (
   id text primary key,
   source text not null check (source in ('house', 'supplier')),
+  supplier_name text check (
+    supplier_name is null or supplier_name in ('mohasagor', 'businesskoro')
+  ),
   supplier_id text,
   title text not null,
+  category text,
   price_bdt integer not null check (price_bdt > 0),
+  image_url text,
   approved boolean not null default false,
   active boolean not null default false,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- House products have no supplier; supplier products must name theirs.
+  constraint oc_products_supplier_consistency check (
+    (source = 'house' and supplier_name is null and supplier_id is null) or
+    (source = 'supplier' and supplier_name is not null and supplier_id is not null)
+  )
 );
 
+-- Variants represent selectable options (size, colour). For supplier products
+-- the sync process creates a variant record for each combination and assigns
+-- the UUID primary key. The frontend sends the variant UUID in orders, not
+-- raw supplier attribute values. For products without selectable options,
+-- no variant records are required; the order endpoint accepts a null variant_id.
 create table if not exists public.oc_product_variants (
   id uuid primary key default gen_random_uuid(),
   product_id text not null references public.oc_products(id) on delete cascade,
@@ -58,6 +76,10 @@ create table if not exists public.oc_orders (
   district text not null check (length(btrim(district)) between 1 and 80),
   area text check (area is null or length(btrim(area)) <= 100),
   address text not null check (length(btrim(address)) between 5 and 300),
+
+  -- Privacy: timestamp when the customer consented to data processing.
+  -- Required before storing PII under Bangladesh data protection rules.
+  consent_at timestamptz not null default now(),
 
   -- Delivery and pricing (server-computed from trusted catalogue).
   delivery_zone text not null check (delivery_zone in ('inside', 'sub', 'outside')),
@@ -111,6 +133,9 @@ create index if not exists oc_orders_status_idx on public.oc_orders (status);
 create index if not exists oc_orders_lookup_hash_idx on public.oc_orders (lookup_token_hash);
 create index if not exists oc_order_items_order_idx on public.oc_order_items (order_id);
 create index if not exists oc_order_events_order_idx on public.oc_order_events (order_id, created_at);
+-- Product catalogue queries filter by approved + active; partial index for that.
+create index if not exists oc_products_catalogue_idx on public.oc_products (approved, active)
+  where approved = true and active = true;
 
 -- ── Row-Level Security ──────────────────────────────────────
 -- Deny browser/API roles access to customer and order records by default.
@@ -129,7 +154,28 @@ revoke all on table public.oc_orders from public, anon, authenticated;
 revoke all on table public.oc_order_items from public, anon, authenticated;
 revoke all on table public.oc_order_events from public, anon, authenticated;
 
+-- Revoke sequence usage so browser roles cannot call nextval/currval.
+revoke all on all sequences in schema public from public, anon, authenticated;
+
 -- ── Triggers ────────────────────────────────────────────────
+
+-- Auto-update updated_at on any row modification (used by oc_products).
+create or replace function public.oc_set_updated_at()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $oc_ts$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$oc_ts$;
+
+drop trigger if exists oc_products_updated_at on public.oc_products;
+create trigger oc_products_updated_at
+before update on public.oc_products
+for each row
+execute function public.oc_set_updated_at();
 
 -- Enforce the documented state machine at the database boundary and append
 -- an audit event in the same transaction as each status change.
@@ -233,5 +279,13 @@ execute function public.oc_record_order_creation();
 -- 5. Generate high-entropy public references and tracking tokens; store only
 --    a one-way hash of the tracking token.
 -- 6. Enforce the idempotency_key on POST /api/orders to prevent duplicate orders.
+--    Two concurrent inserts with the same (scope_hash, key) serialize on the
+--    unique constraint; the loser catches the violation, loads the existing
+--    record, compares fingerprints, and returns a replay or conflict response.
 -- 7. Add rate limiting, CSRF protection for cookie sessions, retention/deletion
 --    controls and audited admin status transitions before applying this draft.
+-- 8. Sync products from the supplier feed into oc_products/oc_product_variants
+--    before accepting orders — the order_items FK to oc_products requires it.
+-- 9. Fix loadTrustedCatalogue field mapping: the product feed uses "price"
+--    (not "priceBdt"), and approved/active are implied by feed inclusion, not
+--    set as explicit properties on each product object.

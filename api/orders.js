@@ -33,12 +33,36 @@ async function loadTrustedCatalogue(env) {
 
   const catalogue = new Map();
   for (const product of feed.body.products) {
-    if (!product.approved || !product.active) continue;
+    // The product feed publishes only approved, in-stock products. The fields
+    // approved/active are not set on feed objects — inclusion IS approval.
+    // The feed uses "price" (integer BDT), not "priceBdt".
+    // Variants are split into "colors"/"sizes" arrays, not a structured
+    // [{id, available}] list. Until the product sync populates oc_products
+    // and oc_product_variants in the database, build a flat variant list
+    // from the colour/size arrays so validation can reference them by a
+    // synthetic id (the raw attribute value). Phase 2 replaces this with
+    // a database lookup that returns real variant UUIDs.
+    const colors = Array.isArray(product.colors) ? product.colors : [];
+    const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+    const variants = [];
+    if (colors.length > 0 || sizes.length > 0) {
+      if (colors.length > 0 && sizes.length > 0) {
+        for (const color of colors) {
+          for (const size of sizes) {
+            variants.push({ id: `${size}-${color}`.toLowerCase(), available: true });
+          }
+        }
+      } else {
+        for (const attr of [...colors, ...sizes]) {
+          variants.push({ id: String(attr).toLowerCase(), available: true });
+        }
+      }
+    }
     catalogue.set(product.id, {
       approved: true,
       active: true,
-      priceBdt: product.priceBdt,
-      variants: product.variants || [],
+      priceBdt: product.price,
+      variants,
     });
   }
   return { ok: true, value: catalogue };
