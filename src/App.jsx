@@ -1190,10 +1190,11 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       if (sizeChoices(i).length && !picks[lineKey]?.size) e[`size-${lineKey}`] = "Choose a size";
       if (colourChoices(i).length > 1 && !picks[lineKey]?.color) e[`color-${lineKey}`] = "Choose a colour";
     });
-    if (!form.name.trim()) e.name = "Required";
+    if (form.name.trim().length < 2) e.name = "Enter your full name";
     if (!form.phone.trim()) e.phone = "Required";
+    else if (!/^[+\d][\d\s()+-]{7,30}$/.test(form.phone.trim())) e.phone = "Enter a valid phone number (e.g. 01XXXXXXXXX)";
     if (!form.district) e.district = "Required";
-    if (!form.address.trim()) e.address = "Required";
+    if (form.address.trim().length < 5) e.address = "Enter your full delivery address";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
