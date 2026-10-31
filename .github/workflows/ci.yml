@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, task-2-cloudflare-test]
+    branches: [main, task-2-cloudflare-test, feature/supabase-admin-auth]
 permissions:
   contents: read
 jobs:
