@@ -1,7 +1,7 @@
 name: CI
 on:
   pull_request:
-    branches: [main]
+    branches: [main, task-2-cloudflare-test]
   push:
     branches: [main, task-2-cloudflare-test, feature/supabase-admin-auth]
 permissions:
