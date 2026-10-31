@@ -81,7 +81,7 @@ async function handleList(req, res, env) {
 }
 
 async function handleStatusUpdate(req, res, env) {
-  const { orderId, newStatus, actorId } = req.body || {};
+  const { orderId, newStatus } = req.body || {};
 
   if (!orderId || !newStatus) {
     return err(res, 400, "orderId and newStatus are required");
@@ -110,7 +110,13 @@ async function handleStatusUpdate(req, res, env) {
 
   // Call the admin_update_order_status RPC which sets app.actor_id
   // inside the transaction so the status-guard trigger is satisfied.
-  const actor = actorId || "admin";
+  // The actor id is recorded permanently in the append-only oc_order_events
+  // audit trail, so it must never come from the request body — there is
+  // only one shared ADMIN_PASSWORD today (not per-admin accounts), so
+  // "admin" is the only identity we can honestly attribute this to. Once
+  // individual admin accounts exist, this should become that verified
+  // identity, not a value the caller gets to choose.
+  const actor = "admin";
   try {
     const rpcUrl = `${supabaseUrl(env)}/rest/v1/rpc/admin_update_order_status`;
     const headers = supabaseHeaders(env);
