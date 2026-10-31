@@ -6,7 +6,7 @@
 
 import { supabaseGet, supabaseHeaders, supabaseUrl } from "../_lib/supabase.js";
 import { canTransitionOrderStatus, getAllowedOrderTransitions } from "../_lib/order-status.js";
-import { isAdminAuthenticated } from "../_lib/admin-auth.js";
+import { getAdminSession, isSameOriginRequest } from "../_lib/admin-auth.js";
 
 export const config = { maxDuration: 15 };
 
@@ -24,9 +24,18 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  if (!isAdminAuthenticated(req)) {
-    return err(res, 401, "Unauthorized");
+  if (req.method === "POST" && !isSameOriginRequest(req)) {
+    return err(res, 403, "Cross-origin request rejected");
   }
+
+  let admin;
+  try {
+    admin = await getAdminSession(req);
+  } catch (e) {
+    console.error("Admin session verification failed:", e.message);
+    return err(res, 503, "Authentication service unavailable");
+  }
+  if (!admin) return err(res, 401, "Unauthorized");
 
   const env = process.env;
 
@@ -108,15 +117,9 @@ async function handleStatusUpdate(req, res, env, admin) {
     return err(res, 422, `Cannot transition from "${current.status}" to "${newStatus}"`);
   }
 
-  // Call the admin_update_order_status RPC which sets app.actor_id
-  // inside the transaction so the status-guard trigger is satisfied.
-  // The actor id is recorded permanently in the append-only oc_order_events
-  // audit trail, so it must never come from the request body — there is
-  // only one shared ADMIN_PASSWORD today (not per-admin accounts), so
-  // "admin" is the only identity we can honestly attribute this to. Once
-  // individual admin accounts exist, this should become that verified
-  // identity, not a value the caller gets to choose.
-  const actor = "admin";
+  // Attribute the audit event to the identity verified by Supabase Auth.
+  // Never accept actor identity from the request body.
+  const actor = `admin:${admin.email}`;
   try {
     const rpcUrl = `${supabaseUrl(env)}/rest/v1/rpc/admin_update_order_status`;
     const headers = supabaseHeaders(env);
