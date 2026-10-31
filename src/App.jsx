@@ -1643,6 +1643,49 @@ function ShowroomSlot({ fallback, ...props }) {
   );
 }
 
+// Homepage hero — the first thing a visitor sees. Text and motion only (no
+// new photography/video), scrolls straight into the shop below.
+function HomeHero() {
+  const explore = () => {
+    const el = document.getElementById("oc-shop");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <section className="oc-hero">
+      <div className="oc-hero-in">
+        <p className="oc-hero-kicker">{CONFIG.STORE_NAME}</p>
+        <h1>Wear Your Identity.</h1>
+        <p className="oc-hero-sub">Discover the collection. Find your style.</p>
+        <button className="oc-hero-cta" onClick={explore}>Explore Collection <span aria-hidden="true">→</span></button>
+      </div>
+    </section>
+  );
+}
+
+// Honest trust section — only claims we can actually stand behind (no fake
+// reviews, no invented guarantees). Expands the old inline .oc-trust strip.
+function WhyShopWithUs() {
+  const items = [
+    { t: "Nationwide delivery", d: "All 64 districts of Bangladesh — timing is confirmed with you on WhatsApp right after you order." },
+    { t: "Cash on delivery", d: "Pay when your order arrives at your door — mobile wallets also accepted." },
+    { t: "Real product photos", d: "What you see is what you get — our own photos, not stock images." },
+    { t: "WhatsApp support", d: `${CONFIG.WHATSAPP_DISPLAY} — text only, answered by a real person.` },
+  ];
+  return (
+    <section className="oc-why">
+      <div className="oc-sec"><h2>Why shop with us</h2><i aria-hidden="true" /></div>
+      <div className="oc-why-grid">
+        {items.map(it => (
+          <div className="oc-why-card" key={it.t}>
+            <div className="oc-why-t">{it.t}</div>
+            <div className="oc-why-d">{it.d}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, search, setSearch }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => { setVisible(PAGE_SIZE); }, [activeCat, search]);
@@ -1653,6 +1696,7 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
   const left = filtered.length - visible;
   return (
     <div>
+      <HomeHero />
       <ShowroomSlot hoodies={HOUSE_HOODIES} onAdd={onAdd} onBuyNow={onBuyNow}
         onDetails={id => { const p = products.find(x => x.id === id); if (p) onView(p); }}
         onShopAll={() => scrollTo("oc-shop")}
@@ -1685,6 +1729,7 @@ function ShopPage({ products, onAdd, onView, onBuyNow, activeCat, onCatChange, s
           </>
         )}
       </div>
+      <WhyShopWithUs />
     </div>
   );
 }

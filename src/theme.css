@@ -328,6 +328,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--star) !important
   .oc-trust { gap: 4px 18px; font-size: 13px; }
 }
 
+/* ── Homepage hero ───────────────────────────────────────── */
+.oc-hero { position: relative; overflow: hidden; padding: 100px 20px 88px; text-align: center; color: #fff; background: var(--grad-deep); }
+.oc-hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--horizon); opacity: .7; }
+.oc-hero-in { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; animation: ocHeroIn .8s cubic-bezier(.2, .8, .3, 1) both; }
+.oc-hero-kicker { margin: 0 0 14px; font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgba(255, 255, 255, .55); }
+.oc-hero h1 { margin: 0 0 16px; font-stretch: 125%; font-weight: 800; font-size: clamp(38px, 7vw, 74px); line-height: 1.02; text-transform: uppercase; letter-spacing: .005em; }
+.oc-hero-sub { margin: 0 0 30px; font-size: clamp(15px, 2vw, 18px); color: rgba(255, 255, 255, .72); line-height: 1.6; }
+.oc-hero-cta { display: inline-flex; align-items: center; gap: 10px; border: 0; border-radius: 999px; background: var(--earth); color: #fff; font-size: 15px; font-weight: 700; padding: 14px 30px; cursor: pointer; transition: transform .15s, filter .15s; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 14px 34px -16px rgba(208, 56, 31, .85); }
+.oc-hero-cta:hover { filter: brightness(1.08); transform: translateY(-2px); }
+.oc-hero-cta span { display: inline-block; transition: transform .2s; }
+.oc-hero-cta:hover span { transform: translateX(3px); }
+@keyframes ocHeroIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .oc-hero-in { animation: none; } }
+@media (max-width: 640px) { .oc-hero { padding: 72px 18px 54px; } }
+
+/* ── Why shop with us ────────────────────────────────────── */
+.oc-why { max-width: 1240px; margin: 36px auto 0; padding: 0 18px 56px; }
+.oc-why-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.oc-why-card { background: var(--surface); border-radius: 16px; padding: 20px 20px 22px; box-shadow: inset 0 0 0 1px var(--line); }
+.oc-why-t { font-size: 15px; font-weight: 700; color: var(--star); margin-bottom: 8px; }
+.oc-why-d { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+@media (max-width: 640px) { .oc-why { margin-top: 20px; padding-bottom: 36px; } }
+
 /* ── Info pages ──────────────────────────────────────────── */
 .oc-pagehero { position: relative; overflow: hidden; padding: 58px 20px 46px; text-align: center; color: #fff; background: radial-gradient(70% 120% at 50% 0%, #34312D, #151412 70%); }
 .oc-pagehero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--horizon); opacity: .7; }
