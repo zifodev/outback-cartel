@@ -676,8 +676,24 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
   const isHoodie = product.cat === "hoodies";
   const waReview = `https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(`Review for ${product.name}: ⭐ _/5 — `)}`;
 
+  // Size/colour — mandatory wherever the product actually has options, and
+  // resets whenever the viewed product changes (same reset pattern as pic).
+  const [variantSel, setVariantSel] = useState({ id: null, size: null, colour: null });
+  const curSel = variantSel.id === product.id ? variantSel : { id: product.id, size: null, colour: null };
+  const setVariant = patch => setVariantSel({ ...curSel, ...patch, id: product.id });
+  const sizes = sizeChoices(product), colours = colourChoices(product);
+  const needsSize = sizes.length > 0, needsColour = colours.length > 1;
+  const resolvedColour = curSel.colour || (colours.length === 1 ? colours[0] : null);
+  const variantReady = (!needsSize || curSel.size) && (!needsColour || curSel.colour);
+  const variantSuffix = (needsSize && curSel.size && needsColour && curSel.colour) ? ` · ${curSel.colour} (${curSel.size})`
+    : curSel.size ? ` (${curSel.size})`
+    : (needsColour && curSel.colour) ? ` · ${curSel.colour}`
+    : "";
+  const withVariant = p => ({ ...p, name: `${p.name}${variantSuffix}`, selectedSize: curSel.size || null, selectedColour: resolvedColour });
+
   const handleAdd = () => {
-    onAdd(product, qty);
+    if (!variantReady) return;
+    onAdd(withVariant(product), qty);
     setAddedMsg(true);
     setTimeout(() => setAddedMsg(false), 2000);
   };
@@ -764,6 +780,38 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               ))}
             </div>
 
+            {/* Size / Colour — mandatory wherever this product actually has options */}
+            {(needsSize || needsColour) && (
+              <div>
+                {needsSize && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Size {!curSel.size && <span style={{ color: C.hot }}>*</span>}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {sizes.map(s => (
+                        <button key={s} onClick={() => setVariant({ size: s })} aria-pressed={curSel.size === s}
+                          style={{ padding: "6px 14px", borderRadius: 8, border: `2px solid ${curSel.size === s ? C.primary : C.border}`, background: curSel.size === s ? C.primary : "var(--surface)", color: curSel.size === s ? "#fff" : C.dark, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {needsColour && (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Colour {!curSel.colour && <span style={{ color: C.hot }}>*</span>}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {colours.map(c => (
+                        <button key={c} onClick={() => setVariant({ colour: c })} aria-pressed={curSel.colour === c}
+                          style={{ padding: "6px 14px", borderRadius: 8, border: `2px solid ${curSel.colour === c ? C.primary : C.border}`, background: curSel.colour === c ? C.primary : "var(--surface)", color: curSel.colour === c ? "#fff" : C.dark, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Qty + Buttons */}
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
@@ -777,17 +825,22 @@ function ProductDetailPage({ product, onAdd, onBuyNow, onBack }) {
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={handleAdd} disabled={!priced}
-                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "var(--gum)" : "transparent", color: addedMsg ? "#fff" : C.dark, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
+                <button onClick={handleAdd} disabled={!priced || !variantReady}
+                  style={{ opacity: (priced && variantReady) ? 1 : .45, cursor: (priced && variantReady) ? "pointer" : "not-allowed", flex: 1, background: addedMsg ? "var(--gum)" : "transparent", color: addedMsg ? "#fff" : C.dark, border: `2px solid ${addedMsg ? C.green : C.primary}`, borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit", transition: "all .2s" }}>
                   {addedMsg ? "✅ Added!" : "🛒 Add to Cart"}
                 </button>
-                <button onClick={() => { onAdd(product, qty); onBuyNow(); }} disabled={!priced}
-                  style={{ opacity: priced ? 1 : .45, cursor: priced ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
+                <button onClick={() => { if (!variantReady) return; onAdd(withVariant(product), qty); onBuyNow(); }} disabled={!priced || !variantReady}
+                  style={{ opacity: (priced && variantReady) ? 1 : .45, cursor: (priced && variantReady) ? "pointer" : "not-allowed", flex: 1, background: C.primary, color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 14, fontWeight: 700, fontFamily: "inherit" }}>
                   ⚡ Buy Now
                 </button>
               </div>
+              {priced && !variantReady && (
+                <div style={{ fontSize: 12, color: C.hot, marginTop: 8 }}>
+                  Please choose {needsSize && !curSel.size ? "a size" : ""}{needsSize && !curSel.size && needsColour && !curSel.colour ? " and " : ""}{needsColour && !curSel.colour ? "a colour" : ""} before adding to cart.
+                </div>
+              )}
 
-              <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20I%20want%20to%20order:%20${encodeURIComponent(product.name)}`} target="_blank" rel="noreferrer"
+              <a href={`https://wa.me/${CONFIG.WHATSAPP}?text=Hi!%20I%20want%20to%20order:%20${encodeURIComponent(product.name + variantSuffix)}`} target="_blank" rel="noreferrer"
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 10, background: "#25D366", color: "#05210F", textDecoration: "none", padding: "12px", borderRadius: 12, fontSize: 14, fontWeight: 700, boxSizing: "border-box" }}>
                 💬 Order via WhatsApp
               </a>
@@ -979,6 +1032,10 @@ function ProductCard({ p, onAdd, onView }) {
   const disc = p.old && p.price > 0 ? Math.round((1 - p.price / p.old) * 100) : 0;
   const catLabel = CATS.find(c => c.key === p.cat)?.label;
   const priced = p.price > 0;
+  // Quick-add skips any size/colour picker, so a product with real options
+  // (more than one size, or more than one colour) sends the shopper to the
+  // product page to choose instead of silently adding an unspecified variant.
+  const hasVariants = sizeChoices(p).length > 0 || colourChoices(p).length > 1;
   return (
     <article className="ocp-card">
       {(p.badge || disc > 0) && (
@@ -1002,7 +1059,7 @@ function ProductCard({ p, onAdd, onView }) {
         </button>
         {/* Action buttons */}
         <div className="ocp-btns">
-          <button className="ocp-add" onClick={() => priced ? onAdd(p) : onView(p)} style={{ opacity: priced ? 1 : .5 }}>Add to cart</button>
+          <button className="ocp-add" onClick={() => (priced && !hasVariants) ? onAdd(p) : onView(p)} style={{ opacity: priced ? 1 : .5 }}>{priced && hasVariants ? "Choose options" : "Add to cart"}</button>
           <button className="ocp-view" onClick={() => onView(p)}>View</button>
         </div>
       </div>
