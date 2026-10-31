@@ -228,7 +228,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
       } else {
         html += `<table class="an-table"><thead><tr><th>Source</th><th>Campaign</th><th>Page views</th><th>Add to carts</th><th>WhatsApp clicks</th></tr></thead><tbody>`;
         for (const c of analytics.campaigns) {
-          html += `<tr><td>${c.source}</td><td>${c.campaign}</td><td>${fmtCompact(c.page_view)}</td><td>${fmtCompact(c.add_to_cart)}</td><td>${fmtCompact(c.whatsapp_click)}</td></tr>`;
+          html += `<tr><td>${esc(c.source)}</td><td>${esc(c.campaign)}</td><td>${fmtCompact(c.page_view)}</td><td>${fmtCompact(c.add_to_cart)}</td><td>${fmtCompact(c.whatsapp_click)}</td></tr>`;
         }
         html += `</tbody></table>`;
       }
@@ -240,7 +240,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
       } else {
         html += `<table class="an-table"><thead><tr><th>Product</th><th>Add to carts</th></tr></thead><tbody>`;
         for (const p of analytics.products) {
-          html += `<tr><td>${p.name}</td><td>${fmtCompact(p.add_to_cart)}</td></tr>`;
+          html += `<tr><td>${esc(p.name)}</td><td>${fmtCompact(p.add_to_cart)}</td></tr>`;
         }
         html += `</tbody></table>`;
       }
@@ -249,7 +249,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
       if (analytics.dailySeries && analytics.dailySeries.length) {
         html += `<div class="an-section"><h2>By day</h2><table class="an-table"><thead><tr><th>Date</th><th>Page views</th><th>Add to carts</th></tr></thead><tbody>`;
         for (const d of [...analytics.dailySeries].reverse()) {
-          html += `<tr><td>${d.day}</td><td>${fmtCompact(d.page_view)}</td><td>${fmtCompact(d.add_to_cart)}</td></tr>`;
+          html += `<tr><td>${esc(d.day)}</td><td>${fmtCompact(d.page_view)}</td><td>${fmtCompact(d.add_to_cart)}</td></tr>`;
         }
         html += `</tbody></table></div>`;
       }
@@ -299,14 +299,14 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
         const expanded = expandedIds.has(o.id);
         const badge = `badge-${o.status.replace("pending_review","pending")}`;
         html += `<div class="order-card">
-          <div class="order-header" data-toggle="${o.id}">
+          <div class="order-header" data-toggle="${esc(o.id)}">
             <div style="display:flex;align-items:center;gap:10px">
-              <span class="order-ref">${o.public_reference}</span>
+              <span class="order-ref">${esc(o.public_reference)}</span>
               <span class="badge ${badge}">${STATUS_LABELS[o.status]||o.status}</span>
             </div>
             <div class="order-meta">
               <span>${fmt(o.total_bdt)}</span>
-              <span>${o.customer_name}</span>
+              <span>${esc(o.customer_name)}</span>
               <span>${timeSince(o.created_at)}</span>
               <span>${expanded?"▲":"▼"}</span>
             </div>
@@ -314,12 +314,12 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
         if (expanded) {
           html += `<div class="order-body">
             <dl class="cust-grid">
-              <dt>Customer</dt><dd>${o.customer_name}</dd>
-              <dt>Phone</dt><dd>${o.phone}</dd>
-              <dt>District</dt><dd>${o.district}${o.area?", "+o.area:""}</dd>
-              <dt>Address</dt><dd>${o.address}</dd>
-              <dt>Zone</dt><dd>${o.delivery_zone}</dd>
-              <dt>Payment</dt><dd>${o.payment_method.toUpperCase()}</dd>
+              <dt>Customer</dt><dd>${esc(o.customer_name)}</dd>
+              <dt>Phone</dt><dd>${esc(o.phone)}</dd>
+              <dt>District</dt><dd>${esc(o.district)}${o.area?", "+o.area:""}</dd>
+              <dt>Address</dt><dd>${esc(o.address)}</dd>
+              <dt>Zone</dt><dd>${esc(o.delivery_zone)}</dd>
+              <dt>Payment</dt><dd>${esc(o.payment_method).toUpperCase()}</dd>
             </dl>
             <table>
               <thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
@@ -327,7 +327,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
                 ${(o.items||[]).map(i=>{
                   const vs = i.variant_snapshot||{};
                   const vt = [vs.size,vs.colour].filter(Boolean).join(", ")||"—";
-                  return `<tr><td>${i.product_title_snapshot}</td><td>${vt}</td><td>${i.quantity}</td><td>${fmt(i.unit_price_bdt)}</td><td>${fmt(i.line_total_bdt)}</td></tr>`;
+                  return `<tr><td>${esc(i.product_title_snapshot)}</td><td>${esc(vt)}</td><td>${i.quantity}</td><td>${fmt(i.unit_price_bdt)}</td><td>${fmt(i.line_total_bdt)}</td></tr>`;
                 }).join("")}
               </tbody>
               <tfoot>
@@ -336,7 +336,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
                 <tr><td colspan="4" style="text-align:right;font-weight:800;font-size:14px">Total</td><td style="font-weight:800;font-size:14px">${fmt(o.total_bdt)}</td></tr>
               </tfoot>
             </table>
-            ${(STATUS_ACTIONS[o.status]||[]).length ? `<div class="actions">${(STATUS_ACTIONS[o.status]||[]).map(([s,l])=>`<button class="btn btn-sm btn-primary" data-action="${o.id}:${s}">${l}</button>`).join("")}</div>` : ""}
+            ${(STATUS_ACTIONS[o.status]||[]).length ? `<div class="actions">${(STATUS_ACTIONS[o.status]||[]).map(([s,l])=>`<button class="btn btn-sm btn-primary" data-action="${esc(o.id)}:${s}">${l}</button>`).join("")}</div>` : ""}
           </div>`;
         }
         html += `</div>`;

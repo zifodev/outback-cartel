@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     return handleList(req, res, env);
   }
   if (req.method === "POST") {
-    return handleStatusUpdate(req, res, env);
+    return handleStatusUpdate(req, res, env, admin);
   }
   res.setHeader("Allow", "GET, POST, OPTIONS");
   return err(res, 405, "Method not allowed");
@@ -80,7 +80,7 @@ async function handleList(req, res, env) {
   }
 }
 
-async function handleStatusUpdate(req, res, env) {
+async function handleStatusUpdate(req, res, env, admin) {
   const { orderId, newStatus } = req.body || {};
 
   if (!orderId || !newStatus) {
