@@ -81,3 +81,14 @@ export function hashIdempotencyScope(scopeIdentifier) {
   }
   return createHash("sha256").update(scopeIdentifier, "utf8").digest("hex");
 }
+
+// Pure decision helper for the database adapter after it has atomically claimed
+// or loaded (scope hash, key). The adapter must still enforce uniqueness and
+// serialize concurrent requests inside one database transaction.
+export function classifyIdempotencyRecord(existingFingerprint, requestFingerprint) {
+  const isFingerprint = value => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+  if (!isFingerprint(requestFingerprint)) throw new TypeError("A valid request fingerprint is required.");
+  if (existingFingerprint == null) return "new";
+  if (!isFingerprint(existingFingerprint)) throw new TypeError("The stored request fingerprint is invalid.");
+  return existingFingerprint === requestFingerprint ? "replay" : "conflict";
+}
