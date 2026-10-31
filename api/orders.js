@@ -127,7 +127,7 @@ export default async function handler(req, res) {
   // ── Validate order structure ──
   const validated = validateOrderPayload(body);
   if (!validated.ok) {
-    return error(res, 400, validated.reason);
+    return error(res, 400, validated.error);
   }
 
   // ── Load trusted catalogue ──
@@ -141,10 +141,10 @@ export default async function handler(req, res) {
   // ── Resolve trusted prices ──
   const priced = priceValidatedOrder(validated, catalogueResult.value);
   if (!priced.ok) {
-    const status = priced.reason?.includes("not found") || priced.reason?.includes("not approved")
+    const status = priced.error?.includes("not found") || priced.error?.includes("not approved")
       ? 404
       : 422;
-    return error(res, status, priced.reason);
+    return error(res, status, priced.error);
   }
 
   // ── Generate identifiers and fingerprint ──
