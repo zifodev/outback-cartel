@@ -119,7 +119,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
   }
 
   function headers() { return { "Content-Type": "application/json" }; }
-  const esc = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("\\'","&#39;");
+  const esc = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll(String.fromCharCode(39),"&#39;");
   async function authRequest(body) {
     const res = await fetch("/api/admin/auth", { method:"POST", credentials:"same-origin", headers:headers(), body:JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
