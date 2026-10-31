@@ -72,7 +72,10 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
 (function(){
   const $ = id => document.getElementById(id);
   const app = $("app");
-  let password = sessionStorage.getItem("oc_admin_pw") || "";
+  let authenticated = false;
+  let adminEmail = "";
+  let otpRequested = false;
+  let authBusy = false;
   let orders = [];
   let filter = "all";
   let loading = false;
@@ -115,15 +118,19 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     return d.toLocaleDateString("en-AU",{day:"numeric",month:"short"});
   }
 
-  function headers() {
-    return { "Content-Type": "application/json", "X-Admin-Password": password };
+  function headers() { return { "Content-Type": "application/json" }; }
+  async function authRequest(body) {
+    const res = await fetch("/api/admin/auth", { method:"POST", credentials:"same-origin", headers:headers(), body:JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Authentication failed");
+    return data;
   }
 
   async function fetchOrders() {
     loading = true; error = ""; render();
     try {
       const res = await fetch("/api/admin/orders", { headers: headers() });
-      if (res.status === 401) { password = ""; sessionStorage.removeItem("oc_admin_pw"); error = "Wrong password"; loading = false; render(); return; }
+      if (res.status === 401) { authenticated = false; adminEmail = ""; error = "Your session expired. Sign in again."; loading = false; render(); return; }
       if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || res.status); }
       const data = await res.json();
       orders = data.orders || [];
@@ -135,7 +142,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     analyticsLoading = true; analyticsError = ""; render();
     try {
       const res = await fetch(`/api/admin/analytics?days=${analyticsDays}`, { headers: headers() });
-      if (res.status === 401) { password = ""; sessionStorage.removeItem("oc_admin_pw"); analyticsError = "Wrong password"; analyticsLoading = false; render(); return; }
+      if (res.status === 401) { authenticated = false; adminEmail = ""; analyticsError = "Your session expired. Sign in again."; analyticsLoading = false; render(); return; }
       if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || res.status); }
       analytics = await res.json();
     } catch(e) { analyticsError = e.message; }
@@ -146,7 +153,7 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     try {
       const res = await fetch("/api/admin/orders", {
         method: "POST", headers: headers(),
-        body: JSON.stringify({ orderId, newStatus, actorId: "admin" }),
+        body: JSON.stringify({ orderId, newStatus }),
       });
       const data = await res.json().catch(()=>({}));
       if (!res.ok) { alert("Error: " + (data.error || res.status)); return; }
@@ -154,17 +161,33 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
     } catch(e) { alert("Network error: " + e.message); }
   }
 
-  function login(pw) {
-    password = pw;
-    sessionStorage.setItem("oc_admin_pw", pw);
-    fetchOrders();
+  async function requestCode(email) {
+    authBusy = true; error = ""; render();
+    try { await authRequest({ action:"request", email }); adminEmail = email.trim().toLowerCase(); otpRequested = true; }
+    catch (e) { error = e.message; }
+    authBusy = false; render();
   }
-
-  function logout() {
-    password = "";
-    sessionStorage.removeItem("oc_admin_pw");
-    orders = [];
-    render();
+  async function verifyCode(email, code) {
+    authBusy = true; error = ""; render();
+    try {
+      const data = await authRequest({ action:"verify", email, token:code });
+      authenticated = true; adminEmail = data.email || email.trim().toLowerCase();
+      otpRequested = false; orders = []; analytics = null;
+      await fetchOrders();
+    } catch (e) { error = e.message; }
+    authBusy = false; render();
+  }
+  async function logout() {
+    try { await authRequest({ action:"logout" }); } catch { /* clear local UI regardless */ }
+    authenticated = false; adminEmail = ""; otpRequested = false; orders = []; analytics = null; render();
+  }
+  async function checkSession() {
+    try {
+      const res = await fetch("/api/admin/auth", { credentials:"same-origin", cache:"no-store" });
+      const data = await res.json();
+      if (res.ok && data.authenticated) { authenticated = true; adminEmail = data.email; await fetchOrders(); return; }
+    } catch { /* show sign-in form */ }
+    authenticated = false; render();
   }
 
   function toggleExpand(id) {
@@ -178,13 +201,29 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
         <h1>🔒 Admin</h1>
         <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Outback Cartel order management</p>
         ${error ? `<div class="error">${error}</div>` : ""}
-        <form id="loginForm">
-          <input type="password" id="pwInput" placeholder="Admin password" autocomplete="current-password">
-          <button type="submit" class="btn btn-primary" style="width:100%">Sign in</button>
-        </form>
+        ${otpRequested ? `
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Enter the six-digit code sent to ${adminEmail}.</p>
+          <form id="verifyForm">
+            <input type="text" id="otpInput" placeholder="6-digit email code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+            <button type="submit" class="btn btn-primary" style="width:100%" ${authBusy?"disabled":""}>${authBusy?"Verifying…":"Verify and sign in"}</button>
+          </form>
+          <button class="refresh" id="backBtn" style="margin-top:12px">Use another email</button>
+        ` : `
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px">Sign in with an authorised admin email. We'll send you a one-time code.</p>
+          <form id="loginForm">
+            <input type="email" id="emailInput" placeholder="Admin email address" autocomplete="email" required maxlength="254">
+            <button type="submit" class="btn btn-primary" style="width:100%" ${authBusy?"disabled":""}>${authBusy?"Sending…":"Send sign-in code"}</button>
+          </form>
+        `}
       </div>`;
-    $("loginForm").onsubmit = e => { e.preventDefault(); login($("pwInput").value); };
-    $("pwInput").focus();
+    if (otpRequested) {
+      $("verifyForm").onsubmit = e => { e.preventDefault(); verifyCode(adminEmail, $("otpInput").value); };
+      $("backBtn").onclick = () => { otpRequested = false; error = ""; render(); };
+      $("otpInput").focus();
+    } else {
+      $("loginForm").onsubmit = e => { e.preventDefault(); requestCode($("emailInput").value); };
+      $("emailInput").focus();
+    }
   }
 
   function tabsHtml() {
@@ -365,12 +404,12 @@ select.filter{background:var(--bg);color:var(--text);border:1px solid var(--bord
   }
 
   function render() {
-    if (!password) { renderLogin(); return; }
+    if (!authenticated) { renderLogin(); return; }
     if (tab === "analytics") renderAnalytics(); else renderOrders();
   }
 
   render();
-  if (password) fetchOrders();
+  checkSession();
 })();
 </script>
 </body>
