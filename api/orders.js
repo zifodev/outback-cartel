@@ -168,18 +168,14 @@ export default async function handler(req, res) {
   const scopeHash = hashIdempotencyScope(validated.value.customer.phone.padEnd(16, "0"));
 
   // ── Check if database is configured ──
+  // This must be a hard failure, never a 200. The checkout UI treats any
+  // res.ok response as "order placed" and shows the customer a reference
+  // number and a WhatsApp-advance prompt — so a 200 here with no row ever
+  // written would be a false order confirmation. Fail the same way the
+  // admin endpoints already do when the database isn't configured.
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    // Fallback: validation-only mode (no database)
-    return json(res, 200, {
-      status: "accepted_for_review",
-      publicReference: ids.publicReference,
-      subtotalBdt: priced.value.subtotalBdt,
-      deliveryBdt: priced.value.deliveryBdt,
-      totalBdt: priced.value.totalBdt,
-      itemCount: priced.value.lines.length,
-      paymentMethod: priced.value.paymentMethod,
-      notice: "Order validation succeeded. Database is not configured — this order has not been saved.",
-    });
+    console.error("Order rejected: SUPABASE_SERVICE_ROLE_KEY is not configured — orders cannot be persisted.");
+    return error(res, 503, "Orders cannot be placed right now. Please try again shortly or message us on WhatsApp.");
   }
 
   // ── Build line-item rows (variant UUID lookups) ──

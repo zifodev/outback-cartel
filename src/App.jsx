@@ -1128,6 +1128,15 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
   const [step, setStep] = useState("form");  // "form" → "submitting" → "confirmed" | "error"
   const [orderResult, setOrderResult] = useState(null); // server response on success
   const [submitError, setSubmitError] = useState("");
+  // One idempotency key per order attempt, not per request: regenerated each
+  // time the modal is freshly opened, but kept stable across "Try again"
+  // retries of the same attempt. Without this, a retry after a dropped
+  // response (order actually saved, but the confirmation never arrived)
+  // would get a new key and create a second, duplicate order.
+  const idempotencyKeyRef = useRef(null);
+  useEffect(() => {
+    if (open) idempotencyKeyRef.current = makeIdempotencyKey();
+  }, [open]);
   const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const zone = DELIVERY_ZONES.find(z => z.k === form.zone) || null;
   const free = sub >= FREE_DELIVERY_FROM;
@@ -1188,7 +1197,7 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
       };
       const res = await fetch("/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": makeIdempotencyKey() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current || makeIdempotencyKey() },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
@@ -1196,6 +1205,11 @@ function CheckoutModal({ cart, open, onClose, onClearCart, account }) {
         setOrderResult(data);
         setStep("confirmed");
       } else {
+        // A 409 means this exact key was already used for a *different*
+        // order (e.g. the cart/details changed since the previous attempt).
+        // Retrying with the same key would just conflict forever, so start
+        // the next attempt fresh.
+        if (res.status === 409) idempotencyKeyRef.current = makeIdempotencyKey();
         setSubmitError(data.error || `Something went wrong (${res.status}). Please try again.`);
         setStep("error");
       }
