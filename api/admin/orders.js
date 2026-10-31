@@ -1,7 +1,7 @@
 // GET  /api/admin/orders — list orders (most recent first)
 // POST /api/admin/orders — update order status via RPC
 //
-// Protected by ADMIN_PASSWORD env var (simple bearer token).
+// Protected by a verified Supabase Auth session and server-side admin allowlist.
 // This file runs as a Vercel serverless function.
 
 import { supabaseGet, supabaseHeaders, supabaseUrl } from "../_lib/supabase.js";
